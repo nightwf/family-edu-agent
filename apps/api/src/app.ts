@@ -4,11 +4,13 @@ import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
+import crypto from "node:crypto";
 import { prisma } from "./prisma.js";
 import { env } from "./env.js";
 import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
 import { WORKBUDDY_PROMPT } from "./workbuddy-prompt.js";
+import { saveFile } from "./storage.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -28,7 +30,7 @@ export async function buildApp() {
 
   await app.register(cors, { origin: true });
   await app.register(jwt, { secret: env.JWT_SECRET });
-  await app.register(multipart);
+  await app.register(multipart, { attachFieldsToBody: true });
   await app.register(fastifyStatic, { root: path.resolve(process.cwd(), env.WEB_DIST), prefix: "/" });
 
   app.get("/api/health", async () => ({ ok: true, service: "family-edu-agent" }));
@@ -267,6 +269,29 @@ export async function buildApp() {
         source: body.source || "workbuddy",
         fileKey: body.file_key || "",
         knowledgePoints: Array.isArray(body.knowledge_points) ? body.knowledge_points : [],
+      },
+    });
+  });
+
+  app.post("/api/textbooks/upload", { preHandler: requireAuth as any }, async (request, reply) => {
+    const file = await (request as any).file();
+    if (!file) return reply.code(400).send({ error: "缺少教材文件" });
+    const familyId = getAuth(request).familyId;
+    const body = request.body as any;
+    const buffer = await file.toBuffer();
+    const key = `textbooks/${familyId}/${crypto.randomUUID()}-${file.filename}`;
+    const fileKey = await saveFile(key, buffer, file.mimetype);
+    return prisma.textbook.create({
+      data: {
+        familyId,
+        childId: body.child_id,
+        title: body.title || file.filename,
+        subject: body.subject,
+        grade: body.grade,
+        publisher: body.publisher,
+        version: body.version,
+        fileKey,
+        knowledgePoints: [],
       },
     });
   });

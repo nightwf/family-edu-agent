@@ -151,7 +151,15 @@ function App() {
   async function submitTextbook(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    await request("/api/textbooks", { method: "POST", body: form }, token);
+    const file = form.get("file");
+    if (file instanceof File && file.size > 0) {
+      await request("/api/textbooks/upload", { method: "POST", body: form }, token);
+    } else {
+      await request("/api/textbooks", {
+        method: "POST",
+        body: JSON.stringify(Object.fromEntries(form.entries())),
+      }, token);
+    }
     setTextbookDialog(false);
     await load();
   }
@@ -407,6 +415,7 @@ function App() {
             <input name="grade" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年级" />
             <input name="publisher" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="出版社" />
             <input name="version" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="版本" />
+            <input name="file" type="file" className="w-full rounded-lg border border-stone-200 px-3 py-2" />
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setTextbookDialog(false)} className="rounded-lg border border-stone-200 px-3 py-2">取消</button>
               <button className="rounded-lg bg-accent px-4 py-2 text-white">导入</button>

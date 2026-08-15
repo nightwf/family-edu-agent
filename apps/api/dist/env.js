@@ -7,4 +7,10 @@ export const env = {
     WEB_DIST: process.env.WEB_DIST || "public",
     MCP_TOKEN: process.env.MCP_TOKEN || "",
     MCP_FAMILY_ID: process.env.MCP_FAMILY_ID || "family_001",
+    S3_ENDPOINT: process.env.S3_ENDPOINT || "",
+    S3_ACCESS_KEY: process.env.S3_ACCESS_KEY || "",
+    S3_SECRET_KEY: process.env.S3_SECRET_KEY || "",
+    S3_BUCKET: process.env.S3_BUCKET || "family-edu-files",
+    S3_USE_SSL: process.env.S3_USE_SSL === "true",
+    STORAGE_DIR: process.env.STORAGE_DIR || "/app/storage",
 };
