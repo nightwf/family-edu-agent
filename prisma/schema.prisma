@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Family {
+  id          String   @id @default(cuid())
+  name        String
+  inviteCode  String
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+  children    Child[]
+  records     Record[]
+  reports     Report[]
+  textbooks   Textbook[]
+  homework    Homework[]
+  knowledge   KnowledgeItem[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  familyId     String
+  family       Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  email        String   @unique
+  passwordHash String
+  role         String   @default("parent")
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  sessions     Session[]
+}
+
+model Child {
+  id             String   @id @default(cuid())
+  familyId       String
+  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name           String
+  age            Int?
+  grade          String
+  subjects       String[]
+  textbookVersion String?
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  records        Record[]
+  reports        Report[]
+  textbooks      Textbook[]
+  homework       Homework[]
+  knowledge      KnowledgeItem[]
+}
+
+model Record {
+  id        String   @id @default(cuid())
+  familyId  String
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId   String
+  child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  type      String
+  date      DateTime
+  title     String
+  content   String?
+  score     Int?
+  notes     String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  familyId    String
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId     String
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  type        String
+  periodStart DateTime
+  periodEnd   DateTime
+  title       String
+  summary     String?
+  metrics     Json?
+  content     String?
+  createdAt   DateTime @default(now())
+}
+
+model Textbook {
+  id              String   @id @default(cuid())
+  familyId        String
+  family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId         String
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  title           String
+  subject         String?
+  grade           String?
+  publisher       String?
+  version         String?
+  source          String   @default("workbuddy")
+  fileKey         String?
+  chapters        Json?
+  knowledgePoints String[]
+  status          String   @default("ready")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Homework {
+  id               String    @id @default(cuid())
+  familyId         String
+  family           Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId          String
+  child            Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  subject          String?
+  title            String
+  description      String?
+  estimatedMinutes Int?
+  priority         String    @default("medium")
+  dueDate          DateTime?
+  status           String    @default("pending")
+  difficulty       String?
+  source           String    @default("workbuddy")
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model KnowledgeItem {
+  id        String   @id @default(cuid())
+  familyId  String
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId   String
+  child     Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  content   String
+  source    String   @default("workbuddy")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  revokedAt        DateTime?
+}

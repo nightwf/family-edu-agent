@@ -1,0 +1,315 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  BookOpen,
+  Check,
+  ClipboardCheck,
+  Copy,
+  Edit,
+  LayoutDashboard,
+  Library,
+  LogOut,
+  Plus,
+  RefreshCw,
+  Settings,
+  Trash,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+
+type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
+type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
+type Knowledge = { id: string; childId: string; kind: string; title: string; content: string; createdAt: string };
+type Textbook = { id: string; childId: string; title: string; subject?: string; publisher?: string; version?: string; status: string };
+type HomeData = { children: Child[]; reports: any[]; textbooks: Textbook[]; knowledge: Knowledge[]; homework: Homework[]; stats: any };
+
+const PAGES = [
+  { id: "home", label: "首页", icon: LayoutDashboard },
+  { id: "students", label: "学生", icon: Users },
+  { id: "reports", label: "报告成长", icon: TrendingUp },
+  { id: "textbooks", label: "教材", icon: BookOpen },
+  { id: "homework", label: "作业", icon: ClipboardCheck },
+  { id: "knowledge", label: "知识库", icon: Library },
+  { id: "settings", label: "设置", icon: Settings },
+];
+
+const apiBase = location.pathname.startsWith("/family-edu/") ? "/family-edu" : "";
+
+async function request(path: string, options: RequestInit = {}, token?: string) {
+  const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body && !(options.body instanceof FormData) && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  const response = await fetch(`${apiBase}${path}`, { ...options, headers });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "请求失败");
+  return data;
+}
+
+function childName(children: Child[], childId: string) {
+  return children.find((child) => child.id === childId)?.name || "-";
+}
+
+function App() {
+  const [token, setToken] = useState(localStorage.getItem("familyEduToken") || "");
+  const [page, setPage] = useState("home");
+  const [home, setHome] = useState<HomeData | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [error, setError] = useState("");
+
+  async function load() {
+    if (!token) return;
+    const data = await request("/api/home", {}, token);
+    setHome(data);
+  }
+
+  useEffect(() => {
+    load().catch(() => {});
+  }, [token]);
+
+  function saveToken(next: string) {
+    localStorage.setItem("familyEduToken", next);
+    setToken(next);
+  }
+
+  async function login(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      const data = await request("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      });
+      saveToken(data.token);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function register(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      const data = await request("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          inviteCode: form.get("inviteCode"),
+          email: form.get("email"),
+          password: form.get("password"),
+        }),
+      });
+      saveToken(data.token);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function logout() {
+    await request("/api/auth/logout", { method: "POST" }, token).catch(() => {});
+    localStorage.removeItem("familyEduToken");
+    setToken("");
+  }
+
+  const activePage = PAGES.find((item) => item.id === page)!;
+  const ActiveIcon = activePage.icon;
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-lg border border-stone-200 bg-panel p-6 shadow-sm">
+          <div className="flex gap-2">
+            <button onClick={() => setAuthMode("login")} className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold ${authMode === "login" ? "bg-teal text-white" : "bg-stone-100"}`}>登录</button>
+            <button onClick={() => setAuthMode("register")} className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold ${authMode === "register" ? "bg-teal text-white" : "bg-stone-100"}`}>邀请码注册</button>
+          </div>
+          {authMode === "login" ? (
+            <form onSubmit={login} className="mt-5 space-y-4">
+              <input name="email" defaultValue="jojo@example.com" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邮箱" />
+              <input name="password" type="password" defaultValue="123456" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="密码" />
+              <button className="w-full rounded-lg bg-accent px-4 py-2 text-white">登录</button>
+            </form>
+          ) : (
+            <form onSubmit={register} className="mt-5 space-y-4">
+              <input name="inviteCode" defaultValue="HE-2026" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邀请码" />
+              <input name="email" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邮箱" />
+              <input name="password" type="password" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="密码" />
+              <button className="w-full rounded-lg bg-accent px-4 py-2 text-white">注册并登录</button>
+            </form>
+          )}
+          {error && <p className="mt-3 text-sm text-accent">{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-cream">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-panel/90 px-4 py-3">
+        <div className="flex items-center gap-2 font-bold">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold text-ink">禾</span>
+          <span>禾芽家庭教务</span>
+        </div>
+        <button onClick={logout} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"><LogOut size={16} />退出登录</button>
+      </header>
+
+      <div className="flex flex-col md:flex-row">
+        <aside className="grid grid-cols-4 gap-2 border-b border-stone-200 bg-[#23353b] p-3 text-white md:flex md:min-h-screen md:w-56 md:flex-col md:border-b-0">
+          {PAGES.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} onClick={() => setPage(item.id)} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm md:justify-start ${page === item.id ? "bg-teal text-white" : "text-white/75"}`}>
+                <Icon size={17} />{item.label}
+              </button>
+            );
+          })}
+        </aside>
+
+        <main className="min-w-0 flex-1 p-4 md:p-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold md:text-3xl">{activePage.label}</h1>
+          </div>
+
+          {page === "home" && home && (
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["成长记录", home.stats.records || 0],
+                  ["作文完成", `${home.stats.writing || 0} 篇`],
+                  ["阅读复述", `${home.stats.reading || 0}%`],
+                  ["作业完成度", `${home.stats.homework || 0}%`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-stone-200 bg-panel p-4">
+                    <div className="text-sm text-stone-500">{label}</div>
+                    <div className="mt-2 text-3xl font-bold">{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-lg border border-stone-200 bg-panel p-4">
+                <h2 className="mb-3 font-semibold">孩子</h2>
+                <div className="space-y-3">
+                  {home.children.map((child) => (
+                    <div key={child.id} className="flex items-center justify-between gap-3 border-b border-dashed border-stone-200 pb-3">
+                      <div>
+                        <div className="font-semibold">{child.name}</div>
+                        <div className="text-sm text-stone-500">{child.grade} · {child.subjects.join(" / ")}</div>
+                      </div>
+                      <span className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">已建档</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {page === "students" && home && (
+            <div className="rounded-lg border border-stone-200 bg-panel p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold">学生档案</h2>
+                <button className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />新建孩子</button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead>
+                    <tr className="text-left text-stone-500">
+                      <th className="px-2 py-2">孩子</th>
+                      <th className="px-2 py-2">年龄 / 年级</th>
+                      <th className="px-2 py-2">学科</th>
+                      <th className="px-2 py-2">教材版本</th>
+                      <th className="px-2 py-2">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {home.children.map((child) => (
+                      <tr key={child.id} className="border-t border-stone-200">
+                        <td className="px-2 py-3 font-semibold">{child.name}</td>
+                        <td className="px-2 py-3">{child.age} 岁 / {child.grade}</td>
+                        <td className="px-2 py-3">{child.subjects.join("、")}</td>
+                        <td className="px-2 py-3">{child.textbookVersion || "未设置"}</td>
+                        <td className="px-2 py-3">
+                          <button className="text-teal"><Edit size={16} /></button>
+                          <button className="ml-2 text-accent"><Trash size={16} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {page === "textbooks" && home && (
+            <div className="rounded-lg border border-stone-200 bg-panel p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold">教材库</h2>
+                <button className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />导入教材</button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead><tr className="text-left text-stone-500"><th className="px-2 py-2">教材</th><th className="px-2 py-2">孩子</th><th className="px-2 py-2">状态</th></tr></thead>
+                  <tbody>
+                    {home.textbooks.map((item) => (
+                      <tr key={item.id} className="border-t border-stone-200">
+                        <td className="px-2 py-3 font-semibold">{item.title}</td>
+                        <td className="px-2 py-3">{childName(home.children, item.childId)}</td>
+                        <td className="px-2 py-3">{item.status === "ready" ? "已就绪" : "识别中"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {page === "homework" && home && (
+            <div className="rounded-lg border border-stone-200 bg-panel p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-semibold">家庭作业</h2>
+                <button className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>
+              </div>
+              <div className="space-y-3">
+                {home.homework.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 border-b border-dashed border-stone-200 pb-3">
+                    <div><div className="font-semibold">{item.title}</div><div className="text-sm text-stone-500">{childName(home.children, item.childId)} · {item.dueDate || "-"}</div></div>
+                    <span className={`rounded-full px-3 py-1 text-xs ${item.status === "done" ? "bg-teal/10 text-teal" : "bg-amber-100 text-amber-700"}`}>{item.status === "done" ? "已完成" : "待完成"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {page === "knowledge" && home && (
+            <div className="rounded-lg border border-stone-200 bg-panel p-4">
+              <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold">知识库</h2><button className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button></div>
+              <div className="space-y-4">
+                {home.knowledge.map((item) => (
+                  <div key={item.id} className="border-b border-dashed border-stone-200 pb-4">
+                    <div className="flex items-center justify-between"><div className="font-semibold">{item.title}</div><span className="text-xs text-teal">{childName(home.children, item.childId)}</span></div>
+                    <p className="mt-2 text-sm text-stone-600">{item.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {page === "settings" && (
+            <div className="rounded-lg border border-stone-200 bg-panel p-4">
+              <h2 className="mb-4 font-semibold">账号设置</h2>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between"><span className="text-stone-500">登录邮箱</span><span>jojo@example.com</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">家庭编号</span><span>FAMILY_001</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">账号类型</span><span>邀请码注册</span></div>
+              </div>
+              <button onClick={logout} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-accent"><LogOut size={16} />退出登录</button>
+            </div>
+          )}
+
+          {page === "reports" && (
+            <div className="rounded-lg border border-stone-200 bg-panel p-4">
+              <h2 className="mb-4 font-semibold">报告与成长轨迹</h2>
+              <p className="text-stone-500">周报、月报和成长轨迹将在这里展示。</p>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default App;

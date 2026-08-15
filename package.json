@@ -1,20 +1,22 @@
 {
   "name": "family-edu-agent",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "家庭 AI 教育 Agent 第一版 MVP：云端业务服务 + Family Education MCP + Web 管理端",
+  "description": "家庭 AI 教育 Agent 生产架构：PostgreSQL + Fastify + React + MCP",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "mcp": "node src/mcp/standalone.js",
-    "seed": "node src/seed.js",
-    "test": "node --test tests/*.test.js"
+    "dev": "npm run dev --workspace @family-edu/api",
+    "build": "npm run build --workspace @family-edu/web",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.0",
-    "express": "^4.21.2",
-    "multer": "^2.0.2",
-    "zod": "^3.24.1"
+  "devDependencies": {
+    "prisma": "^6.5.0",
+    "typescript": "^5.8.0"
   }
 }

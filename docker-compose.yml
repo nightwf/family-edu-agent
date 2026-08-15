@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: family_edu
+      POSTGRES_PASSWORD: family_edu
+      POSTGRES_DB: family_edu
+    volumes:
+      - family_edu_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U family_edu"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://family_edu:family_edu@db:5432/family_edu
+      JWT_SECRET: ${JWT_SECRET:-replace-with-a-long-random-secret}
+      INVITE_CODES: ${INVITE_CODES:-HE-2026,JOJO-2026}
+      PORT: 4100
+      WEB_DIST: /app/public
+    ports:
+      - "127.0.0.1:4100:4100"
+
+volumes:
+  family_edu_pgdata:
