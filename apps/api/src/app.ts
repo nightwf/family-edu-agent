@@ -305,6 +305,12 @@ export async function buildApp() {
     return prisma.textbook.update({ where: { id: textbookId }, data: body });
   });
 
+  app.delete("/api/textbooks/:textbookId", { preHandler: requireAuth as any }, async (request) => {
+    const { textbookId } = request.params as any;
+    await prisma.textbook.delete({ where: { id: textbookId } });
+    return { ok: true };
+  });
+
   app.get("/api/settings", { preHandler: requireAuth as any }, async (request) => {
     const auth = getAuth(request);
     const [user, family, childCount] = await Promise.all([

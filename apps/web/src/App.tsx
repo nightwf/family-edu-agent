@@ -164,6 +164,17 @@ function App() {
     await load();
   }
 
+  async function completeHomework(id: string) {
+    await request(`/api/homework/${id}/complete`, { method: "POST" }, token);
+    await load();
+  }
+
+  async function deleteTextbook(id: string) {
+    if (!window.confirm("确定删除这本教材吗？")) return;
+    await request(`/api/textbooks/${id}`, { method: "DELETE" }, token);
+    await load();
+  }
+
   const activePage = PAGES.find((item) => item.id === page)!;
   const ActiveIcon = activePage.icon;
 
@@ -298,13 +309,14 @@ function App() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
-                  <thead><tr className="text-left text-stone-500"><th className="px-2 py-2">教材</th><th className="px-2 py-2">孩子</th><th className="px-2 py-2">状态</th></tr></thead>
+                  <thead><tr className="text-left text-stone-500"><th className="px-2 py-2">教材</th><th className="px-2 py-2">孩子</th><th className="px-2 py-2">状态</th><th className="px-2 py-2">操作</th></tr></thead>
                   <tbody>
                     {home.textbooks.map((item) => (
                       <tr key={item.id} className="border-t border-stone-200">
                         <td className="px-2 py-3 font-semibold">{item.title}</td>
                         <td className="px-2 py-3">{childName(home.children, item.childId)}</td>
                         <td className="px-2 py-3">{item.status === "ready" ? "已就绪" : "识别中"}</td>
+                        <td className="px-2 py-3"><button onClick={() => deleteTextbook(item.id)} className="text-accent"><Trash size={16} /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -323,7 +335,10 @@ function App() {
                 {home.homework.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-3 border-b border-dashed border-stone-200 pb-3">
                     <div><div className="font-semibold">{item.title}</div><div className="text-sm text-stone-500">{childName(home.children, item.childId)} · {item.dueDate || "-"}</div></div>
-                    <span className={`rounded-full px-3 py-1 text-xs ${item.status === "done" ? "bg-teal/10 text-teal" : "bg-amber-100 text-amber-700"}`}>{item.status === "done" ? "已完成" : "待完成"}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs ${item.status === "done" ? "bg-teal/10 text-teal" : "bg-amber-100 text-amber-700"}`}>{item.status === "done" ? "已完成" : "待完成"}</span>
+                      {item.status !== "done" && <button onClick={() => completeHomework(item.id)} className="text-teal">完成</button>}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -332,7 +347,7 @@ function App() {
 
           {page === "knowledge" && home && (
             <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold">知识库</h2><button className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button></div>
+              <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold">知识库</h2><button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button></div>
               <div className="space-y-4">
                 {home.knowledge.map((item) => (
                   <div key={item.id} className="border-b border-dashed border-stone-200 pb-4">
