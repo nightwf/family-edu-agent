@@ -1495,6 +1495,7 @@ dialog::backdrop {
                   <th>教材版本</th>
                   <th>本周完成度</th>
                     <th>状态</th>
+                  <th>操作</th>
                   </tr>
                 </thead>
                 <tbody id="students-body">
@@ -1921,6 +1922,44 @@ dialog::backdrop {
   </form>
 </dialog>
 
+<dialog id="edit-child-dialog">
+  <form id="edit-child-form" class="auth-form" onsubmit="return false">
+    <h2 class="dialog-title">编辑孩子档案</h2>
+    <input type="hidden" name="child_id">
+    <div class="field">
+      <label>孩子姓名</label>
+      <input class="input" name="name" required>
+    </div>
+    <div class="field">
+      <label>年龄</label>
+      <input class="input" name="age" type="number" required>
+    </div>
+    <div class="field">
+      <label>年级</label>
+      <select class="select" name="grade">
+        <option>一年级</option>
+        <option>二年级</option>
+        <option>三年级</option>
+        <option>四年级</option>
+        <option>五年级</option>
+        <option>六年级</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>主要学科</label>
+      <input class="input" name="subjects">
+    </div>
+    <div class="field">
+      <label>教材版本</label>
+      <input class="input" name="textbook_version">
+    </div>
+    <div class="dialog-actions">
+      <button class="ghost-btn" type="button" id="close-edit-child-dialog">取消</button>
+      <button class="primary-btn" type="submit">保存修改</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="textbook-dialog">
   <form id="textbook-form" class="auth-form" onsubmit="return false">
     <h2 class="dialog-title">导入教材</h2>
@@ -2272,8 +2311,9 @@ function renderStudents(children) {
       <td>${escapeHtml(child.textbook_version || "未设置")}</td>
       <td><div class="progress-track"><div class="progress-bar" style="width:${Math.min(100, Math.max(10, (child.age || 0) * 8))}%"></div></div></td>
       <td><span class="badge ready">正常</span></td>
+      <td><button class="panel-action" data-edit-child="${escapeHtml(child.id)}">编辑</button> <button class="panel-action" data-delete-child="${escapeHtml(child.id)}">删除</button></td>
     </tr>
-  `).join("") || `<tr><td colspan="6" class="empty">暂无孩子，请先创建。</td></tr>`;
+  `).join("") || `<tr><td colspan="7" class="empty">暂无孩子，请先创建。</td></tr>`;
 }
 
 function renderTextbooks(textbooks, children) {
@@ -2511,6 +2551,58 @@ childForm.addEventListener("submit", async (event) => {
     await loadAll();
   } catch (error) {
     alert(error.message);
+  }
+});
+
+const editChildDialog = document.getElementById("edit-child-dialog");
+const editChildForm = document.getElementById("edit-child-form");
+document.getElementById("close-edit-child-dialog").addEventListener("click", () => editChildDialog.close());
+editChildForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(editChildForm);
+  try {
+    await api(`/api/children/${form.get("child_id")}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: form.get("name"),
+        age: Number(form.get("age")),
+        grade: form.get("grade"),
+        subjects: String(form.get("subjects") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+        textbook_version: form.get("textbook_version") || "",
+      }),
+    });
+    editChildDialog.close();
+    await loadAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+studentsBody.addEventListener("click", async (event) => {
+  const editButton = event.target.closest("[data-edit-child]");
+  const deleteButton = event.target.closest("[data-delete-child]");
+  if (editButton) {
+    const child = state.children.find((item) => item.id === editButton.dataset.editChild);
+    if (!child) return;
+    editChildForm.querySelector('[name="child_id"]').value = child.id;
+    editChildForm.querySelector('[name="name"]').value = child.name;
+    editChildForm.querySelector('[name="age"]').value = child.age;
+    editChildForm.querySelector('[name="grade"]').value = child.grade;
+    editChildForm.querySelector('[name="subjects"]').value = (child.subjects || []).join("、");
+    editChildForm.querySelector('[name="textbook_version"]').value = child.textbook_version || "";
+    editChildDialog.showModal();
+    return;
+  }
+  if (deleteButton) {
+    const child = state.children.find((item) => item.id === deleteButton.dataset.deleteChild);
+    if (!child) return;
+    if (!window.confirm(`确定删除“${child.name}”吗？\n\n该孩子的成长记录、报告、教材、作业和知识库也会同步删除，此操作不可恢复。`)) return;
+    try {
+      await api(`/api/children/${child.id}`, { method: "DELETE" });
+      await loadAll();
+    } catch (error) {
+      alert(error.message);
+    }
   }
 });
 
