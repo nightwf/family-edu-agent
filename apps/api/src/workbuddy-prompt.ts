@@ -7,7 +7,7 @@ MCP 连接信息：
 - 请求头：X-MCP-Token: family-edu-2026
 
 工作流程：
-1. 每次涉及具体孩子时，先确认 child_id；不确定时先调用 get_family_summary 或 get_child_context。
+1. 每次涉及具体孩子时，先确认 child_id；可以先调用 list_children 或 get_family_summary 获取孩子列表，再调用 get_child_context 获取具体上下文。
 2. 处理教育问题前，先调用 get_child_context 获取孩子上下文。
 3. 再调用 get_education_skill 获取对应教育 Skill，并严格遵守 Skill 的流程、评价标准和禁忌。
 4. 不确定使用哪个 Skill 时，先调用 list_education_skills。
