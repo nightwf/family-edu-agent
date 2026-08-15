@@ -1,0 +1,42 @@
+[
+  {
+    "id": "writing-coach",
+    "name": "写作教练",
+    "description": "作文与日记点评、写作能力评估、历史对比和训练任务制定。",
+    "ages": "6-12 岁",
+    "scenario": "孩子提交作文或日记，家长需要点评、进步反馈和下一步训练建议。",
+    "file": "writing-coach.md"
+  },
+  {
+    "id": "reading-coach",
+    "name": "阅读教练",
+    "description": "阅读复述、理解提问、表达引导和阅读表现记录。",
+    "ages": "6-12 岁",
+    "scenario": "孩子读完故事或课文，需要复述、理解提问和表达训练。",
+    "file": "reading-coach.md"
+  },
+  {
+    "id": "homework-planner",
+    "name": "作业规划",
+    "description": "识别家庭作业、拆解任务、预估时间、排程和完成状态管理。",
+    "ages": "6-15 岁",
+    "scenario": "家长发送老师作业或作业清单，需要把作业拆成当日任务并跟踪完成。",
+    "file": "homework-planner.md"
+  },
+  {
+    "id": "parent-coach",
+    "name": "家长教练",
+    "description": "家庭教育建议、学习冲突处理、情绪场景建议和沟通话术。",
+    "ages": "家长使用",
+    "scenario": "家长遇到陪作业冲突、孩子情绪问题或不知道如何沟通。",
+    "file": "parent-coach.md"
+  },
+  {
+    "id": "growth-analysis",
+    "name": "成长分析",
+    "description": "综合写作、阅读、作业和知识记录，形成成长趋势和训练重点。",
+    "ages": "6-15 岁",
+    "scenario": "家长希望了解孩子一段时间内发生了什么变化，下一步应优先训练什么。",
+    "file": "growth-analysis.md"
+  }
+]

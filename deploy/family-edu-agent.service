@@ -1,0 +1,17 @@
+[Unit]
+Description=Family Education Agent MVP
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/family-edu-agent
+ExecStart=/usr/local/bin/node src/index.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+Environment=PORT=4100
+Environment=FAMILY_ID=family_001
+Environment=INVITE_CODES=HE-2026,JOJO-2026
+
+[Install]
+WantedBy=multi-user.target

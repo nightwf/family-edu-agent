@@ -1,0 +1,2733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家庭 AI 教育后台风格预览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: "Noto Serif SC", "Songti SC", serif;
+  --bg: #f2efe4;
+  --bg-soft: #e9e4d5;
+  --panel: #fffcf3;
+  --panel-2: #f8f4e9;
+  --ink: #24332d;
+  --muted: #6b756f;
+  --line: #d8d0bd;
+  --accent: #1e7357;
+  --accent-2: #c0502c;
+  --accent-3: #d7a84a;
+  --accent-soft: #e0ede5;
+  --warn: #a6681f;
+  --warn-soft: #f4e8cf;
+  --sidebar-bg: #214c3d;
+  --sidebar-ink: #f1f6ef;
+  --topbar-bg: rgba(242, 239, 228, .88);
+  --radius: 8px;
+  --shadow: 0 1px 0 rgba(33, 76, 61, .06), 0 12px 32px rgba(33, 76, 61, .06);
+}
+
+body[data-theme="warm"] {
+  --bg: #f6efe7;
+  --bg-soft: #efe2d5;
+  --panel: #fffaf3;
+  --panel-2: #f9f0e6;
+  --ink: #3c2d26;
+  --muted: #8a776d;
+  --line: #e5d3c5;
+  --accent: #d9684a;
+  --accent-2: #4e8470;
+  --accent-3: #d7a84a;
+  --accent-soft: #f8e3da;
+  --warn: #a6681f;
+  --warn-soft: #f4e8cf;
+  --sidebar-bg: #f2ddca;
+  --sidebar-ink: #5a3a2d;
+  --topbar-bg: rgba(246, 239, 231, .88);
+  --shadow: 0 1px 0 rgba(217, 104, 74, .06), 0 14px 34px rgba(120, 80, 60, .08);
+}
+
+body[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #151b19;
+  --bg-soft: #101513;
+  --panel: #1e2724;
+  --panel-2: #232e2a;
+  --ink: #e8f0ea;
+  --muted: #9aab9f;
+  --line: #35443e;
+  --accent: #d7a84a;
+  --accent-2: #6fc5a5;
+  --accent-3: #e07050;
+  --accent-soft: #2d3b33;
+  --warn: #e4b95c;
+  --warn-soft: #3a3324;
+  --sidebar-bg: #0e1412;
+  --sidebar-ink: #d9e5dc;
+  --topbar-bg: rgba(21, 27, 25, .88);
+  --shadow: 0 1px 0 rgba(111, 197, 165, .10), 0 16px 40px rgba(0, 0, 0, .26);
+}
+
+body[data-theme="playful"] {
+  --bg: #f6f0dc;
+  --bg-soft: #eee4c8;
+  --panel: #fffdf3;
+  --panel-2: #fbf4df;
+  --ink: #26343b;
+  --muted: #68777e;
+  --line: #e3d5a9;
+  --accent: #e2542e;
+  --accent-2: #2c9c8a;
+  --accent-3: #efb31e;
+  --accent-soft: #fbe5d8;
+  --warn: #a6681f;
+  --warn-soft: #f4e8cf;
+  --sidebar-bg: #23353b;
+  --sidebar-ink: #f3efe1;
+  --topbar-bg: rgba(246, 240, 220, .92);
+  --shadow: 0 1px 0 rgba(226, 84, 46, .08), 0 12px 30px rgba(91, 76, 34, .10);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  transition: background .35s ease, color .35s ease;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(33, 76, 61, .035) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(33, 76, 61, .035) 0 1px, transparent 1px 28px);
+}
+
+body[data-theme="warm"]::before {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(180, 110, 70, .035) 0 1px, transparent 1px 14px);
+}
+
+body[data-theme="midnight"]::before {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(111, 197, 165, .045) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(111, 197, 165, .045) 0 1px, transparent 1px 32px);
+}
+
+body[data-theme="playful"]::before {
+  background-image:
+    radial-gradient(rgba(44, 156, 138, .10) 1px, transparent 1px),
+    radial-gradient(rgba(226, 84, 46, .08) 1px, transparent 1px);
+  background-size: 22px 22px, 22px 22px;
+  background-position: 0 0, 11px 11px;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 68px;
+  padding: 10px 22px;
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 170px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 900;
+  box-shadow: var(--shadow);
+}
+
+body[data-theme="warm"] .brand-mark {
+  background: var(--accent);
+}
+
+body[data-theme="playful"] .brand-mark {
+  background: var(--accent-3);
+  color: var(--sidebar-bg);
+}
+
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.segmented button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, transform .2s ease;
+}
+
+.segmented button:hover {
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.segmented button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+body[data-theme="playful"] .segmented button.active {
+  background: var(--accent-2);
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ghost-btn,
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .2s ease, border-color .2s ease, background .2s ease;
+}
+
+.ghost-btn:hover,
+.primary-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.primary-btn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.date-chip {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  flex: 1;
+}
+
+.sidebar {
+  position: sticky;
+  top: 68px;
+  height: calc(100vh - 68px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px 14px 18px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+}
+
+.nav-list {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background .2s ease, transform .2s ease;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, .10);
+  transform: translateX(2px);
+}
+
+.nav-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+body[data-theme="warm"] .nav-item.active {
+  background: var(--accent);
+}
+
+body[data-theme="midnight"] .nav-item.active {
+  background: var(--accent);
+}
+
+body[data-theme="playful"] .nav-item.active {
+  background: var(--accent-2);
+}
+
+.sidebar-foot {
+  padding: 14px;
+  border-top: 1px solid rgba(255, 255, 255, .14);
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.8;
+  opacity: .78;
+}
+
+.main {
+  min-width: 0;
+  padding: 28px 32px 52px;
+}
+
+.page {
+  display: none;
+}
+
+.page.active {
+  display: block;
+  animation: pageIn .34s ease both;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.kicker {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.15;
+}
+
+.page-sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.stat {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  animation: rise .4s ease both;
+}
+
+.stat:nth-child(2) {
+  animation-delay: .04s;
+}
+
+.stat:nth-child(3) {
+  animation-delay: .08s;
+}
+
+.stat:nth-child(4) {
+  animation-delay: .12s;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stat-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stat-value {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.stat-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--accent-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, .85fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.split-grid.two {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr);
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.panel-action {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.child-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.child-row:last-child {
+  border-bottom: 0;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 900;
+}
+
+body[data-theme="playful"] .avatar {
+  border-radius: 8px;
+}
+
+.child-name {
+  font-weight: 700;
+}
+
+.child-meta {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ai-note {
+  margin-top: 14px;
+  border-left: 4px solid var(--accent-2);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 14px;
+  background: var(--accent-soft);
+}
+
+.ai-note p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.ai-note strong {
+  color: var(--accent);
+}
+
+.growth-chart {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-line.second {
+  stroke: var(--accent-2);
+  stroke-dasharray: 6 5;
+}
+
+.chart-line.third {
+  stroke: var(--accent-3);
+  stroke-dasharray: 2 5;
+}
+
+.chart-area {
+  fill: var(--accent);
+  opacity: .10;
+}
+
+.chart-dot {
+  fill: var(--panel);
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.chart-label {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legend-swatch {
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.legend-swatch.second {
+  background: var(--accent-2);
+}
+
+.legend-swatch.third {
+  background: var(--accent-3);
+}
+
+.report-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 13px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.report-row:last-child {
+  border-bottom: 0;
+}
+
+.report-title {
+  font-weight: 700;
+}
+
+.report-meta {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.report-status {
+  justify-self: end;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge.ready {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge.syncing {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 12px 10px;
+  border-bottom: 1px dashed var(--line);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.progress-track {
+  width: 100%;
+  min-width: 110px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--panel-2);
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.progress-bar.second {
+  background: var(--accent-2);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field.full {
+  grid-column: 1 / -1;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.input,
+.select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.input:focus,
+.select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--panel-2);
+}
+
+.settings-card + .settings-card {
+  margin-top: 14px;
+}
+
+.settings-card h3 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.divider {
+  height: 1px;
+  margin: 18px 0;
+  background: var(--line);
+}
+
+.dimension-list {
+  display: grid;
+  gap: 14px;
+}
+
+.dimension-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.dimension-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--panel-2);
+}
+
+.dimension-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.dimension-bar.second {
+  background: var(--accent-2);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.search-box input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.empty {
+  padding: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.theme-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 10px 16px;
+  }
+
+  .nav-list {
+    display: flex;
+    flex-wrap: wrap;
+    flex: 1;
+    gap: 6px;
+  }
+
+  .nav-item {
+    width: auto;
+    flex: 1 1 calc(50% - 6px);
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .sidebar-foot {
+    display: none;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .split-grid,
+  .split-grid.two {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .top-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .main {
+    padding: 20px 16px 40px;
+  }
+
+  .page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-note {
+    display: none;
+  }
+}
+
+.hidden {
+  display: none !important;
+}
+
+body.locked .app {
+  display: none;
+}
+
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.auth-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+  width: min(960px, 100%);
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.auth-aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 36px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
+}
+
+.auth-aside .brand {
+  color: inherit;
+}
+
+.auth-aside .brand-mark {
+  background: var(--accent-3);
+  color: var(--sidebar-bg);
+}
+
+.auth-aside-title {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.2;
+}
+
+.auth-aside-copy {
+  max-width: 420px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.8;
+  opacity: .82;
+}
+
+.auth-features {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.auth-features li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.auth-features i {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-3);
+}
+
+.auth-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, .12);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth-form-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 36px;
+}
+
+.auth-form-panel h2 {
+  margin: 22px 0 6px;
+  font-family: var(--font-display);
+  font-size: 26px;
+}
+
+.auth-sub {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-tabs {
+  width: fit-content;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.auth-form .primary-btn,
+.auth-form .ghost-btn {
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+.danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d65f4a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  color: #d65f4a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .2s ease, background .2s ease;
+}
+
+.danger-btn:hover {
+  background: rgba(214, 95, 74, .10);
+  transform: translateY(-1px);
+}
+
+.prompt-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 14px;
+}
+
+.prompt-box textarea {
+  width: 100%;
+  min-height: 240px;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.account-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.account-line:last-child {
+  border-bottom: 0;
+}
+
+.account-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account-value {
+  font-weight: 700;
+}
+
+@media (max-width: 780px) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .auth-aside {
+    padding: 26px;
+  }
+
+  .auth-form-panel {
+    padding: 26px;
+  }
+}
+
+dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+dialog::backdrop {
+  background: rgba(15, 25, 22, .45);
+  backdrop-filter: blur(3px);
+}
+
+.dialog-title {
+  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+</style>
+</head>
+<body data-theme="playful" class="locked">
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-shell">
+    <aside class="auth-aside">
+      <div>
+        <div class="brand">
+          <span class="brand-mark">禾</span>
+          <span>禾芽家庭教务</span>
+        </div>
+        <p class="auth-aside-title" style="margin-top:52px">家庭 AI 教育后台</p>
+        <p class="auth-aside-copy">孩子档案、成长报告、教材同步和家庭教育助手，统一在一个家庭账号里管理。</p>
+        <ul class="auth-features">
+          <li><i data-lucide="users"></i>单家庭多孩子</li>
+          <li><i data-lucide="trending-up"></i>成长轨迹与报告</li>
+          <li><i data-lucide="book-open"></i>WorkBuddy 教材同步</li>
+        </ul>
+      </div>
+      <div class="auth-code"><i data-lucide="key-round"></i>邀请码注册 · 邮箱密码登录</div>
+    </aside>
+
+    <div class="auth-form-panel">
+      <div class="segmented auth-tabs" role="group" aria-label="登录方式">
+        <button class="active" id="tab-login">登录</button>
+        <button id="tab-register">邀请码注册</button>
+      </div>
+      <h2 id="auth-title">登录家庭账号</h2>
+      <p class="auth-sub" id="auth-sub">输入邮箱和密码进入后台</p>
+
+      <form class="auth-form" id="login-form" onsubmit="return false">
+        <div class="field">
+          <label>邮箱</label>
+          <input class="input" type="email" name="email" value="jojo@example.com">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input class="input" type="password" name="password" value="123456">
+        </div>
+        <button class="primary-btn" type="submit"><i data-lucide="log-in"></i>登录</button>
+        <button class="ghost-btn" type="button" id="demo-login">进入风格预览</button>
+      </form>
+
+      <form class="auth-form hidden" id="register-form" onsubmit="return false">
+        <div class="field">
+          <label>邀请码</label>
+          <input class="input" name="inviteCode" value="HE-2026">
+        </div>
+        <div class="field">
+          <label>邮箱</label>
+          <input class="input" type="email" name="email" value="jojo@example.com">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input class="input" type="password" name="password" value="123456">
+        </div>
+        <div class="field">
+          <label>确认密码</label>
+          <input class="input" type="password" name="confirmPassword" value="123456">
+        </div>
+        <button class="primary-btn" type="submit"><i data-lucide="user-check"></i>注册并登录</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">禾</span>
+      <span>禾芽家庭教务</span>
+    </div>
+
+    <div class="segmented style-switcher" role="group" aria-label="后台风格">
+      <button data-theme-target="paper">教务台账</button>
+      <button data-theme-target="warm">暖阳家庭</button>
+      <button data-theme-target="midnight">午夜书房</button>
+      <button class="active" data-theme-target="playful">明亮学堂</button>
+    </div>
+
+    <div class="top-actions">
+      <span class="date-chip">2026-08-13 · 周四</span>
+      <button class="ghost-btn" type="button"><i data-lucide="download"></i>导出</button>
+      <button class="primary-btn" type="button" hidden><i data-lucide="sparkles"></i>AI 建议</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <nav class="nav-list" aria-label="管理端页面">
+        <button class="nav-item active" data-page-target="home"><i data-lucide="layout-dashboard"></i>首页</button>
+        <button class="nav-item" data-page-target="students"><i data-lucide="users"></i>学生</button>
+        <button class="nav-item" data-page-target="reports"><i data-lucide="trending-up"></i>报告成长</button>
+        <button class="nav-item" data-page-target="textbooks"><i data-lucide="book-open"></i>教材</button>
+        <button class="nav-item" data-page-target="homework"><i data-lucide="clipboard-check"></i>作业</button>
+        <button class="nav-item" data-page-target="knowledge"><i data-lucide="library"></i>知识库</button>
+        <button class="nav-item" data-page-target="settings"><i data-lucide="settings"></i>设置</button>
+      </nav>
+      <div class="sidebar-foot">
+        家庭数据<br>
+        <span id="sidebar-record-count">32</span> 条成长记录<br>
+        <span id="sidebar-child-count">2</span> 个孩子档案<br>
+        <span id="sidebar-textbook-count">4</span> 本教材
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="page active" id="page-home">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Family Overview</p>
+            <h1>家庭总览</h1>
+            <p class="page-sub">乔乔和小明最近的成长状态、报告与 AI 发现</p>
+          </div>
+          <div class="segmented">
+            <button class="active">近 7 天</button>
+            <button>近 30 天</button>
+            <button>本学期</button>
+          </div>
+        </div>
+
+        <div class="stat-grid" id="home-stats">
+          <div class="stat">
+            <div class="stat-label">本周记录 <i data-lucide="file-text" style="width:16px;height:16px"></i></div>
+            <div class="stat-value">12</div>
+            <div class="stat-trend"><i data-lucide="arrow-up-right" style="width:13px;height:13px"></i>较上周 +3</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">作文完成</div>
+            <div class="stat-value">5 篇</div>
+            <div class="stat-trend"><i data-lucide="arrow-up-right" style="width:13px;height:13px"></i>持续 2 周</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">阅读复述</div>
+            <div class="stat-value">78%</div>
+            <div class="stat-trend"><i data-lucide="arrow-up-right" style="width:13px;height:13px"></i>上升 6%</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">作业完成度</div>
+            <div class="stat-value">84%</div>
+            <div class="stat-trend"><i data-lucide="minus" style="width:13px;height:13px"></i>与上周持平</div>
+          </div>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel" id="home-children">
+            <div class="panel-head">
+              <h2 class="panel-title">孩子</h2>
+              <button class="panel-action">查看全部</button>
+            </div>
+            <div class="child-row">
+              <span class="avatar">乔</span>
+              <div>
+                <div class="child-name">乔乔</div>
+                <div class="child-meta">三年级 · 语文 / 数学 / 英语</div>
+              </div>
+              <span class="mini-badge"><i data-lucide="check" style="width:13px;height:13px"></i>本周已更新</span>
+            </div>
+            <div class="child-row">
+              <span class="avatar">明</span>
+              <div>
+                <div class="child-name">小明</div>
+                <div class="child-meta">一年级 · 语文 / 数学</div>
+              </div>
+              <span class="mini-badge"><i data-lucide="clock" style="width:13px;height:13px"></i>待补充阅读</span>
+            </div>
+          </section>
+
+          <section class="panel" id="home-insights">
+            <div class="panel-head">
+              <h2 class="panel-title">AI 发现</h2>
+              <button class="panel-action"><i data-lucide="sparkles" style="width:14px;height:14px"></i>解释</button>
+            </div>
+            <div class="ai-note">
+              <p><strong>乔乔</strong> 最近三篇日记的时间顺序明显改善，但经常没有解释事情为什么发生。</p>
+              <p>建议本周重点练习“原因表达”，每天用 5 分钟口头复盘。</p>
+            </div>
+            <div class="ai-note" style="margin-top:10px;border-left-color:var(--accent-3)">
+              <p><strong>小明</strong> 连续阅读 6 天，复述完整度提升，可以开始增加“为什么”类提问。</p>
+            </div>
+          </section>
+        </div>
+
+        <div class="split-grid two">
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">成长轨迹</h2>
+              <button class="panel-action">查看报告</button>
+            </div>
+            <svg class="growth-chart" viewBox="0 0 680 220" role="img" aria-label="成长趋势图">
+              <line x1="40" y1="180" x2="650" y2="180" stroke="var(--line)" stroke-width="1"/>
+              <line x1="40" y1="130" x2="650" y2="130" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+              <line x1="40" y1="80" x2="650" y2="80" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+              <line x1="40" y1="30" x2="650" y2="30" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+              <path class="chart-area" d="M40 150 C110 136 190 144 270 120 S440 96 520 80 L650 62 L650 180 L40 180 Z"/>
+              <path class="chart-line" d="M40 150 C110 136 190 144 270 120 S440 96 520 80 L650 62"/>
+              <path class="chart-line second" d="M40 165 C120 148 210 152 300 130 S480 106 650 88"/>
+              <path class="chart-line third" d="M40 95 C130 108 230 90 340 84 S500 72 650 78"/>
+              <circle class="chart-dot" cx="270" cy="120" r="4"/>
+              <circle class="chart-dot" cx="520" cy="80" r="4"/>
+              <text class="chart-label" x="42" y="198">8月1日</text>
+              <text class="chart-label" x="560" y="198">8月13日</text>
+            </svg>
+            <div class="legend">
+              <span class="legend-item"><span class="legend-swatch"></span>写作</span>
+              <span class="legend-item"><span class="legend-swatch second"></span>阅读</span>
+              <span class="legend-item"><span class="legend-swatch third"></span>作业</span>
+            </div>
+          </section>
+
+          <section class="panel" id="home-reports">
+            <div class="panel-head">
+              <h2 class="panel-title">最近报告</h2>
+              <button class="panel-action">全部报告</button>
+            </div>
+            <div class="report-row">
+              <div>
+                <div class="report-title">乔乔 · 8月第二周成长周报</div>
+                <div class="report-meta">2026-08-13 · 写作 / 阅读 / 作业</div>
+              </div>
+              <span class="badge ready report-status">已生成</span>
+            </div>
+            <div class="report-row">
+              <div>
+                <div class="report-title">小明 · 8月第一周阅读记录</div>
+                <div class="report-meta">2026-08-06 · 阅读复述</div>
+              </div>
+              <span class="badge ready report-status">已生成</span>
+            </div>
+            <div class="report-row">
+              <div>
+                <div class="report-title">乔乔 · 7月成长月报</div>
+                <div class="report-meta">2026-08-01 · 月度对比</div>
+              </div>
+              <span class="badge syncing report-status">待查看</span>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page" id="page-students">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Students</p>
+            <h1>学生档案</h1>
+            <p class="page-sub">查看和编辑年龄、年级、学科与教材版本</p>
+          </div>
+          <button class="primary-btn" type="button" id="add-child-btn"><i data-lucide="user-plus"></i>新建孩子</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box"><i data-lucide="search" style="width:15px;height:15px"></i><input type="search" placeholder="搜索孩子"></div>
+          <div class="segmented">
+            <button class="active">全部</button>
+            <button>小学</button>
+            <button>初中</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>孩子</th>
+                  <th>年龄 / 年级</th>
+                  <th>学科</th>
+                  <th>教材版本</th>
+                  <th>本周完成度</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody id="students-body">
+                <tr>
+                  <td><strong>乔乔</strong><div class="child-meta">建档 2026-07-20</div></td>
+                  <td>9 岁 / 三年级</td>
+                  <td>语文、数学、英语</td>
+                  <td>人教版 · 三年级上册</td>
+                  <td><div class="progress-track"><div class="progress-bar" style="width:84%"></div></div></td>
+                  <td><span class="badge ready">正常</span></td>
+                </tr>
+                <tr>
+                  <td><strong>小明</strong><div class="child-meta">建档 2026-07-28</div></td>
+                  <td>7 岁 / 一年级</td>
+                  <td>语文、数学</td>
+                  <td>部编版 · 一年级上册</td>
+                  <td><div class="progress-track"><div class="progress-bar second" style="width:68%"></div></div></td>
+                  <td><span class="badge syncing">待补充</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-reports">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Growth & Reports</p>
+            <h1>报告与成长轨迹</h1>
+            <p class="page-sub">按孩子和时间查看周报、月报与能力变化</p>
+          </div>
+          <div class="segmented">
+            <button class="active">周报</button>
+            <button>月报</button>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <div class="segmented">
+            <button class="active">乔乔</button>
+            <button>小明</button>
+            <button>全部孩子</button>
+          </div>
+          <div class="segmented">
+            <button class="active">近 4 周</button>
+            <button>本学期</button>
+            <button>全年</button>
+          </div>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">成长趋势</h2>
+              <span class="badge ready">8月13日更新</span>
+            </div>
+            <svg class="growth-chart" viewBox="0 0 680 220" role="img" aria-label="能力成长趋势图">
+              <line x1="40" y1="180" x2="650" y2="180" stroke="var(--line)" stroke-width="1"/>
+              <line x1="40" y1="130" x2="650" y2="130" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+              <line x1="40" y1="80" x2="650" y2="80" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+              <line x1="40" y1="30" x2="650" y2="30" stroke="var(--line)" stroke-width="1" stroke-dasharray="4 5"/>
+              <path class="chart-area" d="M40 150 C110 136 190 144 270 120 S440 96 520 80 L650 62 L650 180 L40 180 Z"/>
+              <path class="chart-line" d="M40 150 C110 136 190 144 270 120 S440 96 520 80 L650 62"/>
+              <path class="chart-line second" d="M40 165 C120 148 210 152 300 130 S480 106 650 88"/>
+              <path class="chart-line third" d="M40 95 C130 108 230 90 340 84 S500 72 650 78"/>
+              <circle class="chart-dot" cx="270" cy="120" r="4"/>
+              <circle class="chart-dot" cx="520" cy="80" r="4"/>
+              <text class="chart-label" x="42" y="198">7月16日</text>
+              <text class="chart-label" x="560" y="198">8月13日</text>
+            </svg>
+            <div class="legend">
+              <span class="legend-item"><span class="legend-swatch"></span>写作</span>
+              <span class="legend-item"><span class="legend-swatch second"></span>阅读</span>
+              <span class="legend-item"><span class="legend-swatch third"></span>作业</span>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">维度对比</h2>
+              <span class="child-meta">当前 vs 上周</span>
+            </div>
+            <div class="dimension-list">
+              <div class="dimension-row">
+                <span>原因表达</span>
+                <div class="dimension-track"><div class="dimension-bar" style="width:72%"></div></div>
+                <strong>+6</strong>
+              </div>
+              <div class="dimension-row">
+                <span>细节描写</span>
+                <div class="dimension-track"><div class="dimension-bar second" style="width:64%"></div></div>
+                <strong>+3</strong>
+              </div>
+              <div class="dimension-row">
+                <span>结构完整</span>
+                <div class="dimension-track"><div class="dimension-bar" style="width:81%"></div></div>
+                <strong>+2</strong>
+              </div>
+              <div class="dimension-row">
+                <span>阅读复述</span>
+                <div class="dimension-track"><div class="dimension-bar second" style="width:78%"></div></div>
+                <strong>+6</strong>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="split-grid two" style="margin-top:18px">
+          <section class="panel" id="reports-list">
+            <div class="panel-head">
+              <h2 class="panel-title">周报</h2>
+              <button class="panel-action">导出</button>
+            </div>
+            <div class="report-row">
+              <div>
+                <div class="report-title">乔乔 · 8月第二周成长周报</div>
+                <div class="report-meta">写作持续提升，作业完成度稳定</div>
+              </div>
+              <span class="badge ready report-status">已生成</span>
+            </div>
+            <div class="report-row">
+              <div>
+                <div class="report-title">乔乔 · 8月第一周成长周报</div>
+                <div class="report-meta">开始出现人物语言，结尾仍较仓促</div>
+              </div>
+              <span class="badge ready report-status">已生成</span>
+            </div>
+            <div class="report-row">
+              <div>
+                <div class="report-title">乔乔 · 7月第四周成长周报</div>
+                <div class="report-meta">原因表达仍是本周训练重点</div>
+              </div>
+              <span class="badge ready report-status">已生成</span>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">AI 洞察</h2>
+              <button class="panel-action">重新分析</button>
+            </div>
+            <div class="ai-note">
+              <p>近 4 周写作得分从 61 分提升至 76 分，主要贡献来自结构完整度和细节描写。</p>
+              <p><strong>下一步建议：</strong>继续围绕“原因表达”做口头复盘，每周 3 次即可。</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page" id="page-textbooks">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Textbooks</p>
+            <h1>教材库</h1>
+            <p class="page-sub">查看 WorkBuddy 同步的教材，并维护孩子基础信息</p>
+          </div>
+          <button class="ghost-btn" type="button" id="sync-check-btn"><i data-lucide="refresh-cw"></i>检查同步</button>
+          <button class="primary-btn" type="button" id="import-textbook-btn"><i data-lucide="upload"></i>导入教材</button>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">教材库</h2>
+              <span class="child-meta">来源：WorkBuddy</span>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>教材</th>
+                    <th>孩子</th>
+                    <th>章节</th>
+                    <th>知识点</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody id="textbooks-body">
+                  <tr>
+                    <td><strong>语文三年级上册</strong><div class="child-meta">人教版 · 2026-08-13</div></td>
+                    <td>乔乔</td>
+                    <td>8 章</td>
+                    <td>24 个</td>
+                    <td><span class="badge ready">已就绪</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>数学三年级上册</strong><div class="child-meta">人教版 · 2026-08-12</div></td>
+                    <td>乔乔</td>
+                    <td>6 章</td>
+                    <td>18 个</td>
+                    <td><span class="badge ready">已就绪</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>语文一年级上册</strong><div class="child-meta">部编版 · 2026-08-11</div></td>
+                    <td>小明</td>
+                    <td>10 章</td>
+                    <td>16 个</td>
+                    <td><span class="badge syncing">识别中</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">基础设置</h2>
+              <span class="child-meta">乔乔</span>
+            </div>
+            <form class="form-grid" onsubmit="return false">
+              <div class="field">
+                <label>孩子姓名</label>
+                <input class="input" value="乔乔">
+              </div>
+              <div class="field">
+                <label>年龄</label>
+                <input class="input" type="number" value="9">
+              </div>
+              <div class="field">
+                <label>年级</label>
+                <select class="select">
+                  <option>一年级</option>
+                  <option>二年级</option>
+                  <option selected>三年级</option>
+                  <option>四年级</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>教材版本</label>
+                <select class="select">
+                  <option selected>人教版 · 三年级上册</option>
+                  <option>部编版 · 三年级上册</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label>主要学科</label>
+                <input class="input" value="语文、数学、英语">
+              </div>
+            </form>
+
+            <div class="divider"></div>
+            <div class="settings-card">
+              <h3>教材同步</h3>
+              <p class="hint">教材文件由 WorkBuddy 上传后同步到云端教材库，管理端可修改年级、学科和版本。</p>
+            </div>
+            <div class="settings-card">
+              <h3>数据管理</h3>
+              <p class="hint">支持导出家庭数据、删除孩子档案；删除后相关报告、成长记录和教材同步移除。</p>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel" style="margin-top:18px">
+          <div class="panel-head">
+            <h2 class="panel-title">成长记录</h2>
+            <span class="child-meta">最近记录</span>
+          </div>
+          <div id="records-list"></div>
+        </section>
+      </section>
+
+      <section class="page" id="page-homework">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Homework</p>
+            <h1>作业管理</h1>
+            <p class="page-sub">查看 WorkBuddy 同步的家庭作业，并记录完成情况</p>
+          </div>
+          <button class="ghost-btn" type="button" id="refresh-homework-btn"><i data-lucide="refresh-cw"></i>刷新作业</button>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-box"><i data-lucide="filter" style="width:15px;height:15px"></i><select class="select" id="homework-child-filter"><option value="">全部孩子</option></select></div>
+          <div class="segmented">
+            <button class="active">全部</button>
+            <button>待完成</button>
+            <button>已完成</button>
+          </div>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">今日作业</h2>
+            <span class="child-meta">来源：WorkBuddy</span>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>孩子</th>
+                  <th>学科</th>
+                  <th>作业内容</th>
+                  <th>截止日期</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="homework-body"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" id="page-knowledge">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Knowledge Base</p>
+            <h1>知识库</h1>
+            <p class="page-sub">查看 WorkBuddy 生成并同步到项目的总结、报告和建议</p>
+          </div>
+          <button class="ghost-btn" type="button" id="refresh-knowledge-btn"><i data-lucide="refresh-cw"></i>刷新</button>
+        </div>
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">WorkBuddy 知识记录</h2>
+            <span class="child-meta">来源：WorkBuddy</span>
+          </div>
+          <div id="knowledge-list"></div>
+        </section>
+      </section>
+
+      <section class="page" id="page-settings">
+        <div class="page-head">
+          <div>
+            <p class="kicker">Account & Settings</p>
+            <h1>账号与设置</h1>
+            <p class="page-sub">管理登录账号、退出登录和 WorkBuddy 连接</p>
+          </div>
+          <span class="badge ready"><i data-lucide="check" style="width:13px;height:13px"></i>已登录</span>
+        </div>
+
+        <div class="split-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">账号信息</h2>
+              <span class="child-meta">家庭账号</span>
+            </div>
+            <div class="account-line">
+              <span class="account-label">登录邮箱</span>
+              <span class="account-value" id="settings-email">-</span>
+            </div>
+            <div class="account-line">
+              <span class="account-label">家庭编号</span>
+              <span class="account-value" id="settings-family">-</span>
+            </div>
+            <div class="account-line">
+              <span class="account-label">账号类型</span>
+              <span class="account-value" id="settings-type">邀请码注册</span>
+            </div>
+            <div class="account-line">
+              <span class="account-label">孩子数量</span>
+              <span class="account-value" id="settings-child-count">-</span>
+            </div>
+            <div class="divider"></div>
+            <button class="danger-btn" type="button" id="logout-btn"><i data-lucide="log-out"></i>退出登录</button>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">WorkBuddy 连接提示词</h2>
+              <span class="badge syncing">复制后粘贴</span>
+            </div>
+            <div class="prompt-box">
+              <textarea id="workbuddy-prompt" readonly>你是“禾芽家庭教务”的家庭教育助手。
+
+你运行在 WorkBuddy 中，通过 Family Education MCP 访问当前家庭的孩子档案、成长记录、报告和教材库。
+
+请遵循以下规则：
+1. 面向孩子时，不直接给完整答案，先提问、再提示、最后引导孩子自己完成。
+2. 面向家长时，先查看孩子历史数据和最近报告，再给出具体建议。
+3. 需要保存作文、阅读、任务或家长笔记时，调用对应的 MCP 工具。
+4. 教材内容以云端教材库中的章节和知识点为准。
+5. 涉及医学、心理危机等高风险问题时，不做诊断，建议家长寻求专业人士帮助。</textarea>
+            </div>
+            <div class="prompt-actions">
+              <button class="primary-btn" type="button" id="copy-prompt-btn"><i data-lucide="copy"></i>复制提示词</button>
+            </div>
+            <div class="settings-card" style="margin-top:14px">
+              <h3>连接状态</h3>
+              <p class="hint">在 WorkBuddy 中新建自定义助手，把提示词粘贴到助手说明，并接入 Family Education MCP 后即可使用。</p>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog id="child-dialog">
+  <form id="child-form" class="auth-form" onsubmit="return false">
+    <h2 class="dialog-title">新建孩子</h2>
+    <div class="field">
+      <label>孩子姓名</label>
+      <input class="input" name="name" required>
+    </div>
+    <div class="field">
+      <label>年龄</label>
+      <input class="input" name="age" type="number" required>
+    </div>
+    <div class="field">
+      <label>年级</label>
+      <select class="select" name="grade">
+        <option>一年级</option>
+        <option>二年级</option>
+        <option>三年级</option>
+        <option>四年级</option>
+        <option>五年级</option>
+        <option>六年级</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>主要学科</label>
+      <input class="input" name="subjects" value="语文、数学">
+    </div>
+    <div class="field">
+      <label>教材版本</label>
+      <input class="input" name="textbook_version" placeholder="例如：人教版 · 三年级上册">
+    </div>
+    <div class="dialog-actions">
+      <button class="ghost-btn" type="button" id="close-child-dialog">取消</button>
+      <button class="primary-btn" type="submit">保存孩子</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="textbook-dialog">
+  <form id="textbook-form" class="auth-form" onsubmit="return false">
+    <h2 class="dialog-title">导入教材</h2>
+    <div class="field">
+      <label>孩子</label>
+      <select class="select" name="child_id" id="textbook-child-select"></select>
+    </div>
+    <div class="field">
+      <label>教材名称</label>
+      <input class="input" name="title" placeholder="例如：语文三年级上册">
+    </div>
+    <div class="field">
+      <label>学科</label>
+      <select class="select" name="subject">
+        <option>语文</option>
+        <option>数学</option>
+        <option>英语</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>年级</label>
+      <input class="input" name="grade" placeholder="例如：三年级">
+    </div>
+    <div class="field">
+      <label>出版社 / 版本</label>
+      <input class="input" name="publisher" placeholder="人教版">
+      <input class="input" name="version" placeholder="三年级上册" style="margin-top:8px">
+    </div>
+    <div class="field">
+      <label>教材文件</label>
+      <input class="input" name="file" type="file" accept=".pdf,.doc,.docx,.txt,image/*">
+    </div>
+    <div class="dialog-actions">
+      <button class="ghost-btn" type="button" id="close-textbook-dialog">取消</button>
+      <button class="primary-btn" type="submit">导入教材</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="workbuddy-textbook-dialog">
+  <div class="auth-form">
+    <h2 class="dialog-title">通过 WorkBuddy 导入教材</h2>
+    <div class="field">
+      <label>选择孩子</label>
+      <select class="select" id="workbuddy-child-select"></select>
+    </div>
+    <div class="field">
+      <label>导入提示词</label>
+      <div class="prompt-box">
+        <textarea id="workbuddy-import-prompt" readonly></textarea>
+      </div>
+    </div>
+    <div class="prompt-actions">
+      <button class="primary-btn" type="button" id="copy-workbuddy-import-prompt"><i data-lucide="copy"></i>复制提示词</button>
+    </div>
+    <div class="settings-card">
+      <h3>使用步骤</h3>
+      <p class="hint">复制提示词后，打开 WorkBuddy，把提示词粘贴给家庭教育助手，再上传教材文件。系统会调用 Family Education MCP 的教材工具，把教材同步到后台教材库。</p>
+    </div>
+    <div class="dialog-actions">
+      <button class="ghost-btn" type="button" id="use-local-import">改为本地上传</button>
+      <button class="ghost-btn" type="button" id="close-workbuddy-import-dialog">关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="edit-textbook-dialog">
+  <form id="edit-textbook-form" class="auth-form" onsubmit="return false">
+    <h2 class="dialog-title">编辑教材元数据</h2>
+    <input type="hidden" name="textbook_id" id="edit-textbook-id">
+    <div class="field">
+      <label>教材名称</label>
+      <input class="input" name="title">
+    </div>
+    <div class="field">
+      <label>学科</label>
+      <input class="input" name="subject">
+    </div>
+    <div class="field">
+      <label>年级</label>
+      <input class="input" name="grade">
+    </div>
+    <div class="field">
+      <label>出版社</label>
+      <input class="input" name="publisher">
+    </div>
+    <div class="field">
+      <label>版本</label>
+      <input class="input" name="version">
+    </div>
+    <div class="field">
+      <label>状态</label>
+      <select class="select" name="status">
+        <option value="ready">已就绪</option>
+        <option value="syncing">识别中</option>
+      </select>
+    </div>
+    <div class="dialog-actions">
+      <button class="ghost-btn" type="button" id="close-edit-textbook-dialog">取消</button>
+      <button class="primary-btn" type="submit">保存修改</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* 预览版逻辑保留但不启用，真实版本逻辑在下方独立脚本中。 */
+if (false) {
+const styleButtons = document.querySelectorAll("[data-theme-target]");
+const pageButtons = document.querySelectorAll("[data-page-target]");
+const pages = document.querySelectorAll(".page");
+
+styleButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    document.body.dataset.theme = button.dataset.themeTarget;
+    styleButtons.forEach(item => item.classList.toggle("active", item === button));
+  });
+});
+
+pageButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    const target = button.dataset.pageTarget;
+    pages.forEach(page => page.classList.toggle("active", page.id === "page-" + target));
+    pageButtons.forEach(item => item.classList.toggle("active", item === button));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+});
+
+const authScreen = document.getElementById("auth-screen");
+const loginForm = document.getElementById("login-form");
+const registerForm = document.getElementById("register-form");
+const loginTab = document.getElementById("tab-login");
+const registerTab = document.getElementById("tab-register");
+const authTitle = document.getElementById("auth-title");
+const authSub = document.getElementById("auth-sub");
+const demoLogin = document.getElementById("demo-login");
+const logoutBtn = document.getElementById("logout-btn");
+const copyPromptBtn = document.getElementById("copy-prompt-btn");
+const promptTextarea = document.getElementById("workbuddy-prompt");
+
+function enterApp() {
+  authScreen.classList.add("hidden");
+  document.body.classList.remove("locked");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function leaveApp() {
+  document.body.classList.add("locked");
+  authScreen.classList.remove("hidden");
+  loginTab.click();
+  window.scrollTo({ top: 0 });
+}
+
+loginTab.addEventListener("click", () => {
+  loginTab.classList.add("active");
+  registerTab.classList.remove("active");
+  loginForm.classList.remove("hidden");
+  registerForm.classList.add("hidden");
+  authTitle.textContent = "登录家庭账号";
+  authSub.textContent = "输入邮箱和密码进入后台";
+});
+
+registerTab.addEventListener("click", () => {
+  registerTab.classList.add("active");
+  loginTab.classList.remove("active");
+  registerForm.classList.remove("hidden");
+  loginForm.classList.add("hidden");
+  authTitle.textContent = "邀请码注册";
+  authSub.textContent = "输入邀请码、邮箱和密码创建家庭账号";
+});
+
+loginForm.addEventListener("submit", enterApp);
+registerForm.addEventListener("submit", enterApp);
+demoLogin.addEventListener("click", enterApp);
+logoutBtn.addEventListener("click", leaveApp);
+
+copyPromptBtn.addEventListener("click", async () => {
+  const text = promptTextarea.value;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    promptTextarea.select();
+    document.execCommand("copy");
+  }
+  copyPromptBtn.innerHTML = "已复制";
+  setTimeout(() => {
+    copyPromptBtn.innerHTML = '<i data-lucide="copy"></i>复制提示词';
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  }, 1600);
+});
+
+if (window.lucide) {
+  lucide.createIcons();
+}
+}
+</script>
+
+<script>
+const styleButtons = document.querySelectorAll("[data-theme-target]");
+const pageButtons = document.querySelectorAll("[data-page-target]");
+const pages = document.querySelectorAll(".page");
+
+styleButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    document.body.dataset.theme = button.dataset.themeTarget;
+    styleButtons.forEach(item => item.classList.toggle("active", item === button));
+  });
+});
+
+pageButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    const target = button.dataset.pageTarget;
+    pages.forEach(page => page.classList.toggle("active", page.id === "page-" + target));
+    pageButtons.forEach(item => item.classList.toggle("active", item === button));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (target === "reports") renderReports(state.children);
+    if (target === "textbooks") loadAll();
+  });
+});
+
+const TOKEN_KEY = "familyEduToken";
+const APP_BASE = location.pathname.startsWith("/family-edu/") ? "/family-edu" : "";
+const authScreen = document.getElementById("auth-screen");
+const loginForm = document.getElementById("login-form");
+const registerForm = document.getElementById("register-form");
+const loginTab = document.getElementById("tab-login");
+const registerTab = document.getElementById("tab-register");
+const authTitle = document.getElementById("auth-title");
+const authSub = document.getElementById("auth-sub");
+const demoLogin = document.getElementById("demo-login");
+const logoutBtn = document.getElementById("logout-btn");
+const copyPromptBtn = document.getElementById("copy-prompt-btn");
+const promptTextarea = document.getElementById("workbuddy-prompt");
+
+const homeStats = document.getElementById("home-stats");
+const homeChildren = document.getElementById("home-children");
+const homeInsights = document.getElementById("home-insights");
+const homeReports = document.getElementById("home-reports");
+const studentsBody = document.getElementById("students-body");
+const textbooksBody = document.getElementById("textbooks-body");
+const reportsList = document.getElementById("reports-list");
+
+let state = { children: [], textbooks: [], knowledge: [], homework: [], home: null, settings: null };
+
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[char]));
+}
+
+async function api(path, options = {}) {
+  const requestPath = path.startsWith("/") ? `${APP_BASE}${path}` : path;
+  const headers = { ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body && !(options.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  const response = await fetch(requestPath, { ...options, headers });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "请求失败");
+  return data;
+}
+
+function renderChart(series, selector = "#page-home .growth-chart") {
+  const chart = document.querySelector(selector);
+  if (!chart || !series || !series.length) return;
+  const points = series.slice(-10);
+  const x = (index) => 40 + (points.length === 1 ? 0 : (index / (points.length - 1)) * 590);
+  const y = (value) => 180 - (Number(value || 0) / 100) * 140;
+  const linePath = (key) => {
+    let last = 0;
+    return points.map((point, index) => {
+      const value = Number(point[key]) || last;
+      last = value;
+      return `${index ? "L" : "M"}${x(index).toFixed(1)} ${y(value).toFixed(1)}`;
+    }).join(" ");
+  };
+  const area = `${linePath("writing")} L${x(points.length - 1).toFixed(1)} 180 L${x(0).toFixed(1)} 180 Z`;
+  chart.querySelector(".chart-area").setAttribute("d", area);
+  chart.querySelector(".chart-line").setAttribute("d", linePath("writing"));
+  chart.querySelector(".chart-line.second").setAttribute("d", linePath("reading"));
+  chart.querySelector(".chart-line.third").setAttribute("d", linePath("homework"));
+  const labels = chart.querySelectorAll(".chart-label");
+  if (labels.length >= 2) {
+    labels[0].textContent = points[0].date;
+    labels[1].textContent = points[points.length - 1].date;
+  }
+}
+
+function renderHome(home) {
+  const stats = home.stats || {};
+  document.getElementById("sidebar-record-count").textContent = stats.records || 0;
+  document.getElementById("sidebar-child-count").textContent = (home.children || []).length;
+  document.getElementById("sidebar-textbook-count").textContent = (home.textbooks || []).length;
+  homeStats.innerHTML = `
+    <div class="stat"><div class="stat-label">成长记录</div><div class="stat-value">${stats.records || 0}</div><div class="stat-trend"><i data-lucide="arrow-up-right" style="width:13px;height:13px"></i>趋势 ${stats.trend || "+1"}</div></div>
+    <div class="stat"><div class="stat-label">作文完成</div><div class="stat-value">${stats.writing || 0} 篇</div><div class="stat-trend"><i data-lucide="file-text" style="width:13px;height:13px"></i>持续记录</div></div>
+    <div class="stat"><div class="stat-label">阅读复述</div><div class="stat-value">${stats.reading || 0}%</div><div class="stat-trend"><i data-lucide="trending-up" style="width:13px;height:13px"></i>最近提升</div></div>
+    <div class="stat"><div class="stat-label">作业完成度</div><div class="stat-value">${stats.homework || 0}%</div><div class="stat-trend"><i data-lucide="check-circle-2" style="width:13px;height:13px"></i>本周已记录</div></div>
+  `;
+  homeChildren.innerHTML = (home.children || []).map((child) => `
+    <div class="child-row">
+      <span class="avatar">${escapeHtml(child.name.slice(0, 1))}</span>
+      <div>
+        <div class="child-name">${escapeHtml(child.name)}</div>
+        <div class="child-meta">${escapeHtml(child.grade)} · ${escapeHtml((child.subjects || []).join(" / "))}</div>
+      </div>
+      <span class="mini-badge"><i data-lucide="check" style="width:13px;height:13px"></i>已建档</span>
+    </div>
+  `).join("") || `<div class="empty">暂无孩子，请先创建。</div>`;
+  homeInsights.innerHTML = (home.insights || []).map((item, index) => `
+    <div class="ai-note"${index ? ' style="margin-top:10px;border-left-color:var(--accent-3)"' : ""}>
+      <p><strong>${escapeHtml(item.name)}</strong> ${escapeHtml(item.message)}</p>
+    </div>
+  `).join("") || `<div class="empty">暂无 AI 发现。</div>`;
+  homeReports.innerHTML = (home.reports || []).map((report) => `
+    <div class="report-row">
+      <div>
+        <div class="report-title">${escapeHtml(report.title)}</div>
+        <div class="report-meta">${escapeHtml(report.period_end)} · 写作 / 阅读 / 作业</div>
+      </div>
+      <span class="badge ready report-status">已生成</span>
+    </div>
+  `).join("") || `<div class="empty">暂无报告。</div>`;
+  renderChart((home.growth && home.growth[0] && home.growth[0].series) || [], "#page-home .growth-chart");
+}
+
+function renderStudents(children) {
+  studentsBody.innerHTML = children.map((child) => `
+    <tr>
+      <td><strong>${escapeHtml(child.name)}</strong><div class="child-meta">建档 ${escapeHtml(child.created_at.slice(0, 10))}</div></td>
+      <td>${escapeHtml(child.age)} 岁 / ${escapeHtml(child.grade)}</td>
+      <td>${escapeHtml((child.subjects || []).join("、"))}</td>
+      <td>${escapeHtml(child.textbook_version || "未设置")}</td>
+      <td><div class="progress-track"><div class="progress-bar" style="width:${Math.min(100, Math.max(10, (child.age || 0) * 8))}%"></div></div></td>
+      <td><span class="badge ready">正常</span></td>
+    </tr>
+  `).join("") || `<tr><td colspan="6" class="empty">暂无孩子，请先创建。</td></tr>`;
+}
+
+function renderTextbooks(textbooks, children) {
+  const childName = (id) => (children.find((child) => child.id === id) || {}).name || "-";
+  textbooksBody.innerHTML = textbooks.map((textbook) => `
+    <tr>
+      <td><strong>${escapeHtml(textbook.title)}</strong><div class="child-meta">${escapeHtml(textbook.publisher || "-")} · ${escapeHtml(textbook.version || "-")}</div></td>
+      <td>${escapeHtml(childName(textbook.child_id))}</td>
+      <td>${textbook.chapters?.length || 0} 章</td>
+      <td>${textbook.knowledge_points?.length || 0} 个</td>
+      <td><span class="badge ${textbook.status === "ready" ? "ready" : "syncing"}">${textbook.status === "ready" ? "已就绪" : "识别中"}</span> <button class="panel-action" data-edit-textbook="${escapeHtml(textbook.id)}">编辑</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" class="empty">暂无教材，可通过 WorkBuddy 上传同步。</td></tr>`;
+}
+
+function renderSettings(settings) {
+  document.getElementById("settings-email").textContent = settings.user.email;
+  document.getElementById("settings-family").textContent = settings.family.id.toUpperCase();
+  document.getElementById("settings-type").textContent = "邀请码注册";
+  document.getElementById("settings-child-count").textContent = `${settings.child_count} 个`;
+  promptTextarea.value = settings.workbuddy_prompt;
+}
+
+function knowledgeKindLabel(kind) {
+  if (kind === "report") return "报告";
+  if (kind === "suggestion") return "建议";
+  return "总结";
+}
+
+function renderKnowledge(items) {
+  const list = document.getElementById("knowledge-list");
+  const childName = (id) => (state.children.find((child) => child.id === id) || {}).name || "-";
+  list.innerHTML = items.map((item) => `
+    <div class="report-row">
+      <div>
+        <div class="report-title">${escapeHtml(item.title)} <span class="badge ready">${knowledgeKindLabel(item.kind)}</span></div>
+        <div class="report-meta">${escapeHtml(childName(item.child_id))} · ${escapeHtml(item.created_at.slice(0, 10))} · WorkBuddy</div>
+        <div class="hint" style="margin-top:8px">${escapeHtml(item.content)}</div>
+      </div>
+      <button class="panel-action" data-delete-knowledge="${escapeHtml(item.id)}">删除</button>
+    </div>
+  `).join("") || `<div class="empty">暂无 WorkBuddy 同步的知识记录。</div>`;
+}
+
+function homeworkStatusLabel(status) {
+  if (status === "done") return "已完成";
+  if (status === "in_progress") return "进行中";
+  return "待完成";
+}
+
+function renderHomework(items) {
+  const list = document.getElementById("homework-body");
+  const childName = (id) => (state.children.find((child) => child.id === id) || {}).name || "-";
+  list.innerHTML = items.map((item) => `
+    <tr>
+      <td>${escapeHtml(childName(item.child_id))}</td>
+      <td>${escapeHtml(item.subject || "-")}</td>
+      <td><strong>${escapeHtml(item.title)}</strong><div class="child-meta">${escapeHtml(item.description || "")}</div></td>
+      <td>${escapeHtml(item.due_date || item.deadline || "-")}</td>
+      <td><span class="badge ${item.status === "done" ? "ready" : "syncing"}">${homeworkStatusLabel(item.status)}</span></td>
+      <td>${item.status === "done" ? `<button class="panel-action" data-reopen-homework="${escapeHtml(item.id)}">重新打开</button>` : `<button class="panel-action" data-complete-homework="${escapeHtml(item.id)}">完成</button>`}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6" class="empty">暂无同步的家庭作业。</td></tr>`;
+}
+
+function renderReports(children) {
+  if (!children.length) return;
+  const childId = children[0].id;
+  Promise.all([
+    api(`/api/children/${childId}/reports`),
+    api(`/api/children/${childId}/growth`),
+    api(`/api/children/${childId}/records`),
+  ]).then(([reports, growth, records]) => {
+    reportsList.innerHTML = reports.map((report) => `
+      <div class="report-row">
+        <div>
+          <div class="report-title">${escapeHtml(report.title)}</div>
+          <div class="report-meta">${escapeHtml(report.summary)}</div>
+        </div>
+        <span class="badge ready report-status">已生成</span>
+      </div>
+    `).join("") || `<div class="empty">暂无报告，可先在记录页补充成长记录。</div>`;
+    renderChart(growth, "#page-reports .growth-chart");
+    renderRecords(records);
+  }).catch(() => {});
+}
+
+function recordTypeLabel(type) {
+  const labels = { writing: "写作", reading: "阅读", homework: "作业", parent_note: "家长笔记" };
+  return labels[type] || type;
+}
+
+function renderRecords(records) {
+  const list = document.getElementById("records-list");
+  list.innerHTML = records.slice(-20).reverse().map((record) => `
+    <div class="report-row">
+      <div>
+        <div class="report-title">${escapeHtml(record.title)} <span class="badge ready">${recordTypeLabel(record.type)}</span></div>
+        <div class="report-meta">${escapeHtml(record.date)} · 评分 ${record.score || "-"}</div>
+        <div class="hint" style="margin-top:8px">${escapeHtml(record.notes || "")}</div>
+      </div>
+    </div>
+  `).join("") || `<div class="empty">暂无成长记录。</div>`;
+}
+
+async function loadAll() {
+  const [home, children, textbooks, knowledge, homework, settings] = await Promise.all([
+    api("/api/home"),
+    api("/api/children"),
+    api("/api/textbooks"),
+    api("/api/knowledge"),
+    api("/api/homework"),
+    api("/api/settings"),
+  ]);
+  state = { home, children, textbooks, knowledge, homework, settings };
+  fillHomeworkChildFilter();
+  renderHome(home);
+  renderStudents(children);
+  renderTextbooks(textbooks, children);
+  renderKnowledge(knowledge);
+  renderHomework(homework);
+  renderSettings(settings);
+  renderReports(children);
+}
+
+async function enterApp() {
+  await loadAll();
+  authScreen.classList.add("hidden");
+  document.body.classList.remove("locked");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function leaveApp() {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch (_error) {}
+  setToken(null);
+  authScreen.classList.remove("hidden");
+  document.body.classList.add("locked");
+  loginTab.click();
+  window.scrollTo({ top: 0 });
+}
+
+loginTab.addEventListener("click", () => {
+  loginTab.classList.add("active");
+  registerTab.classList.remove("active");
+  loginForm.classList.remove("hidden");
+  registerForm.classList.add("hidden");
+  authTitle.textContent = "登录家庭账号";
+  authSub.textContent = "输入邮箱和密码进入后台";
+});
+
+registerTab.addEventListener("click", () => {
+  registerTab.classList.add("active");
+  loginTab.classList.remove("active");
+  registerForm.classList.remove("hidden");
+  loginForm.classList.add("hidden");
+  authTitle.textContent = "邀请码注册";
+  authSub.textContent = "输入邀请码、邮箱和密码创建家庭账号";
+});
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(loginForm);
+  try {
+    const data = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
+    setToken(data.token);
+    await enterApp();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+registerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(registerForm);
+  try {
+    const data = await api("/api/auth/register", { method: "POST", body: JSON.stringify({ inviteCode: form.get("inviteCode"), email: form.get("email"), password: form.get("password") }) });
+    setToken(data.token);
+    await enterApp();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+demoLogin.addEventListener("click", async () => {
+  try {
+    const data = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email: "jojo@example.com", password: "123456" }) });
+    setToken(data.token);
+    await enterApp();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+logoutBtn.addEventListener("click", leaveApp);
+
+copyPromptBtn.addEventListener("click", async () => {
+  const text = promptTextarea.value;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (_error) {
+    promptTextarea.select();
+    document.execCommand("copy");
+  }
+  copyPromptBtn.innerHTML = "已复制";
+  setTimeout(() => {
+    copyPromptBtn.innerHTML = '<i data-lucide="copy"></i>复制提示词';
+    if (window.lucide) lucide.createIcons();
+  }, 1600);
+});
+
+const childDialog = document.getElementById("child-dialog");
+const childForm = document.getElementById("child-form");
+document.getElementById("add-child-btn").addEventListener("click", () => {
+  childForm.reset();
+  childDialog.showModal();
+});
+document.getElementById("close-child-dialog").addEventListener("click", () => childDialog.close());
+childForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(childForm);
+  try {
+    await api("/api/children", {
+      method: "POST",
+      body: JSON.stringify({
+        name: form.get("name"),
+        age: Number(form.get("age")),
+        grade: form.get("grade"),
+        subjects: String(form.get("subjects") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+        textbook_version: form.get("textbook_version") || "",
+      }),
+    });
+    childDialog.close();
+    await loadAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+const textbookDialog = document.getElementById("textbook-dialog");
+const textbookForm = document.getElementById("textbook-form");
+const textbookChildSelect = document.getElementById("textbook-child-select");
+const workbuddyTextbookDialog = document.getElementById("workbuddy-textbook-dialog");
+const workbuddyChildSelect = document.getElementById("workbuddy-child-select");
+const workbuddyImportPrompt = document.getElementById("workbuddy-import-prompt");
+
+function fillTextbookChildOptions(select) {
+  select.innerHTML = state.children.map((child) => `<option value="${escapeHtml(child.id)}">${escapeHtml(child.name)}</option>`).join("");
+}
+
+function buildWorkbuddyImportPrompt(childId) {
+  const child = state.children.find((item) => item.id === childId);
+  return `请帮我在 WorkBuddy 中导入一本教材，并同步到“禾芽家庭教务”的教材库。
+
+请引导家长提供教材文件，以及教材名称、学科、年级、出版社和版本；缺少的信息需要向家长确认，不要自己编造。
+
+得到信息后，调用 Family Education MCP 的 import_textbook 工具，参数示例：
+
+{
+  "family_id": "${state.settings?.family?.id || "family_001"}",
+  "child_id": "${child?.id || ""}",
+  "title": "教材名称",
+  "subject": "语文",
+  "grade": "三年级",
+  "publisher": "人教版",
+  "version": "三年级上册",
+  "file": "WorkBuddy 中上传的教材文件路径"
+}
+
+导入完成后，请向家长确认教材已经出现在后台“教材库”中。`;
+}
+
+function openWorkbuddyTextbookImport() {
+  fillTextbookChildOptions(workbuddyChildSelect);
+  workbuddyImportPrompt.value = buildWorkbuddyImportPrompt(workbuddyChildSelect.value);
+  workbuddyTextbookDialog.showModal();
+}
+
+document.getElementById("import-textbook-btn").addEventListener("click", () => {
+  openWorkbuddyTextbookImport();
+});
+workbuddyChildSelect.addEventListener("change", () => {
+  workbuddyImportPrompt.value = buildWorkbuddyImportPrompt(workbuddyChildSelect.value);
+});
+document.getElementById("copy-workbuddy-import-prompt").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(workbuddyImportPrompt.value);
+  } catch (_error) {
+    workbuddyImportPrompt.select();
+    document.execCommand("copy");
+  }
+  const button = document.getElementById("copy-workbuddy-import-prompt");
+  button.innerHTML = "已复制";
+  setTimeout(() => {
+    button.innerHTML = '<i data-lucide="copy"></i>复制提示词';
+    if (window.lucide) lucide.createIcons();
+  }, 1600);
+});
+document.getElementById("close-workbuddy-import-dialog").addEventListener("click", () => workbuddyTextbookDialog.close());
+document.getElementById("use-local-import").addEventListener("click", () => {
+  workbuddyTextbookDialog.close();
+  fillTextbookChildOptions(textbookChildSelect);
+  textbookForm.reset();
+  textbookDialog.showModal();
+});
+document.getElementById("close-textbook-dialog").addEventListener("click", () => textbookDialog.close());
+textbookForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(textbookForm);
+  try {
+    await api("/api/textbooks/import", { method: "POST", body: form });
+    textbookDialog.close();
+    await loadAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+const editTextbookDialog = document.getElementById("edit-textbook-dialog");
+const editTextbookForm = document.getElementById("edit-textbook-form");
+textbooksBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-edit-textbook]");
+  if (!button) return;
+  const textbook = state.textbooks.find((item) => item.id === button.dataset.editTextbook);
+  if (!textbook) return;
+  document.getElementById("edit-textbook-id").value = textbook.id || "";
+  for (const key of ["title", "subject", "grade", "publisher", "version", "status"]) {
+    const input = editTextbookForm.querySelector(`[name="${key}"]`);
+    if (input) input.value = textbook[key] || "";
+  }
+  editTextbookDialog.showModal();
+});
+document.getElementById("close-edit-textbook-dialog").addEventListener("click", () => editTextbookDialog.close());
+editTextbookForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(editTextbookForm);
+  try {
+    await api(`/api/textbooks/${form.get("textbook_id")}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: form.get("title"),
+        subject: form.get("subject"),
+        grade: form.get("grade"),
+        publisher: form.get("publisher"),
+        version: form.get("version"),
+        status: form.get("status"),
+      }),
+    });
+    editTextbookDialog.close();
+    await loadAll();
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+document.getElementById("sync-check-btn").addEventListener("click", async () => {
+  try {
+    await api("/api/textbooks");
+    const button = document.getElementById("sync-check-btn");
+    button.innerHTML = '<i data-lucide="check"></i>已检查';
+    setTimeout(() => {
+      button.innerHTML = '<i data-lucide="refresh-cw"></i>检查同步';
+      if (window.lucide) lucide.createIcons();
+    }, 1600);
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+document.getElementById("refresh-knowledge-btn").addEventListener("click", async () => {
+  try {
+    state.knowledge = await api("/api/knowledge");
+    renderKnowledge(state.knowledge);
+    const button = document.getElementById("refresh-knowledge-btn");
+    button.innerHTML = '<i data-lucide="check"></i>已刷新';
+    setTimeout(() => {
+      button.innerHTML = '<i data-lucide="refresh-cw"></i>刷新';
+      if (window.lucide) lucide.createIcons();
+    }, 1600);
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+document.getElementById("knowledge-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-knowledge]");
+  if (!button) return;
+  try {
+    await api(`/api/knowledge/${button.dataset.deleteKnowledge}`, { method: "DELETE" });
+    state.knowledge = await api("/api/knowledge");
+    renderKnowledge(state.knowledge);
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+const homeworkChildFilter = document.getElementById("homework-child-filter");
+function fillHomeworkChildFilter() {
+  homeworkChildFilter.innerHTML = '<option value="">全部孩子</option>' + state.children.map((child) => `<option value="${escapeHtml(child.id)}">${escapeHtml(child.name)}</option>`).join("");
+}
+
+homeworkChildFilter.addEventListener("change", () => {
+  const childId = homeworkChildFilter.value;
+  renderHomework(childId ? state.homework.filter((item) => item.child_id === childId) : state.homework);
+});
+
+document.getElementById("refresh-homework-btn").addEventListener("click", async () => {
+  try {
+    state.homework = await api("/api/homework");
+    renderHomework(state.homework);
+    const button = document.getElementById("refresh-homework-btn");
+    button.innerHTML = '<i data-lucide="check"></i>已刷新';
+    setTimeout(() => {
+      button.innerHTML = '<i data-lucide="refresh-cw"></i>刷新作业';
+      if (window.lucide) lucide.createIcons();
+    }, 1600);
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+document.getElementById("homework-body").addEventListener("click", async (event) => {
+  const completeButton = event.target.closest("[data-complete-homework]");
+  const reopenButton = event.target.closest("[data-reopen-homework]");
+  try {
+    if (completeButton) {
+      await api(`/api/homework/${completeButton.dataset.completeHomework}/complete`, { method: "POST" });
+    }
+    if (reopenButton) {
+      await api(`/api/homework/${reopenButton.dataset.reopenHomework}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "pending", completed_at: "" }),
+      });
+    }
+    state.homework = await api("/api/homework");
+    renderHomework(homeworkChildFilter.value ? state.homework.filter((item) => item.child_id === homeworkChildFilter.value) : state.homework);
+  } catch (error) {
+    alert(error.message);
+  }
+});
+
+async function init() {
+  if (!getToken()) return;
+  try {
+    await api("/api/auth/me");
+    await enterApp();
+  } catch (_error) {
+    setToken(null);
+  }
+}
+
+init();
+if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
