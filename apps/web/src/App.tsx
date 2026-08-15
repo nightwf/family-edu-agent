@@ -366,7 +366,7 @@ function App() {
             <div className="rounded-lg border border-stone-200 bg-panel p-4">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-semibold">家庭作业</h2>
-                <button className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>
+                <button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>
               </div>
               <div className="space-y-3">
                 {home.homework.map((item) => (
