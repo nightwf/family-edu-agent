@@ -6,7 +6,7 @@ import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import { prisma } from "./prisma.js";
 import { env } from "./env.js";
-import { hashPassword, verifyPassword, createRefreshTokenHash } from "./auth.js";
+import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
 import { WORKBUDDY_PROMPT } from "./workbuddy-prompt.js";
 
@@ -84,6 +84,22 @@ export async function buildApp() {
       data: { revokedAt: new Date() },
     });
     return { ok: true };
+  });
+
+  app.post("/api/auth/refresh", async (request, reply) => {
+    const { refreshToken } = request.body as any;
+    if (!refreshToken) return reply.code(400).send({ error: "缺少 refreshToken" });
+    const session = await prisma.session.findFirst({
+      where: {
+        refreshTokenHash: hashRefreshToken(String(refreshToken)),
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: true },
+    });
+    if (!session) return reply.code(401).send({ error: "refreshToken 无效或已过期" });
+    const token = app.jwt.sign({ sub: session.user.id, familyId: session.user.familyId });
+    return { token };
   });
 
   app.get("/api/auth/me", { preHandler: requireAuth as any }, async (request) => {
@@ -214,6 +230,25 @@ export async function buildApp() {
 
   app.get("/api/textbooks", { preHandler: requireAuth as any }, async (request) => {
     return prisma.textbook.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
+  });
+
+  app.post("/api/textbooks", { preHandler: requireAuth as any }, async (request) => {
+    const familyId = getAuth(request).familyId;
+    const body = request.body as any;
+    return prisma.textbook.create({
+      data: {
+        familyId,
+        childId: body.child_id,
+        title: body.title,
+        subject: body.subject,
+        grade: body.grade,
+        publisher: body.publisher,
+        version: body.version,
+        source: body.source || "workbuddy",
+        fileKey: body.file_key || "",
+        knowledgePoints: Array.isArray(body.knowledge_points) ? body.knowledge_points : [],
+      },
+    });
   });
 
   app.patch("/api/textbooks/:textbookId", { preHandler: requireAuth as any }, async (request) => {

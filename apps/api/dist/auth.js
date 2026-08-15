@@ -8,5 +8,8 @@ export function verifyPassword(password, hash) {
 }
 export function createRefreshTokenHash() {
     const token = crypto.randomBytes(32).toString("hex");
-    return { token, hash: crypto.createHash("sha256").update(token).digest("hex") };
+    return { token, hash: hashRefreshToken(token) };
+}
+export function hashRefreshToken(token) {
+    return crypto.createHash("sha256").update(token).digest("hex");
 }

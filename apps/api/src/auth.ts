@@ -12,5 +12,9 @@ export function verifyPassword(password: string, hash: string) {
 
 export function createRefreshTokenHash() {
   const token = crypto.randomBytes(32).toString("hex");
-  return { token, hash: crypto.createHash("sha256").update(token).digest("hex") };
+  return { token, hash: hashRefreshToken(token) };
+}
+
+export function hashRefreshToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
 }

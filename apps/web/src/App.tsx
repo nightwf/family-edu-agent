@@ -54,6 +54,9 @@ function App() {
   const [home, setHome] = useState<HomeData | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
+  const [childDialog, setChildDialog] = useState(false);
+  const [editingChild, setEditingChild] = useState<Child | null>(null);
+  const [textbookDialog, setTextbookDialog] = useState(false);
 
   async function load() {
     if (!token) return;
@@ -106,6 +109,40 @@ function App() {
     await request("/api/auth/logout", { method: "POST" }, token).catch(() => {});
     localStorage.removeItem("familyEduToken");
     setToken("");
+  }
+
+  async function submitChild(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      name: form.get("name"),
+      age: Number(form.get("age")),
+      grade: form.get("grade"),
+      subjects: String(form.get("subjects") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+      textbook_version: form.get("textbook_version"),
+    };
+    if (editingChild) {
+      await request(`/api/children/${editingChild.id}`, { method: "PATCH", body: JSON.stringify(payload) }, token);
+    } else {
+      await request("/api/children", { method: "POST", body: JSON.stringify(payload) }, token);
+    }
+    setChildDialog(false);
+    setEditingChild(null);
+    await load();
+  }
+
+  async function deleteChild(child: Child) {
+    if (!window.confirm(`确定删除“${child.name}”吗？相关记录会同步删除。`)) return;
+    await request(`/api/children/${child.id}`, { method: "DELETE" }, token);
+    await load();
+  }
+
+  async function submitTextbook(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await request("/api/textbooks", { method: "POST", body: form }, token);
+    setTextbookDialog(false);
+    await load();
   }
 
   const activePage = PAGES.find((item) => item.id === page)!;
@@ -202,7 +239,7 @@ function App() {
             <div className="rounded-lg border border-stone-200 bg-panel p-4">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-semibold">学生档案</h2>
-                <button className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />新建孩子</button>
+                <button onClick={() => { setEditingChild(null); setChildDialog(true); }} className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />新建孩子</button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
@@ -223,8 +260,8 @@ function App() {
                         <td className="px-2 py-3">{child.subjects.join("、")}</td>
                         <td className="px-2 py-3">{child.textbookVersion || "未设置"}</td>
                         <td className="px-2 py-3">
-                          <button className="text-teal"><Edit size={16} /></button>
-                          <button className="ml-2 text-accent"><Trash size={16} /></button>
+                          <button onClick={() => { setEditingChild(child); setChildDialog(true); }} className="text-teal"><Edit size={16} /></button>
+                          <button onClick={() => deleteChild(child)} className="ml-2 text-accent"><Trash size={16} /></button>
                         </td>
                       </tr>
                     ))}
@@ -238,7 +275,7 @@ function App() {
             <div className="rounded-lg border border-stone-200 bg-panel p-4">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-semibold">教材库</h2>
-                <button className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />导入教材</button>
+                <button onClick={() => setTextbookDialog(true)} className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />导入教材</button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
@@ -308,6 +345,43 @@ function App() {
           )}
         </main>
       </div>
+
+      {childDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={submitChild} className="w-full max-w-md space-y-3 rounded-lg bg-panel p-5">
+            <h2 className="font-bold">{editingChild ? "编辑孩子档案" : "新建孩子"}</h2>
+            <input name="name" defaultValue={editingChild?.name} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="姓名" />
+            <input name="age" type="number" defaultValue={editingChild?.age} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年龄" />
+            <input name="grade" defaultValue={editingChild?.grade} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年级" />
+            <input name="subjects" defaultValue={editingChild?.subjects.join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="学科" />
+            <input name="textbook_version" defaultValue={editingChild?.textbookVersion} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教材版本" />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setChildDialog(false); setEditingChild(null); }} className="rounded-lg border border-stone-200 px-3 py-2">取消</button>
+              <button className="rounded-lg bg-accent px-4 py-2 text-white">保存</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {textbookDialog && home && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form onSubmit={submitTextbook} className="w-full max-w-md space-y-3 rounded-lg bg-panel p-5">
+            <h2 className="font-bold">导入教材</h2>
+            <select name="child_id" className="w-full rounded-lg border border-stone-200 px-3 py-2">
+              {home.children.map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}
+            </select>
+            <input name="title" required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教材名称" />
+            <input name="subject" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="学科" />
+            <input name="grade" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年级" />
+            <input name="publisher" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="出版社" />
+            <input name="version" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="版本" />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setTextbookDialog(false)} className="rounded-lg border border-stone-200 px-3 py-2">取消</button>
+              <button className="rounded-lg bg-accent px-4 py-2 text-white">导入</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
