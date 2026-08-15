@@ -251,33 +251,25 @@ export async function buildApp() {
     });
     app.post("/api/textbooks/upload", { preHandler: requireAuth }, async (request, reply) => {
         const familyId = getAuth(request).familyId;
-        const fields = {};
-        let buffer = null;
-        let filename = "";
-        let mimetype = "application/octet-stream";
-        for await (const part of request.parts()) {
-            if (part.type === "file") {
-                filename = part.filename;
-                mimetype = part.mimetype;
-                buffer = await part.toBuffer();
-            }
-            else {
-                fields[part.fieldname] = String(part.value || "");
-            }
-        }
-        if (!buffer)
+        const body = request.body;
+        const filePart = body.file;
+        if (!filePart || typeof filePart.toBuffer !== "function")
             return reply.code(400).send({ error: "缺少教材文件" });
+        const buffer = await filePart.toBuffer();
+        const filename = filePart.filename || "textbook";
+        const mimetype = filePart.mimetype || "application/octet-stream";
+        const value = (key) => body[key]?.value ?? body[key] ?? request.query?.[key] ?? "";
         const key = `textbooks/${familyId}/${crypto.randomUUID()}-${filename}`;
         const fileKey = await saveFile(key, buffer, mimetype);
         return prisma.textbook.create({
             data: {
                 familyId,
-                childId: fields.child_id || request.query?.child_id || "",
-                title: fields.title || request.query?.title || filename,
-                subject: fields.subject || request.query?.subject,
-                grade: fields.grade || request.query?.grade,
-                publisher: fields.publisher || request.query?.publisher,
-                version: fields.version || request.query?.version,
+                childId: String(value("child_id")),
+                title: String(value("title") || filename),
+                subject: String(value("subject") || ""),
+                grade: String(value("grade") || ""),
+                publisher: String(value("publisher") || ""),
+                version: String(value("version") || ""),
                 fileKey,
                 knowledgePoints: [],
             },

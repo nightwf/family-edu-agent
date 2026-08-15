@@ -7,6 +7,7 @@ function createS3Client() {
         return null;
     return new Client({
         endPoint: env.S3_ENDPOINT,
+        port: env.S3_PORT || undefined,
         accessKey: env.S3_ACCESS_KEY,
         secretKey: env.S3_SECRET_KEY,
         useSSL: env.S3_USE_SSL,
@@ -22,6 +23,15 @@ export async function saveFile(key, buffer, contentType = "application/octet-str
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, buffer);
     return target;
+}
+export async function ensureStorageBucket() {
+    const client = createS3Client();
+    if (!client)
+        return;
+    const exists = await client.bucketExists(env.S3_BUCKET).catch(() => false);
+    if (!exists) {
+        await client.makeBucket(env.S3_BUCKET);
+    }
 }
 export async function deleteFile(key) {
     const client = createS3Client();
