@@ -283,6 +283,7 @@ export async function createApp() {
 
   app.use((error, _req, res, _next) => {
     const status = error.status || 500;
+    console.error("[family-edu-agent error]", error);
     if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({ error: "文件不能超过 20MB" });
     }

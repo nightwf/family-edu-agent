@@ -9,11 +9,23 @@ export async function registerMcpHttp(app) {
   await mcpServer.connect(transport);
 
   app.post("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res, req.body);
+    try {
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error("[family-edu-agent mcp post]", error);
+      if (!res.headersSent) res.status(500).json({ error: "MCP request failed" });
+      else res.end();
+    }
   });
 
   app.get("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res);
+    try {
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      console.error("[family-edu-agent mcp get]", error);
+      if (!res.headersSent) res.status(500).json({ error: "MCP request failed" });
+      else res.end();
+    }
   });
 
   return transport;
