@@ -96,7 +96,7 @@ GET  /api/settings
 3. 在 WorkBuddy 中新建自定义助手，把提示词粘贴到助手说明；
 4. 将 `family-edu-mcp` 接入助手。
 
-远程 MCP 可用时直接连接 `http://localhost:4100/mcp`；如果 WorkBuddy 当前不支持远程 MCP，可使用本地 MCP：
+远程 MCP 可用时直接连接 `http://49.234.4.212/family-edu/mcp`；如果 WorkBuddy 当前不支持远程 MCP，可使用本地 MCP：
 
 ```bash
 npm run mcp
