@@ -11,6 +11,7 @@ function createS3Client() {
         accessKey: env.S3_ACCESS_KEY,
         secretKey: env.S3_SECRET_KEY,
         useSSL: env.S3_USE_SSL,
+        pathStyle: env.S3_ENDPOINT === "minio",
     });
 }
 export async function saveFile(key, buffer, contentType = "application/octet-stream") {
@@ -30,7 +31,15 @@ export async function ensureStorageBucket() {
         return;
     const exists = await client.bucketExists(env.S3_BUCKET).catch(() => false);
     if (!exists) {
-        await client.makeBucket(env.S3_BUCKET);
+        try {
+            await client.makeBucket(env.S3_BUCKET);
+        }
+        catch (error) {
+            const code = error?.code;
+            if (code !== "BucketAlreadyOwnedByYou" && code !== "BucketAlreadyExists") {
+                throw error;
+            }
+        }
     }
 }
 export async function deleteFile(key) {
