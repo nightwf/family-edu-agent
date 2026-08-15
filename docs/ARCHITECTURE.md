@@ -6,22 +6,18 @@ WorkBuddy 负责 AI 理解、对话和生成；Family Education MCP 负责把记
 
 ```text
 WorkBuddy
-   │ MCP
+   │ MCP HTTP + Token
    ▼
-Family Education MCP
+Fastify API / Family Education MCP
    │
-   ├── 孩子档案
-   ├── 成长记录
-   ├── 报告生成
-   ├── 教材导入
-   └── 家庭数据
+   ├── Education Domain
+   ├── 认证与家庭隔离
+   ├── 成长记录与报告
+   ├── 教材与作业
+   └── 知识库
    │
-   ▼
-Business API
-   │
-   ├── Web 管理端
-   ├── 数据存储
-   └── 同步兜底
+   ├── PostgreSQL 16
+   └── MinIO / 腾讯云 COS
 ```
 
 ## 数据模型
@@ -32,9 +28,9 @@ Business API
 - Record：作文、阅读、作业、家长笔记等成长记录；
 - Report：周报 / 月报；
 - Textbook：WorkBuddy 上传的教材，包含章节和知识点；
-- Task：学习任务，供 MCP 使用。
-- Homework：家庭作业，作为 Task 的 `kind="homework"` 实例管理。
-- Knowledge：WorkBuddy 生成并同步到项目的总结、报告和建议。
+- Homework：家庭作业；
+- KnowledgeItem：WorkBuddy 生成并同步到项目的总结、报告和建议；
+- Session：Refresh Token 会话。
 
 ## MCP 工具
 
@@ -44,4 +40,6 @@ Family Education MCP 提供 `get_child_profile`、`save_writing_record`、`analy
 
 ## 同步兜底
 
-业务服务同时暴露 HTTP MCP 入口 `/mcp`，WorkBuddy 支持远程 MCP 时可直接连接。当 WorkBuddy 不支持远程 MCP 时，本地运行 `npm run mcp`，本地数据通过 `POST /api/sync/local` 合并到云端业务服务。该接口按 `family_id`、`child_id`、`record_id`、`textbook_id` 去重。
+业务服务同时暴露 HTTP MCP 入口 `/mcp`，通过 `X-MCP-Token` 鉴权。Web 管理端由 Fastify 静态托管，使用 `/family-edu/` 子路径对外提供。
+
+部署使用 Docker Compose：PostgreSQL、API、MinIO 三个容器。数据库备份脚本见 `deploy/backup.sh`。
