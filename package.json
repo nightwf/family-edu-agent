@@ -11,6 +11,9 @@
     "dev": "npm run dev --workspace @family-edu/api",
     "build": "npm run build --workspace @family-edu/web",
     "test": "npm run test --workspaces --if-present",
+    "test:api": "npm run test --workspace @family-edu/api",
+    "test:e2e": "npx playwright test --config apps/web/playwright.config.js",
+    "test:mcp": "bash scripts/mcp-smoke.sh",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma"

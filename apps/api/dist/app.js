@@ -250,23 +250,34 @@ export async function buildApp() {
         });
     });
     app.post("/api/textbooks/upload", { preHandler: requireAuth }, async (request, reply) => {
-        const file = await request.file();
-        if (!file)
-            return reply.code(400).send({ error: "缺少教材文件" });
         const familyId = getAuth(request).familyId;
-        const body = request.body;
-        const buffer = await file.toBuffer();
-        const key = `textbooks/${familyId}/${crypto.randomUUID()}-${file.filename}`;
-        const fileKey = await saveFile(key, buffer, file.mimetype);
+        const fields = {};
+        let buffer = null;
+        let filename = "";
+        let mimetype = "application/octet-stream";
+        for await (const part of request.parts()) {
+            if (part.type === "file") {
+                filename = part.filename;
+                mimetype = part.mimetype;
+                buffer = await part.toBuffer();
+            }
+            else {
+                fields[part.fieldname] = String(part.value || "");
+            }
+        }
+        if (!buffer)
+            return reply.code(400).send({ error: "缺少教材文件" });
+        const key = `textbooks/${familyId}/${crypto.randomUUID()}-${filename}`;
+        const fileKey = await saveFile(key, buffer, mimetype);
         return prisma.textbook.create({
             data: {
                 familyId,
-                childId: body.child_id,
-                title: body.title || file.filename,
-                subject: body.subject,
-                grade: body.grade,
-                publisher: body.publisher,
-                version: body.version,
+                childId: fields.child_id || request.query?.child_id || "",
+                title: fields.title || request.query?.title || filename,
+                subject: fields.subject || request.query?.subject,
+                grade: fields.grade || request.query?.grade,
+                publisher: fields.publisher || request.query?.publisher,
+                version: fields.version || request.query?.version,
                 fileKey,
                 knowledgePoints: [],
             },
