@@ -57,6 +57,7 @@ function App() {
   const [childDialog, setChildDialog] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [textbookDialog, setTextbookDialog] = useState(false);
+  const [reportData, setReportData] = useState<{ records: any[]; reports: any[]; growth: any[] } | null>(null);
 
   async function load() {
     if (!token) return;
@@ -67,6 +68,16 @@ function App() {
   useEffect(() => {
     load().catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (page !== "reports" || !home?.children.length) return;
+    const childId = home.children[0].id;
+    Promise.all([
+      request(`/api/children/${childId}/records`, {}, token),
+      request(`/api/children/${childId}/reports`, {}, token),
+      request(`/api/children/${childId}/growth`, {}, token),
+    ]).then(([records, reports, growth]) => setReportData({ records, reports, growth })).catch(() => {});
+  }, [page, home, token]);
 
   function saveToken(next: string) {
     localStorage.setItem("familyEduToken", next);
@@ -340,7 +351,28 @@ function App() {
           {page === "reports" && (
             <div className="rounded-lg border border-stone-200 bg-panel p-4">
               <h2 className="mb-4 font-semibold">报告与成长轨迹</h2>
-              <p className="text-stone-500">周报、月报和成长轨迹将在这里展示。</p>
+              {reportData ? (
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="mb-2 font-semibold">成长记录</h3>
+                    {reportData.records.map((record) => (
+                      <div key={record.id} className="border-b border-dashed border-stone-200 py-2">
+                        <div className="font-medium">{record.title}</div>
+                        <div className="text-sm text-stone-500">{record.date?.slice(0, 10)} · {record.type} · {record.score}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h3 className="mb-2 font-semibold">报告</h3>
+                    {reportData.reports.map((report) => (
+                      <div key={report.id} className="border-b border-dashed border-stone-200 py-2">
+                        <div className="font-medium">{report.title}</div>
+                        <p className="text-sm text-stone-600">{report.summary}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : <p className="text-stone-500">暂无数据。</p>}
             </div>
           )}
         </main>

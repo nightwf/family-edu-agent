@@ -176,6 +176,26 @@ export async function buildApp() {
     return reply.send({ ok: true });
   });
 
+  app.get("/api/children/:childId/records", { preHandler: requireAuth as any }, async (request) => {
+    const { childId } = request.params as any;
+    return prisma.record.findMany({ where: { childId }, orderBy: { date: "desc" } });
+  });
+
+  app.get("/api/children/:childId/reports", { preHandler: requireAuth as any }, async (request) => {
+    const { childId } = request.params as any;
+    return prisma.report.findMany({ where: { childId }, orderBy: { createdAt: "desc" } });
+  });
+
+  app.get("/api/children/:childId/growth", { preHandler: requireAuth as any }, async (request) => {
+    const { childId } = request.params as any;
+    const records = await prisma.record.findMany({ where: { childId }, orderBy: { date: "asc" } });
+    return records.map((record) => ({
+      date: record.date.toISOString().slice(0, 10),
+      type: record.type,
+      score: record.score,
+    }));
+  });
+
   app.get("/api/knowledge", { preHandler: requireAuth as any }, async (request) => {
     return prisma.knowledgeItem.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
   });
