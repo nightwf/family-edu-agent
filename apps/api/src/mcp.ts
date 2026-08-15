@@ -27,6 +27,32 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     return policy ? textResult(policy) : textResult({ error: "education skill not found" });
   });
 
+  server.tool("list_children", { family_id: z.string().optional() }, async ({ family_id }) => {
+    const children = await prisma.child.findMany({
+      where: { familyId: family_id || familyId, status: "active" },
+      orderBy: { createdAt: "asc" },
+    });
+    return textResult(children);
+  });
+
+  server.tool("get_family_summary", { family_id: z.string().optional() }, async ({ family_id }) => {
+    const activeFamilyId = family_id || familyId;
+    const children = await prisma.child.findMany({
+      where: { familyId: activeFamilyId, status: "active" },
+      orderBy: { createdAt: "asc" },
+    });
+    const records = await prisma.record.count({ where: { familyId: activeFamilyId } });
+    const textbooks = await prisma.textbook.count({ where: { familyId: activeFamilyId } });
+    const knowledge = await prisma.knowledgeItem.count({ where: { familyId: activeFamilyId } });
+    return textResult({
+      family_id: activeFamilyId,
+      children: children.map((child) => ({ child_id: child.id, name: child.name, grade: child.grade })),
+      record_count: records,
+      textbook_count: textbooks,
+      knowledge_count: knowledge,
+    });
+  });
+
   server.tool("get_child_context", { family_id: z.string().optional(), child_id: z.string() }, async ({ family_id, child_id }) => {
     const activeFamilyId = family_id || familyId;
     const context = await buildChildContext(activeFamilyId, child_id);
