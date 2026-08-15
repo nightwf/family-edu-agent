@@ -59,6 +59,7 @@ function App() {
   const [textbookDialog, setTextbookDialog] = useState(false);
   const [reportData, setReportData] = useState<{ records: any[]; reports: any[]; growth: any[] } | null>(null);
   const [settings, setSettings] = useState<{ workbuddy_prompt?: string; user?: any; family?: any; child_count?: number } | null>(null);
+  const [copyStatus, setCopyStatus] = useState("");
 
   async function load() {
     if (!token) return;
@@ -129,7 +130,33 @@ function App() {
 
   async function copyWorkbuddyPrompt() {
     if (!settings?.workbuddy_prompt) return;
-    await navigator.clipboard.writeText(settings.workbuddy_prompt);
+    const text = settings.workbuddy_prompt;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopyStatus("已复制");
+    } catch (_error) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopyStatus("已复制");
+    }
+    setTimeout(() => setCopyStatus(""), 1500);
   }
 
   async function submitChild(event: React.FormEvent<HTMLFormElement>) {
@@ -381,7 +408,7 @@ function App() {
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="font-semibold">WorkBuddy 连接提示词</h3>
-                  <button onClick={copyWorkbuddyPrompt} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />复制</button>
+                  <button onClick={copyWorkbuddyPrompt} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus || "复制"}</button>
                 </div>
                 <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
               </div>
