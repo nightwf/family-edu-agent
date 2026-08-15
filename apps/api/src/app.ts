@@ -250,6 +250,18 @@ export async function buildApp() {
     return prisma.homework.update({ where: { id: homeworkId }, data: { status: "done", completedAt: new Date() } });
   });
 
+  app.patch("/api/homework/:homeworkId", { preHandler: requireAuth as any }, async (request) => {
+    const { homeworkId } = request.params as any;
+    const body = request.body as any;
+    return prisma.homework.update({ where: { id: homeworkId }, data: body });
+  });
+
+  app.delete("/api/homework/:homeworkId", { preHandler: requireAuth as any }, async (request) => {
+    const { homeworkId } = request.params as any;
+    await prisma.homework.delete({ where: { id: homeworkId } });
+    return { ok: true };
+  });
+
   app.get("/api/textbooks", { preHandler: requireAuth as any }, async (request) => {
     return prisma.textbook.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
   });

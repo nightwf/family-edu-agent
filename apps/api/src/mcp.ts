@@ -79,6 +79,11 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     return textResult(item);
   });
 
+  server.tool("delete_knowledge_item", { item_id: z.string() }, async ({ item_id }) => {
+    await prisma.knowledgeItem.delete({ where: { id: item_id } });
+    return textResult({ ok: true, item_id });
+  });
+
   server.tool("save_homework", {
     family_id: z.string().optional(),
     child_id: z.string(),
@@ -110,6 +115,41 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
       data: { status: "done", completedAt: new Date() },
     });
     return textResult(homework);
+  });
+
+  server.tool("list_homework", {
+    family_id: z.string().optional(),
+    child_id: z.string().optional(),
+  }, async ({ family_id, child_id }) => {
+    const activeFamilyId = family_id || familyId;
+    const homework = await prisma.homework.findMany({
+      where: {
+        familyId: activeFamilyId,
+        ...(child_id ? { childId: child_id } : {}),
+      },
+      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+    });
+    return textResult(homework);
+  });
+
+  server.tool("update_homework_status", {
+    homework_id: z.string(),
+    status: z.enum(["pending", "in_progress", "done", "cancelled"]),
+    completed_at: z.string().optional(),
+  }, async ({ homework_id, status, completed_at }) => {
+    const homework = await prisma.homework.update({
+      where: { id: homework_id },
+      data: {
+        status,
+        completedAt: status === "done" ? (completed_at ? new Date(completed_at) : new Date()) : null,
+      },
+    });
+    return textResult(homework);
+  });
+
+  server.tool("delete_homework", { homework_id: z.string() }, async ({ homework_id }) => {
+    await prisma.homework.delete({ where: { id: homework_id } });
+    return textResult({ ok: true, homework_id });
   });
 
   server.tool("import_textbook", {
