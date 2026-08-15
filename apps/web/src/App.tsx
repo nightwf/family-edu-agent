@@ -58,11 +58,16 @@ function App() {
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [textbookDialog, setTextbookDialog] = useState(false);
   const [reportData, setReportData] = useState<{ records: any[]; reports: any[]; growth: any[] } | null>(null);
+  const [settings, setSettings] = useState<{ workbuddy_prompt?: string; user?: any; family?: any; child_count?: number } | null>(null);
 
   async function load() {
     if (!token) return;
-    const data = await request("/api/home", {}, token);
+    const [data, settingData] = await Promise.all([
+      request("/api/home", {}, token),
+      request("/api/settings", {}, token),
+    ]);
     setHome(data);
+    setSettings(settingData);
   }
 
   useEffect(() => {
@@ -120,6 +125,11 @@ function App() {
     await request("/api/auth/logout", { method: "POST" }, token).catch(() => {});
     localStorage.removeItem("familyEduToken");
     setToken("");
+  }
+
+  async function copyWorkbuddyPrompt() {
+    if (!settings?.workbuddy_prompt) return;
+    await navigator.clipboard.writeText(settings.workbuddy_prompt);
   }
 
   async function submitChild(event: React.FormEvent<HTMLFormElement>) {
@@ -363,9 +373,17 @@ function App() {
             <div className="rounded-lg border border-stone-200 bg-panel p-4">
               <h2 className="mb-4 font-semibold">账号设置</h2>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-stone-500">登录邮箱</span><span>jojo@example.com</span></div>
-                <div className="flex justify-between"><span className="text-stone-500">家庭编号</span><span>FAMILY_001</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">登录邮箱</span><span>{settings?.user?.email || "-"}</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">家庭编号</span><span>{settings?.family?.id || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-stone-500">账号类型</span><span>邀请码注册</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">孩子数量</span><span>{settings?.child_count || 0} 个</span></div>
+              </div>
+              <div className="mt-5">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="font-semibold">WorkBuddy 连接提示词</h3>
+                  <button onClick={copyWorkbuddyPrompt} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />复制</button>
+                </div>
+                <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
               </div>
               <button onClick={logout} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-accent"><LogOut size={16} />退出登录</button>
             </div>
