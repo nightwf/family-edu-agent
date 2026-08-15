@@ -24,6 +24,8 @@ services:
       DATABASE_URL: postgresql://family_edu:family_edu@db:5432/family_edu
       JWT_SECRET: ${JWT_SECRET:-replace-with-a-long-random-secret}
       INVITE_CODES: ${INVITE_CODES:-HE-2026,JOJO-2026}
+      MCP_TOKEN: ${MCP_TOKEN:-family-edu-2026}
+      MCP_FAMILY_ID: ${MCP_FAMILY_ID:-family_001}
       PORT: 4100
       WEB_DIST: /app/public
     ports:

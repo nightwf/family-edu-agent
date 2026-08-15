@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "./prisma.js";
 import { listEducationSkills, getEducationSkill, getCoachingPolicy, buildChildContext } from "./education.js";
+import { env } from "./env.js";
 
 function textResult(payload: unknown) {
   return {
@@ -11,7 +12,7 @@ function textResult(payload: unknown) {
   };
 }
 
-export function createEducationMcpServer() {
+export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
   const server = new McpServer({ name: "family-edu-mcp", version: "2.0.0" });
 
   server.tool("list_education_skills", "读取项目内置的教育 Skill 列表。", {}, async () => textResult(listEducationSkills()));
@@ -27,8 +28,8 @@ export function createEducationMcpServer() {
   });
 
   server.tool("get_child_context", { family_id: z.string().optional(), child_id: z.string() }, async ({ family_id, child_id }) => {
-    const familyId = family_id || "family_001";
-    const context = await buildChildContext(familyId, child_id);
+    const activeFamilyId = family_id || familyId;
+    const context = await buildChildContext(activeFamilyId, child_id);
     return context ? textResult(context) : textResult({ error: "child not found" });
   });
 
@@ -41,7 +42,7 @@ export function createEducationMcpServer() {
   }, async (input) => {
     const item = await prisma.knowledgeItem.create({
       data: {
-        familyId: input.family_id || "family_001",
+        familyId: input.family_id || familyId,
         childId: input.child_id,
         kind: input.kind || "summary",
         title: input.title,
@@ -64,7 +65,7 @@ export function createEducationMcpServer() {
   }, async (input) => {
     const homework = await prisma.homework.create({
       data: {
-        familyId: input.family_id || "family_001",
+        familyId: input.family_id || familyId,
         childId: input.child_id,
         subject: input.subject,
         title: input.title,
@@ -97,7 +98,7 @@ export function createEducationMcpServer() {
   }, async (input) => {
     const textbook = await prisma.textbook.create({
       data: {
-        familyId: input.family_id || "family_001",
+        familyId: input.family_id || familyId,
         childId: input.child_id,
         title: input.title,
         subject: input.subject,
@@ -124,10 +125,17 @@ export function createEducationMcpServer() {
 }
 
 export async function registerMcpHttp(app: FastifyInstance) {
+  function authorize(request: any) {
+    if (!env.MCP_TOKEN) return true;
+    const header = request.headers["x-mcp-token"] || request.headers.authorization?.replace(/^Bearer\s+/i, "");
+    return header === env.MCP_TOKEN;
+  }
+
   app.post("/mcp", async (request, reply) => {
+    if (!authorize(request)) return reply.code(401).send({ error: "invalid MCP token" });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     transport.onerror = (error) => app.log.error(error, "mcp transport error");
-    const mcpServer = createEducationMcpServer();
+    const mcpServer = createEducationMcpServer(env.MCP_FAMILY_ID);
     await mcpServer.connect(transport);
     try {
       await transport.handleRequest(request.raw, reply.raw, request.body);
@@ -143,8 +151,9 @@ export async function registerMcpHttp(app: FastifyInstance) {
   });
 
   app.get("/mcp", async (request, reply) => {
+    if (!authorize(request)) return reply.code(401).send({ error: "invalid MCP token" });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    const mcpServer = createEducationMcpServer();
+    const mcpServer = createEducationMcpServer(env.MCP_FAMILY_ID);
     await mcpServer.connect(transport);
     await transport.handleRequest(request.raw, reply.raw);
     reply.raw.once("close", () => {

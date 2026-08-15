@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { prisma } from "./prisma.js";
-const skillsDir = process.env.SKILLS_DIR || path.resolve(process.cwd(), "skills");
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const skillsDir = process.env.SKILLS_DIR || path.resolve(currentDir, "../../../skills");
 const indexFile = path.join(skillsDir, "index.json");
 export function listEducationSkills() {
     return JSON.parse(fs.readFileSync(indexFile, "utf8"));

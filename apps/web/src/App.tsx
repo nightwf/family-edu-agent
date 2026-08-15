@@ -121,8 +121,8 @@ function App() {
           </div>
           {authMode === "login" ? (
             <form onSubmit={login} className="mt-5 space-y-4">
-              <input name="email" defaultValue="jojo@example.com" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邮箱" />
-              <input name="password" type="password" defaultValue="123456" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="密码" />
+              <input name="email" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邮箱" />
+              <input name="password" type="password" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="密码" />
               <button className="w-full rounded-lg bg-accent px-4 py-2 text-white">登录</button>
             </form>
           ) : (

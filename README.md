@@ -1,56 +1,38 @@
 # 家庭 AI 教育 Agent MVP
 
-基于 PRD V1.1 的可运行第一版：云端业务服务 + Family Education MCP + 明亮学堂风格 Web 管理端。
+基于最终生产架构的 TypeScript 重构：Fastify API + Prisma + PostgreSQL + React Web + Family Education MCP。
 
-产品定位：WorkBuddy 负责 AI 对话和生成总结、报告、任务建议；本项目负责通过 MCP 接收这些结果，沉淀为家庭长期知识库，并在 Web 端展示和管理。MVP 主要提供数据查看与基础设置，不承载独立聊天或 AI 生成。
+职责定位：WorkBuddy 负责 Agent 运行和对话，项目负责教育知识库、教育 Skill、孩子成长数据和数据持久化，Web 端负责家长查看与管理。
 
 ## 快速启动
 
 ```bash
 cd /Users/nightwf/Desktop/儿童AI教育/family-edu-agent
 npm install
-npm run seed
-npm start
+docker compose up -d --build
 ```
 
-打开 `http://localhost:4100`。
+打开 `http://localhost:4100/family-edu/`。
 
-演示账号：
-
-```text
-邮箱：jojo@example.com
-密码：123456
-```
-
-演示邀请码：
-
-```text
-HE-2026
-```
+正式环境通过邀请码注册，不预置演示账号。
 
 ## 已实现功能
 
-- 邀请码注册、邮箱密码登录、退出登录；
-- 首页、学生、报告成长、教材、作业、知识库、账号与设置七个管理端页面；
-- 创建孩子、通过 WorkBuddy 导入教材、本地兜底上传、编辑教材元数据；
-- 周报 / 月报生成、成长轨迹趋势图；
-- WorkBuddy 生成总结、报告和建议的知识库查看；
-- WorkBuddy 识别家庭作业、同步完成状态，后台管理每日作业；
-- WorkBuddy 连接提示词查看和复制；
-- WorkBuddy 同步规范（可通过 `get_sync_spec` 主动读取）；
-- 项目内置教育 Skill 库：写作、阅读、作业、家长教练、成长分析；
-- MCP 教育专家工具：`list_education_skills`、`get_education_skill`、`get_child_context`、`get_coaching_policy`；
-- 本地 MCP + 云端同步兜底接口；
-- 四种后台风格预览，默认明亮学堂。
+- 邀请码注册、邮箱密码登录、Refresh Token 会话管理；
+- PostgreSQL 存储家庭、孩子、记录、报告、教材、作业和知识库；
+- React Web 七个管理端页面；
+- 教育 Skill 库和 MCP 教育专家工具；
+- HTTP MCP 鉴权和家庭数据隔离；
+- Docker Compose 一键部署。
 
 ## 常用命令
 
 ```bash
-npm start        # 启动业务服务与 Web 管理端
-npm run dev      # 文件变化后自动重启
-npm run mcp      # 启动 Family Education MCP（stdio）
-npm run seed     # 生成演示数据
-npm test         # 运行数据层测试
+npm run dev           # 启动 API 开发服务
+npm run build         # 构建 Web 前端
+npm test              # 运行测试
+npm run db:migrate    # 创建本地数据库 migration
+npm run db:deploy     # 执行数据库 migration
 ```
 
 同步规范见 [docs/workbuddy-sync-spec.md](docs/workbuddy-sync-spec.md)。

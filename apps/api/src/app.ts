@@ -8,6 +8,7 @@ import { prisma } from "./prisma.js";
 import { env } from "./env.js";
 import { hashPassword, verifyPassword, createRefreshTokenHash } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
+import { WORKBUDDY_PROMPT } from "./workbuddy-prompt.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -28,13 +29,9 @@ export async function buildApp() {
   await app.register(cors, { origin: true });
   await app.register(jwt, { secret: env.JWT_SECRET });
   await app.register(multipart);
-  await app.register(fastifyStatic, { root: path.resolve(process.cwd(), env.WEB_DIST), prefix: "/family-edu/" });
+  await app.register(fastifyStatic, { root: path.resolve(process.cwd(), env.WEB_DIST), prefix: "/" });
 
   app.get("/api/health", async () => ({ ok: true, service: "family-edu-agent" }));
-
-  app.get("/family-edu/*", async (request, reply) => {
-    return reply.sendFile("index.html");
-  });
 
   app.post("/api/auth/register", async (request, reply) => {
     const { inviteCode, email, password } = request.body as any;
@@ -232,10 +229,17 @@ export async function buildApp() {
       prisma.family.findUnique({ where: { id: auth.familyId } }),
       prisma.child.count({ where: { familyId: auth.familyId } }),
     ]);
-    return { user, family, child_count: childCount };
+    return { user, family, child_count: childCount, workbuddy_prompt: WORKBUDDY_PROMPT };
   });
 
   await registerMcpHttp(app);
+
+  app.setNotFoundHandler((request, reply) => {
+    if (!request.url.startsWith("/api") && !request.url.startsWith("/mcp")) {
+      return reply.sendFile("index.html");
+    }
+    return reply.code(404).send({ error: "not found" });
+  });
 
   return app;
 }
