@@ -150,3 +150,64 @@ model Session {
   createdAt        DateTime @default(now())
   revokedAt        DateTime?
 }
+
+model SkillVersion {
+  id        String   @id @default(cuid())
+  skillId   String
+  version   String
+  title     String?
+  content   String
+  status    String   @default("draft")
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([skillId, version])
+}
+
+model FamilySkillProfile {
+  id                 String   @id @default(cuid())
+  familyId           String
+  skillId            String
+  baseVersion        String   @default("1.0.0")
+  active             Boolean  @default(true)
+  philosophy         String?
+  communicationStyle String?
+  strictness         String?
+  parentGoals        String[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  overrides          SkillOverride[]
+
+  @@unique([familyId, skillId])
+}
+
+model SkillOverride {
+  id           String   @id @default(cuid())
+  profileId    String
+  profile      FamilySkillProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  path         String
+  originalValue String?
+  customValue  String
+  reason       String?
+  createdBy    String?
+  approvedBy   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PolicyChange {
+  id         String   @id @default(cuid())
+  familyId   String
+  skillId    String?
+  type       String
+  summary    String?
+  before     Json?
+  after      Json?
+  reason     String?
+  createdBy  String?
+  status     String   @default("proposed")
+  effective  Boolean?
+  createdAt  DateTime @default(now())
+  reviewedAt DateTime?
+}

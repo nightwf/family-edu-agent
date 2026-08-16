@@ -31,6 +31,10 @@ Fastify API / Family Education MCP
 - Homework：家庭作业；
 - KnowledgeItem：WorkBuddy 生成并同步到项目的总结、报告和建议；
 - Session：Refresh Token 会话。
+- SkillVersion：全局基础 Skill 的版本记录；
+- FamilySkillProfile：家庭级教育方式配置；
+- SkillOverride：家庭对基础 Skill 的受控覆盖；
+- PolicyChange：教育方式调整、建议和审核历史。
 
 ## MCP 工具
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "./prisma.js";
 import { listEducationSkills, getEducationSkill, getCoachingPolicy, buildChildContext } from "./education.js";
 import { env } from "./env.js";
+import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, proposePolicyChange, reviewPolicyChange, getPolicyHistory, } from "./personalization.js";
 function textResult(payload) {
     return {
         content: [{ type: "text", text: typeof payload === "string" ? payload : JSON.stringify(payload, null, 2) }],
@@ -19,6 +20,60 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     server.tool("get_coaching_policy", { skill_id: z.string() }, async ({ skill_id }) => {
         const policy = getCoachingPolicy(skill_id);
         return policy ? textResult(policy) : textResult({ error: "education skill not found" });
+    });
+    server.tool("list_family_policies", { family_id: z.string().optional() }, async ({ family_id }) => {
+        return textResult(await listFamilyPolicies(family_id || familyId));
+    });
+    server.tool("get_effective_skill", {
+        family_id: z.string().optional(),
+        skill_id: z.string(),
+    }, async ({ family_id, skill_id }) => {
+        const effective = await getEffectiveSkill(family_id || familyId, skill_id);
+        return effective ? textResult(effective) : textResult({ error: "education skill not found" });
+    });
+    server.tool("update_family_policy", {
+        family_id: z.string().optional(),
+        skill_id: z.string(),
+        philosophy: z.string().optional(),
+        communication_style: z.string().optional(),
+        strictness: z.string().optional(),
+        parent_goals: z.array(z.string()).optional(),
+    }, async (input) => {
+        const profile = await updateFamilyProfile(input.family_id || familyId, input.skill_id, {
+            philosophy: input.philosophy,
+            communicationStyle: input.communication_style,
+            strictness: input.strictness,
+            parentGoals: input.parent_goals,
+        }, "workbuddy");
+        return textResult(profile);
+    });
+    server.tool("propose_policy_change", {
+        family_id: z.string().optional(),
+        skill_id: z.string(),
+        type: z.string(),
+        summary: z.string().optional(),
+        reason: z.string().optional(),
+        after: z.record(z.any()).optional(),
+    }, async (input) => {
+        const change = await proposePolicyChange(input.family_id || familyId, input.skill_id, {
+            type: input.type,
+            summary: input.summary,
+            reason: input.reason,
+            after: input.after,
+        }, "workbuddy");
+        return textResult(change);
+    });
+    server.tool("review_policy_change", {
+        change_id: z.string(),
+        action: z.enum(["approved", "ignored"]),
+    }, async ({ change_id, action }) => {
+        return textResult(await reviewPolicyChange(change_id, action, "parent"));
+    });
+    server.tool("get_policy_history", {
+        family_id: z.string().optional(),
+        skill_id: z.string().optional(),
+    }, async ({ family_id, skill_id }) => {
+        return textResult(await getPolicyHistory(family_id || familyId, skill_id));
     });
     server.tool("list_children", { family_id: z.string().optional() }, async ({ family_id }) => {
         const children = await prisma.child.findMany({

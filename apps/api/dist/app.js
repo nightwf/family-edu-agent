@@ -11,6 +11,7 @@ import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken 
 import { registerMcpHttp } from "./mcp.js";
 import { WORKBUDDY_PROMPT } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
+import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, } from "./personalization.js";
 async function requireAuth(request, reply) {
     try {
         await request.jwtVerify();
@@ -303,6 +304,34 @@ export async function buildApp() {
             prisma.child.count({ where: { familyId: auth.familyId } }),
         ]);
         return { user, family, child_count: childCount, workbuddy_prompt: WORKBUDDY_PROMPT };
+    });
+    app.get("/api/policies", { preHandler: requireAuth }, async (request) => {
+        return listFamilyPolicies(getAuth(request).familyId);
+    });
+    app.get("/api/policies/:skillId/effective", { preHandler: requireAuth }, async (request) => {
+        const { skillId } = request.params;
+        const effective = await getEffectiveSkill(getAuth(request).familyId, skillId);
+        if (!effective)
+            return { error: "skill not found" };
+        return effective;
+    });
+    app.patch("/api/policies/:skillId", { preHandler: requireAuth }, async (request) => {
+        const { skillId } = request.params;
+        const body = request.body;
+        return updateFamilyProfile(getAuth(request).familyId, skillId, {
+            philosophy: body.philosophy,
+            communicationStyle: body.communication_style,
+            strictness: body.strictness,
+            parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item) => item.trim()).filter(Boolean) : undefined,
+        });
+    });
+    app.get("/api/policy-changes", { preHandler: requireAuth }, async (request) => {
+        return getPolicyHistory(getAuth(request).familyId);
+    });
+    app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth }, async (request) => {
+        const { changeId } = request.params;
+        const { action } = request.body;
+        return reviewPolicyChange(changeId, action);
     });
     await registerMcpHttp(app);
     app.setNotFoundHandler((request, reply) => {

@@ -62,15 +62,22 @@ function App() {
   const [settings, setSettings] = useState<{ workbuddy_prompt?: string; user?: any; family?: any; child_count?: number } | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [policyChanges, setPolicyChanges] = useState<any[]>([]);
+  const [selectedPolicySkill, setSelectedPolicySkill] = useState("writing-coach");
 
   async function load() {
     if (!token) return;
-    const [data, settingData] = await Promise.all([
+    const [data, settingData, policyData, changeData] = await Promise.all([
       request("/api/home", {}, token),
       request("/api/settings", {}, token),
+      request("/api/policies", {}, token),
+      request("/api/policy-changes", {}, token),
     ]);
     setHome(data);
     setSettings(settingData);
+    setPolicies(policyData);
+    setPolicyChanges(changeData);
   }
 
   useEffect(() => {
@@ -211,6 +218,29 @@ function App() {
   async function deleteTextbook(id: string) {
     if (!window.confirm("确定删除这本教材吗？")) return;
     await request(`/api/textbooks/${id}`, { method: "DELETE" }, token);
+    await load();
+  }
+
+  async function savePolicy(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await request(`/api/policies/${selectedPolicySkill}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        philosophy: form.get("philosophy"),
+        communication_style: form.get("communication_style"),
+        strictness: form.get("strictness"),
+        parent_goals: String(form.get("parent_goals") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+      }),
+    }, token);
+    await load();
+  }
+
+  async function reviewPolicy(changeId: string, action: "approved" | "ignored") {
+    await request(`/api/policy-changes/${changeId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }, token);
     await load();
   }
 
@@ -413,6 +443,47 @@ function App() {
                   <button onClick={copyWorkbuddyPrompt} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus || "复制"}</button>
                 </div>
                 <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
+              </div>
+              <div className="mt-6">
+                <h3 className="font-semibold">家庭教育方式</h3>
+                <select
+                  value={selectedPolicySkill}
+                  onChange={(event) => setSelectedPolicySkill(event.target.value)}
+                  className="mt-3 w-full rounded-lg border border-stone-200 px-3 py-2"
+                >
+                  {policies.map((policy) => <option key={policy.skill_id} value={policy.skill_id}>{policy.name}</option>)}
+                </select>
+                {(() => {
+                  const profile = policies.find((policy) => policy.skill_id === selectedPolicySkill)?.profile;
+                  return (
+                    <form onSubmit={savePolicy} className="mt-4 space-y-3">
+                      <input name="philosophy" defaultValue={profile?.philosophy || "以引导和鼓励为主"} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教育理念" />
+                      <input name="communication_style" defaultValue={profile?.communicationStyle || "温和直接"} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="沟通风格" />
+                      <select name="strictness" defaultValue={profile?.strictness || "适中"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
+                        <option value="宽松">宽松</option>
+                        <option value="适中">适中</option>
+                        <option value="严格">严格</option>
+                      </select>
+                      <input name="parent_goals" defaultValue={(profile?.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
+                      <button className="rounded-lg bg-teal px-4 py-2 text-white">保存教育方式</button>
+                    </form>
+                  );
+                })()}
+              </div>
+              <div className="mt-6">
+                <h3 className="font-semibold">优化建议</h3>
+                <div className="mt-3 space-y-3">
+                  {policyChanges.filter((item) => item.status === "proposed").map((item) => (
+                    <div key={item.id} className="rounded-lg border border-stone-200 p-3">
+                      <div className="font-medium">{item.summary || item.type}</div>
+                      {item.reason && <p className="mt-1 text-sm text-stone-500">{item.reason}</p>}
+                      <div className="mt-2 flex gap-2">
+                        <button onClick={() => reviewPolicy(item.id, "approved")} className="rounded-lg bg-teal px-3 py-1 text-sm text-white">采纳</button>
+                        <button onClick={() => reviewPolicy(item.id, "ignored")} className="rounded-lg border border-stone-200 px-3 py-1 text-sm">忽略</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <button onClick={logout} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-accent"><LogOut size={16} />退出登录</button>
             </div>

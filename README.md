@@ -22,6 +22,8 @@ docker compose up -d --build
 - PostgreSQL 存储家庭、孩子、记录、报告、教材、作业和知识库；
 - React Web 七个管理端页面；
 - 教育 Skill 库和 MCP 教育专家工具；
+- 家庭级个性化教育方式：教育理念、沟通风格、严格程度、家长目标；
+- 教育方式优化建议与历史记录，支持采纳或忽略；
 - HTTP MCP 鉴权和家庭数据隔离；
 - Docker Compose 一键部署。
 
