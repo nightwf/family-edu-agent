@@ -139,7 +139,10 @@ function App() {
 
   async function copyWorkbuddyPrompt() {
     if (!settings?.workbuddy_prompt) return;
-    const text = settings.workbuddy_prompt;
+    let text = settings.workbuddy_prompt;
+    if (settings.mcp_token && !text.includes(settings.mcp_token)) {
+      text += `\n\nX-MCP-Token: ${settings.mcp_token}`;
+    }
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
