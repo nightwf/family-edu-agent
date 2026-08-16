@@ -2,7 +2,11 @@
 set -euo pipefail
 
 base="${BASE_URL:-http://49.234.4.212/family-edu}"
-token="${MCP_TOKEN:-family-edu-2026}"
+token="${MCP_SMOKE_TOKEN:-}"
+if [ -z "$token" ]; then
+  echo "MCP smoke test skipped: MCP_SMOKE_TOKEN is not set"
+  exit 0
+fi
 
 response=$(curl -sS --max-time 15 \
   -X POST "$base/mcp" \

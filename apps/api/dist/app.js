@@ -9,8 +9,9 @@ import { prisma } from "./prisma.js";
 import { env } from "./env.js";
 import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
-import { WORKBUDDY_PROMPT } from "./workbuddy-prompt.js";
+import { buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
+import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, } from "./personalization.js";
 async function requireAuth(request, reply) {
     try {
@@ -298,12 +299,19 @@ export async function buildApp() {
     });
     app.get("/api/settings", { preHandler: requireAuth }, async (request) => {
         const auth = getAuth(request);
-        const [user, family, childCount] = await Promise.all([
+        const [user, family, childCount, mcpToken] = await Promise.all([
             prisma.user.findUnique({ where: { id: auth.id } }),
             prisma.family.findUnique({ where: { id: auth.familyId } }),
             prisma.child.count({ where: { familyId: auth.familyId } }),
+            getOrCreateFamilyMcpToken(auth.familyId),
         ]);
-        return { user, family, child_count: childCount, workbuddy_prompt: WORKBUDDY_PROMPT };
+        return {
+            user,
+            family,
+            child_count: childCount,
+            mcp_token: mcpToken,
+            workbuddy_prompt: mcpToken ? buildWorkbuddyPrompt(mcpToken) : "",
+        };
     });
     app.get("/api/policies", { preHandler: requireAuth }, async (request) => {
         return listFamilyPolicies(getAuth(request).familyId);

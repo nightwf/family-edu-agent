@@ -211,3 +211,13 @@ model PolicyChange {
   createdAt  DateTime @default(now())
   reviewedAt DateTime?
 }
+
+model McpToken {
+  id        String    @id @default(cuid())
+  familyId  String
+  tokenHash String    @unique
+  name      String?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+}

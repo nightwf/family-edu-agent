@@ -59,7 +59,7 @@ function App() {
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [textbookDialog, setTextbookDialog] = useState(false);
   const [reportData, setReportData] = useState<{ records: any[]; reports: any[]; growth: any[] } | null>(null);
-  const [settings, setSettings] = useState<{ workbuddy_prompt?: string; user?: any; family?: any; child_count?: number } | null>(null);
+  const [settings, setSettings] = useState<{ workbuddy_prompt?: string; mcp_token?: string; user?: any; family?: any; child_count?: number } | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [policies, setPolicies] = useState<any[]>([]);
@@ -442,6 +442,12 @@ function App() {
                   <h3 className="font-semibold">WorkBuddy 连接提示词</h3>
                   <button onClick={copyWorkbuddyPrompt} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus || "复制"}</button>
                 </div>
+                {settings?.mcp_token && (
+                  <div className="mb-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
+                    <div className="mb-1 font-semibold text-stone-500">家庭专属 MCP Token</div>
+                    <code className="break-all">{settings.mcp_token}</code>
+                  </div>
+                )}
                 <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
               </div>
               <div className="mt-6">

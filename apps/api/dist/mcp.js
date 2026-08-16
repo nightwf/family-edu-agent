@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "./prisma.js";
 import { listEducationSkills, getEducationSkill, getCoachingPolicy, buildChildContext } from "./education.js";
 import { env } from "./env.js";
+import { resolveFamilyByMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, proposePolicyChange, reviewPolicyChange, getPolicyHistory, createSkillOverride, listSkillOverrides, } from "./personalization.js";
 function textResult(payload) {
     return {
@@ -496,18 +497,17 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     return server;
 }
 export async function registerMcpHttp(app) {
-    function authorize(request) {
-        if (!env.MCP_TOKEN)
-            return true;
+    function getFamilyFromRequest(request) {
         const header = request.headers["x-mcp-token"] || request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        return header === env.MCP_TOKEN;
+        return resolveFamilyByMcpToken(header);
     }
     app.post("/mcp", async (request, reply) => {
-        if (!authorize(request))
+        const familyId = await getFamilyFromRequest(request);
+        if (!familyId)
             return reply.code(401).send({ error: "invalid MCP token" });
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
         transport.onerror = (error) => app.log.error(error, "mcp transport error");
-        const mcpServer = createEducationMcpServer(env.MCP_FAMILY_ID);
+        const mcpServer = createEducationMcpServer(familyId);
         await mcpServer.connect(transport);
         try {
             await transport.handleRequest(request.raw, reply.raw, request.body);
@@ -525,10 +525,11 @@ export async function registerMcpHttp(app) {
         }
     });
     app.get("/mcp", async (request, reply) => {
-        if (!authorize(request))
+        const familyId = await getFamilyFromRequest(request);
+        if (!familyId)
             return reply.code(401).send({ error: "invalid MCP token" });
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-        const mcpServer = createEducationMcpServer(env.MCP_FAMILY_ID);
+        const mcpServer = createEducationMcpServer(familyId);
         await mcpServer.connect(transport);
         await transport.handleRequest(request.raw, reply.raw);
         reply.raw.once("close", () => {
