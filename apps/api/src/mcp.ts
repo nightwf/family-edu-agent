@@ -53,10 +53,160 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     });
   });
 
+  server.tool("create_child", {
+    family_id: z.string().optional(),
+    name: z.string(),
+    age: z.number().optional(),
+    grade: z.string(),
+    subjects: z.array(z.string()).optional(),
+    textbook_version: z.string().optional(),
+  }, async (input) => {
+    const child = await prisma.child.create({
+      data: {
+        familyId: input.family_id || familyId,
+        name: input.name,
+        age: input.age,
+        grade: input.grade,
+        subjects: input.subjects || [],
+        textbookVersion: input.textbook_version,
+      },
+    });
+    return textResult(child);
+  });
+
+  server.tool("update_child", {
+    child_id: z.string(),
+    name: z.string().optional(),
+    age: z.number().optional(),
+    grade: z.string().optional(),
+    subjects: z.array(z.string()).optional(),
+    textbook_version: z.string().optional(),
+    status: z.string().optional(),
+  }, async (input) => {
+    const child = await prisma.child.update({
+      where: { id: input.child_id },
+      data: {
+        name: input.name,
+        age: input.age,
+        grade: input.grade,
+        subjects: input.subjects,
+        textbookVersion: input.textbook_version,
+        status: input.status,
+      },
+    });
+    return textResult(child);
+  });
+
+  server.tool("delete_child", { child_id: z.string() }, async ({ child_id }) => {
+    await prisma.child.delete({ where: { id: child_id } });
+    return textResult({ ok: true, child_id });
+  });
+
   server.tool("get_child_context", { family_id: z.string().optional(), child_id: z.string() }, async ({ family_id, child_id }) => {
     const activeFamilyId = family_id || familyId;
     const context = await buildChildContext(activeFamilyId, child_id);
     return context ? textResult(context) : textResult({ error: "child not found" });
+  });
+
+  server.tool("save_learning_record", {
+    family_id: z.string().optional(),
+    child_id: z.string(),
+    type: z.enum(["writing", "reading", "homework", "parent_note"]),
+    title: z.string(),
+    date: z.string().optional(),
+    content: z.string().optional(),
+    score: z.number().optional(),
+    notes: z.string().optional(),
+  }, async (input) => {
+    const record = await prisma.record.create({
+      data: {
+        familyId: input.family_id || familyId,
+        childId: input.child_id,
+        type: input.type,
+        title: input.title,
+        date: input.date ? new Date(input.date) : new Date(),
+        content: input.content,
+        score: input.score,
+        notes: input.notes,
+      },
+    });
+    return textResult(record);
+  });
+
+  server.tool("save_writing_record", {
+    family_id: z.string().optional(),
+    child_id: z.string(),
+    title: z.string(),
+    date: z.string().optional(),
+    content: z.string().optional(),
+    score: z.number().optional(),
+    notes: z.string().optional(),
+  }, async (input) => {
+    const record = await prisma.record.create({
+      data: {
+        familyId: input.family_id || familyId,
+        childId: input.child_id,
+        type: "writing",
+        title: input.title,
+        date: input.date ? new Date(input.date) : new Date(),
+        content: input.content,
+        score: input.score,
+        notes: input.notes,
+      },
+    });
+    return textResult(record);
+  });
+
+  server.tool("save_reading_record", {
+    family_id: z.string().optional(),
+    child_id: z.string(),
+    title: z.string(),
+    date: z.string().optional(),
+    content: z.string().optional(),
+    score: z.number().optional(),
+    notes: z.string().optional(),
+  }, async (input) => {
+    const record = await prisma.record.create({
+      data: {
+        familyId: input.family_id || familyId,
+        childId: input.child_id,
+        type: "reading",
+        title: input.title,
+        date: input.date ? new Date(input.date) : new Date(),
+        content: input.content,
+        score: input.score,
+        notes: input.notes,
+      },
+    });
+    return textResult(record);
+  });
+
+  server.tool("get_learning_history", {
+    child_id: z.string(),
+    type: z.string().optional(),
+  }, async ({ child_id, type }) => {
+    const records = await prisma.record.findMany({
+      where: { childId: child_id, ...(type ? { type } : {}) },
+      orderBy: { date: "desc" },
+    });
+    return textResult(records);
+  });
+
+  server.tool("update_record", {
+    record_id: z.string(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+    score: z.number().optional(),
+    notes: z.string().optional(),
+    type: z.string().optional(),
+  }, async ({ record_id, ...data }) => {
+    const record = await prisma.record.update({ where: { id: record_id }, data });
+    return textResult(record);
+  });
+
+  server.tool("delete_record", { record_id: z.string() }, async ({ record_id }) => {
+    await prisma.record.delete({ where: { id: record_id } });
+    return textResult({ ok: true, record_id });
   });
 
   server.tool("save_knowledge_item", {
@@ -82,6 +232,34 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
   server.tool("delete_knowledge_item", { item_id: z.string() }, async ({ item_id }) => {
     await prisma.knowledgeItem.delete({ where: { id: item_id } });
     return textResult({ ok: true, item_id });
+  });
+
+  server.tool("list_knowledge_items", {
+    family_id: z.string().optional(),
+    child_id: z.string().optional(),
+  }, async ({ family_id, child_id }) => {
+    const activeFamilyId = family_id || familyId;
+    const items = await prisma.knowledgeItem.findMany({
+      where: { familyId: activeFamilyId, ...(child_id ? { childId: child_id } : {}) },
+      orderBy: { createdAt: "desc" },
+    });
+    return textResult(items);
+  });
+
+  server.tool("get_knowledge_item", { item_id: z.string() }, async ({ item_id }) => {
+    const item = await prisma.knowledgeItem.findUnique({ where: { id: item_id } });
+    return textResult(item || { error: "knowledge item not found" });
+  });
+
+  server.tool("update_knowledge_item", {
+    item_id: z.string(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+    kind: z.string().optional(),
+    child_id: z.string().optional(),
+  }, async ({ item_id, ...data }) => {
+    const item = await prisma.knowledgeItem.update({ where: { id: item_id }, data });
+    return textResult(item);
   });
 
   server.tool("save_homework", {
@@ -177,6 +355,97 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
       },
     });
     return textResult(textbook);
+  });
+
+  server.tool("list_textbooks", {
+    family_id: z.string().optional(),
+    child_id: z.string().optional(),
+  }, async ({ family_id, child_id }) => {
+    const activeFamilyId = family_id || familyId;
+    const textbooks = await prisma.textbook.findMany({
+      where: { familyId: activeFamilyId, ...(child_id ? { childId: child_id } : {}) },
+      orderBy: { createdAt: "desc" },
+    });
+    return textResult(textbooks);
+  });
+
+  server.tool("get_textbook", { textbook_id: z.string() }, async ({ textbook_id }) => {
+    const textbook = await prisma.textbook.findUnique({ where: { id: textbook_id } });
+    return textResult(textbook || { error: "textbook not found" });
+  });
+
+  server.tool("update_textbook", {
+    textbook_id: z.string(),
+    title: z.string().optional(),
+    subject: z.string().optional(),
+    grade: z.string().optional(),
+    publisher: z.string().optional(),
+    version: z.string().optional(),
+    status: z.string().optional(),
+    child_id: z.string().optional(),
+  }, async ({ textbook_id, ...data }) => {
+    const textbook = await prisma.textbook.update({ where: { id: textbook_id }, data });
+    return textResult(textbook);
+  });
+
+  server.tool("delete_textbook", { textbook_id: z.string() }, async ({ textbook_id }) => {
+    await prisma.textbook.delete({ where: { id: textbook_id } });
+    return textResult({ ok: true, textbook_id });
+  });
+
+  server.tool("create_report", {
+    family_id: z.string().optional(),
+    child_id: z.string(),
+    type: z.enum(["weekly", "monthly"]),
+    title: z.string(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+    period_start: z.string().optional(),
+    period_end: z.string().optional(),
+    metrics: z.record(z.any()).optional(),
+  }, async (input) => {
+    const report = await prisma.report.create({
+      data: {
+        familyId: input.family_id || familyId,
+        childId: input.child_id,
+        type: input.type,
+        title: input.title,
+        summary: input.summary,
+        content: input.content,
+        periodStart: input.period_start ? new Date(input.period_start) : new Date(),
+        periodEnd: input.period_end ? new Date(input.period_end) : new Date(),
+        metrics: input.metrics,
+      },
+    });
+    return textResult(report);
+  });
+
+  server.tool("list_reports", {
+    family_id: z.string().optional(),
+    child_id: z.string().optional(),
+  }, async ({ family_id, child_id }) => {
+    const activeFamilyId = family_id || familyId;
+    const reports = await prisma.report.findMany({
+      where: { familyId: activeFamilyId, ...(child_id ? { childId: child_id } : {}) },
+      orderBy: { createdAt: "desc" },
+    });
+    return textResult(reports);
+  });
+
+  server.tool("update_report", {
+    report_id: z.string(),
+    title: z.string().optional(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+    metrics: z.record(z.any()).optional(),
+  }, async ({ report_id, ...data }) => {
+    const report = await prisma.report.update({ where: { id: report_id }, data });
+    return textResult(report);
+  });
+
+  server.tool("delete_report", { report_id: z.string() }, async ({ report_id }) => {
+    await prisma.report.delete({ where: { id: report_id } });
+    return textResult({ ok: true, report_id });
   });
 
   server.tool("get_growth_summary", { child_id: z.string() }, async ({ child_id }) => {
