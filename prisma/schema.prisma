@@ -216,6 +216,7 @@ model McpToken {
   id        String    @id @default(cuid())
   familyId  String
   tokenHash String    @unique
+  tokenCipher String?
   name      String?
   status    String    @default("active")
   createdAt DateTime  @default(now())
