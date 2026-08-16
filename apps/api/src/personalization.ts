@@ -157,3 +157,51 @@ export async function getPolicyHistory(familyId: string, skillId?: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+
+export async function createSkillOverride(familyId: string, skillId: string, input: {
+  path: string;
+  original_value?: string;
+  custom_value: string;
+  reason?: string;
+}, createdBy = "workbuddy") {
+  const profile = await prisma.familySkillProfile.upsert({
+    where: { familyId_skillId: { familyId, skillId } },
+    update: {},
+    create: { familyId, skillId },
+  });
+  const override = await prisma.skillOverride.create({
+    data: {
+      profileId: profile.id,
+      path: input.path,
+      originalValue: input.original_value,
+      customValue: input.custom_value,
+      reason: input.reason,
+      createdBy,
+      approvedBy: "parent",
+    },
+  });
+  await prisma.policyChange.create({
+    data: {
+      familyId,
+      skillId,
+      type: "skill_override",
+      summary: `新增 ${skillId} 覆盖：${input.path}`,
+      before: input.original_value,
+      after: input.custom_value,
+      reason: input.reason,
+      createdBy,
+      status: "approved",
+      reviewedAt: new Date(),
+    },
+  });
+  return override;
+}
+
+export async function listSkillOverrides(familyId: string, skillId: string) {
+  const profile = await getFamilyProfile(familyId, skillId);
+  if (!profile) return [];
+  return prisma.skillOverride.findMany({
+    where: { profileId: profile.id },
+    orderBy: { createdAt: "desc" },
+  });
+}

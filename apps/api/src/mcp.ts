@@ -12,6 +12,8 @@ import {
   proposePolicyChange,
   reviewPolicyChange,
   getPolicyHistory,
+  createSkillOverride,
+  listSkillOverrides,
 } from "./personalization.js";
 
 function textResult(payload: unknown) {
@@ -93,6 +95,29 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     skill_id: z.string().optional(),
   }, async ({ family_id, skill_id }) => {
     return textResult(await getPolicyHistory(family_id || familyId, skill_id));
+  });
+
+  server.tool("create_skill_override", {
+    family_id: z.string().optional(),
+    skill_id: z.string(),
+    path: z.string(),
+    original_value: z.string().optional(),
+    custom_value: z.string(),
+    reason: z.string().optional(),
+  }, async (input) => {
+    return textResult(await createSkillOverride(input.family_id || familyId, input.skill_id, {
+      path: input.path,
+      original_value: input.original_value,
+      custom_value: input.custom_value,
+      reason: input.reason,
+    }));
+  });
+
+  server.tool("list_skill_overrides", {
+    family_id: z.string().optional(),
+    skill_id: z.string(),
+  }, async ({ family_id, skill_id }) => {
+    return textResult(await listSkillOverrides(family_id || familyId, skill_id));
   });
 
   server.tool("list_children", { family_id: z.string().optional() }, async ({ family_id }) => {
