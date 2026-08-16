@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import RecordDetail from "./components/RecordDetail";
 
 type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
@@ -486,28 +487,11 @@ function App() {
       )}
 
       {selectedRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelectedRecord(null)}>
-          <div className="w-full max-w-lg rounded-lg bg-panel p-5" onClick={(event) => event.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-bold">{selectedRecord.title}</h2>
-              <button onClick={() => setSelectedRecord(null)} className="text-stone-500">关闭</button>
-            </div>
-            <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-stone-500">日期：</span>{selectedRecord.date?.slice(0, 10)}</div>
-              <div><span className="text-stone-500">类型：</span>{selectedRecord.type}</div>
-              <div><span className="text-stone-500">评分：</span>{selectedRecord.score ?? "-"}</div>
-              <div><span className="text-stone-500">孩子：</span>{selectedRecord.child?.name || selectedRecord.childId}</div>
-            </div>
-            <div className="rounded-lg border border-stone-200 p-3 text-sm">
-              <div className="mb-1 text-stone-500">正文</div>
-              <p>{selectedRecord.content || "暂无正文"}</p>
-            </div>
-            <div className="mt-3 rounded-lg border border-stone-200 p-3 text-sm">
-              <div className="mb-1 text-stone-500">备注</div>
-              <p>{selectedRecord.notes || "暂无备注"}</p>
-            </div>
-          </div>
-        </div>
+        <RecordDetail
+          record={selectedRecord}
+          childName={home ? childName(home.children, selectedRecord.childId) : "-"}
+          onClose={() => setSelectedRecord(null)}
+        />
       )}
     </div>
   );
