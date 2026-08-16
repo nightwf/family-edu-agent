@@ -60,6 +60,7 @@ function App() {
   const [reportData, setReportData] = useState<{ records: any[]; reports: any[]; growth: any[] } | null>(null);
   const [settings, setSettings] = useState<{ workbuddy_prompt?: string; user?: any; family?: any; child_count?: number } | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
+  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
 
   async function load() {
     if (!token) return;
@@ -424,10 +425,10 @@ function App() {
                   <div>
                     <h3 className="mb-2 font-semibold">成长记录</h3>
                     {reportData.records.map((record) => (
-                      <div key={record.id} className="border-b border-dashed border-stone-200 py-2">
+                      <button key={record.id} type="button" onClick={() => setSelectedRecord(record)} className="block w-full border-b border-dashed border-stone-200 py-2 text-left">
                         <div className="font-medium">{record.title}</div>
                         <div className="text-sm text-stone-500">{record.date?.slice(0, 10)} · {record.type} · {record.score}</div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                   <div>
@@ -481,6 +482,31 @@ function App() {
               <button className="rounded-lg bg-accent px-4 py-2 text-white">导入</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {selectedRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelectedRecord(null)}>
+          <div className="w-full max-w-lg rounded-lg bg-panel p-5" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-bold">{selectedRecord.title}</h2>
+              <button onClick={() => setSelectedRecord(null)} className="text-stone-500">关闭</button>
+            </div>
+            <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+              <div><span className="text-stone-500">日期：</span>{selectedRecord.date?.slice(0, 10)}</div>
+              <div><span className="text-stone-500">类型：</span>{selectedRecord.type}</div>
+              <div><span className="text-stone-500">评分：</span>{selectedRecord.score ?? "-"}</div>
+              <div><span className="text-stone-500">孩子：</span>{selectedRecord.child?.name || selectedRecord.childId}</div>
+            </div>
+            <div className="rounded-lg border border-stone-200 p-3 text-sm">
+              <div className="mb-1 text-stone-500">正文</div>
+              <p>{selectedRecord.content || "暂无正文"}</p>
+            </div>
+            <div className="mt-3 rounded-lg border border-stone-200 p-3 text-sm">
+              <div className="mb-1 text-stone-500">备注</div>
+              <p>{selectedRecord.notes || "暂无备注"}</p>
+            </div>
+          </div>
         </div>
       )}
     </div>
