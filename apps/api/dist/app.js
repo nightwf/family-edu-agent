@@ -13,6 +13,7 @@ import { buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
 import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
+import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 async function requireAuth(request, reply) {
     try {
         await request.jwtVerify();
@@ -347,6 +348,17 @@ export async function buildApp() {
             strictness: body.strictness,
             parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item) => item.trim()).filter(Boolean) : undefined,
         });
+    });
+    app.get("/api/education-methods", { preHandler: requireAuth }, async (request) => {
+        const family = await getFamilyEducationSettings(getAuth(request).familyId);
+        return {
+            available: EDUCATION_METHODS,
+            recommended: recommendEducationMethods({
+                educationPhilosophy: family?.educationPhilosophy,
+                strictness: family?.strictness,
+                communicationStyle: family?.communicationStyle,
+            }),
+        };
     });
     app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth }, async (request) => {
         const { changeId } = request.params;

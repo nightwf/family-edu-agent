@@ -1,5 +1,6 @@
 import { prisma } from "./prisma.js";
 import { listEducationSkills, getEducationSkill } from "./education.js";
+import { recommendEducationMethods } from "./education-methods.js";
 export async function ensureBaseSkillVersions() {
     const skills = listEducationSkills();
     for (const skill of skills) {
@@ -101,10 +102,16 @@ export async function getEffectiveSkill(familyId, skillId) {
             profile.parentGoals?.length ? `- 家长目标：${profile.parentGoals.join("；")}` : `- 家长目标：未设置`,
         ].join("\n")
         : "";
+    const recommendedMethods = recommendEducationMethods({
+        educationPhilosophy: profile?.philosophy || family?.educationPhilosophy,
+        strictness: profile?.strictness || family?.strictness,
+        communicationStyle: profile?.communicationStyle || family?.communicationStyle,
+    });
     return {
         skill: base,
         profile,
         overrides: profile?.overrides || [],
+        recommended_methods: recommendedMethods,
         effective_content: [base.content, customization].filter(Boolean).join("\n\n"),
     };
 }

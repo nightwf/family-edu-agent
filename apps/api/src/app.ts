@@ -21,6 +21,7 @@ import {
   getFamilyEducationSettings,
   updateFamilyEducationSettings,
 } from "./personalization.js";
+import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -388,6 +389,18 @@ export async function buildApp() {
       strictness: body.strictness,
       parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item: string) => item.trim()).filter(Boolean) : undefined,
     });
+  });
+
+  app.get("/api/education-methods", { preHandler: requireAuth as any }, async (request) => {
+    const family = await getFamilyEducationSettings(getAuth(request).familyId);
+    return {
+      available: EDUCATION_METHODS,
+      recommended: recommendEducationMethods({
+        educationPhilosophy: family?.educationPhilosophy,
+        strictness: family?.strictness,
+        communicationStyle: family?.communicationStyle,
+      }),
+    };
   });
 
   app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth as any }, async (request) => {

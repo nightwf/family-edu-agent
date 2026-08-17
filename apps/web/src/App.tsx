@@ -65,6 +65,7 @@ function App() {
   const [policies, setPolicies] = useState<any[]>([]);
   const [policyChanges, setPolicyChanges] = useState<any[]>([]);
   const [educationSettings, setEducationSettings] = useState<any>({});
+  const [educationMethods, setEducationMethods] = useState<any>(null);
 
   async function load() {
     if (!token) return;
@@ -80,6 +81,8 @@ function App() {
     setPolicyChanges(changeData);
     const educationData = await request("/api/education-settings", {}, token);
     setEducationSettings(educationData || {});
+    const methodData = await request("/api/education-methods", {}, token);
+    setEducationMethods(methodData);
   }
 
   useEffect(() => {
@@ -479,6 +482,18 @@ function App() {
                   <input name="parent_goals" defaultValue={(educationSettings.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
                   <button className="rounded-lg bg-teal px-4 py-2 text-white">保存教育方式</button>
                 </form>
+                {educationMethods?.recommended?.length ? (
+                  <div className="mt-4 rounded-lg border border-stone-200 bg-white p-4">
+                    <div className="mb-2 text-sm font-semibold text-stone-500">系统将重点使用</div>
+                    <div className="flex flex-wrap gap-2">
+                      {educationMethods.recommended.map((method: any) => (
+                        <span key={method.id} className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">
+                          {method.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="mt-6">
                 <h3 className="font-semibold">优化建议</h3>
