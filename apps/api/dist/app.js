@@ -12,7 +12,7 @@ import { registerMcpHttp } from "./mcp.js";
 import { buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
 import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
-import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, } from "./personalization.js";
+import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
 async function requireAuth(request, reply) {
     try {
         await request.jwtVerify();
@@ -335,6 +335,18 @@ export async function buildApp() {
     });
     app.get("/api/policy-changes", { preHandler: requireAuth }, async (request) => {
         return getPolicyHistory(getAuth(request).familyId);
+    });
+    app.get("/api/education-settings", { preHandler: requireAuth }, async (request) => {
+        return getFamilyEducationSettings(getAuth(request).familyId);
+    });
+    app.patch("/api/education-settings", { preHandler: requireAuth }, async (request) => {
+        const body = request.body;
+        return updateFamilyEducationSettings(getAuth(request).familyId, {
+            educationPhilosophy: body.education_philosophy,
+            communicationStyle: body.communication_style,
+            strictness: body.strictness,
+            parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item) => item.trim()).filter(Boolean) : undefined,
+        });
     });
     app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth }, async (request) => {
         const { changeId } = request.params;

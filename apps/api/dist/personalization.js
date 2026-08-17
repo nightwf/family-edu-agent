@@ -87,14 +87,17 @@ export async function getEffectiveSkill(familyId, skillId) {
     const base = getEducationSkill(skillId);
     if (!base)
         return null;
-    const profile = await getFamilyProfile(familyId, skillId);
+    const [profile, family] = await Promise.all([
+        getFamilyProfile(familyId, skillId),
+        prisma.family.findUnique({ where: { id: familyId } }),
+    ]);
     const customization = profile
         ? [
             `## 家庭个性化配置`,
             ``,
-            `- 教育理念：${profile.philosophy || "以引导和鼓励为主"}`,
-            `- 沟通风格：${profile.communicationStyle || "温和直接"}`,
-            `- 严格程度：${profile.strictness || "适中"}`,
+            `- 教育理念：${profile.philosophy || family?.educationPhilosophy || "以引导和鼓励为主"}`,
+            `- 沟通风格：${profile.communicationStyle || family?.communicationStyle || "温和直接"}`,
+            `- 严格程度：${profile.strictness || family?.strictness || "适中"}`,
             profile.parentGoals?.length ? `- 家长目标：${profile.parentGoals.join("；")}` : `- 家长目标：未设置`,
         ].join("\n")
         : "";
@@ -104,6 +107,23 @@ export async function getEffectiveSkill(familyId, skillId) {
         overrides: profile?.overrides || [],
         effective_content: [base.content, customization].filter(Boolean).join("\n\n"),
     };
+}
+export async function getFamilyEducationSettings(familyId) {
+    return prisma.family.findUnique({
+        where: { id: familyId },
+        select: {
+            educationPhilosophy: true,
+            communicationStyle: true,
+            strictness: true,
+            parentGoals: true,
+        },
+    });
+}
+export async function updateFamilyEducationSettings(familyId, input) {
+    return prisma.family.update({
+        where: { id: familyId },
+        data: input,
+    });
 }
 export async function proposePolicyChange(familyId, skillId, input, createdBy = "agent") {
     return prisma.policyChange.create({

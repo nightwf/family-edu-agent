@@ -18,6 +18,8 @@ import {
   updateFamilyProfile,
   getPolicyHistory,
   reviewPolicyChange,
+  getFamilyEducationSettings,
+  updateFamilyEducationSettings,
 } from "./personalization.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
@@ -372,6 +374,20 @@ export async function buildApp() {
 
   app.get("/api/policy-changes", { preHandler: requireAuth as any }, async (request) => {
     return getPolicyHistory(getAuth(request).familyId);
+  });
+
+  app.get("/api/education-settings", { preHandler: requireAuth as any }, async (request) => {
+    return getFamilyEducationSettings(getAuth(request).familyId);
+  });
+
+  app.patch("/api/education-settings", { preHandler: requireAuth as any }, async (request) => {
+    const body = request.body as any;
+    return updateFamilyEducationSettings(getAuth(request).familyId, {
+      educationPhilosophy: body.education_philosophy,
+      communicationStyle: body.communication_style,
+      strictness: body.strictness,
+      parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item: string) => item.trim()).filter(Boolean) : undefined,
+    });
   });
 
   app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth as any }, async (request) => {

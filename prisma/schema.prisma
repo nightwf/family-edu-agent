@@ -11,6 +11,10 @@ model Family {
   id          String   @id @default(cuid())
   name        String
   inviteCode  String
+  educationPhilosophy  String?
+  communicationStyle  String?
+  strictness          String?
+  parentGoals         String[]
   status      String   @default("active")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

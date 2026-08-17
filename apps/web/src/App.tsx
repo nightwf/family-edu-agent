@@ -64,7 +64,7 @@ function App() {
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [policies, setPolicies] = useState<any[]>([]);
   const [policyChanges, setPolicyChanges] = useState<any[]>([]);
-  const [selectedPolicySkill, setSelectedPolicySkill] = useState("writing-coach");
+  const [educationSettings, setEducationSettings] = useState<any>({});
 
   async function load() {
     if (!token) return;
@@ -78,6 +78,8 @@ function App() {
     setSettings(settingData);
     setPolicies(policyData);
     setPolicyChanges(changeData);
+    const educationData = await request("/api/education-settings", {}, token);
+    setEducationSettings(educationData || {});
   }
 
   useEffect(() => {
@@ -224,13 +226,13 @@ function App() {
     await load();
   }
 
-  async function savePolicy(event: React.FormEvent<HTMLFormElement>) {
+  async function saveEducationSettings(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    await request(`/api/policies/${selectedPolicySkill}`, {
+    await request(`/api/education-settings`, {
       method: "PATCH",
       body: JSON.stringify({
-        philosophy: form.get("philosophy"),
+        education_philosophy: form.get("education_philosophy"),
         communication_style: form.get("communication_style"),
         strictness: form.get("strictness"),
         parent_goals: String(form.get("parent_goals") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
@@ -455,29 +457,28 @@ function App() {
               </div>
               <div className="mt-6">
                 <h3 className="font-semibold">家庭教育方式</h3>
-                <select
-                  value={selectedPolicySkill}
-                  onChange={(event) => setSelectedPolicySkill(event.target.value)}
-                  className="mt-3 w-full rounded-lg border border-stone-200 px-3 py-2"
-                >
-                  {policies.map((policy) => <option key={policy.skill_id} value={policy.skill_id}>{policy.name}</option>)}
-                </select>
-                {(() => {
-                  const profile = policies.find((policy) => policy.skill_id === selectedPolicySkill)?.profile;
-                  return (
-                    <form onSubmit={savePolicy} className="mt-4 space-y-3">
-                      <input name="philosophy" defaultValue={profile?.philosophy || "以引导和鼓励为主"} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教育理念" />
-                      <input name="communication_style" defaultValue={profile?.communicationStyle || "温和直接"} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="沟通风格" />
-                      <select name="strictness" defaultValue={profile?.strictness || "适中"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
-                        <option value="宽松">宽松</option>
-                        <option value="适中">适中</option>
-                        <option value="严格">严格</option>
-                      </select>
-                      <input name="parent_goals" defaultValue={(profile?.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
-                      <button className="rounded-lg bg-teal px-4 py-2 text-white">保存教育方式</button>
-                    </form>
-                  );
-                })()}
+                <form onSubmit={saveEducationSettings} className="mt-4 space-y-3">
+                  <select name="education_philosophy" defaultValue={educationSettings.educationPhilosophy || "以引导和鼓励为主"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
+                    <option value="以引导和鼓励为主">以引导和鼓励为主</option>
+                    <option value="兴趣优先">兴趣优先</option>
+                    <option value="习惯优先">习惯优先</option>
+                    <option value="成绩与能力并重">成绩与能力并重</option>
+                    <option value="自主探索">自主探索</option>
+                  </select>
+                  <select name="communication_style" defaultValue={educationSettings.communicationStyle || "温和直接"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
+                    <option value="温和直接">温和直接</option>
+                    <option value="鼓励为主">鼓励为主</option>
+                    <option value="简洁明确">简洁明确</option>
+                    <option value="陪伴讨论">陪伴讨论</option>
+                  </select>
+                  <select name="strictness" defaultValue={educationSettings.strictness || "适中"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
+                    <option value="宽松">宽松</option>
+                    <option value="适中">适中</option>
+                    <option value="严格">严格</option>
+                  </select>
+                  <input name="parent_goals" defaultValue={(educationSettings.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
+                  <button className="rounded-lg bg-teal px-4 py-2 text-white">保存教育方式</button>
+                </form>
               </div>
               <div className="mt-6">
                 <h3 className="font-semibold">优化建议</h3>
