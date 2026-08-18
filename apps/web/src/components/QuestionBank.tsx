@@ -244,6 +244,7 @@ export default function QuestionBank({ token, children, request }: { token: stri
 
   async function submitQuestion(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!editingQuestion) return;
     const form = new FormData(event.currentTarget);
     let fileKey = editingQuestion?.fileKey;
     const file = form.get("file");
@@ -258,7 +259,7 @@ export default function QuestionBank({ token, children, request }: { token: stri
       variation_type: form.get("variation_type"), tags: parseLines(form.get("tags")), source: form.get("source") || "parent", file_key: fileKey,
       generated_by_workbuddy: editingQuestion?.generatedByWorkbuddy || false, status: form.get("status") || "active",
     };
-    await request(editingQuestion ? `/api/questions/${editingQuestion.id}` : "/api/questions", { method: editingQuestion ? "PATCH" : "POST", body: JSON.stringify(payload) }, token);
+    await request(`/api/questions/${editingQuestion.id}`, { method: "PATCH", body: JSON.stringify(payload) }, token);
     setQuestionDialog(false); setEditingQuestion(null); await load();
   }
 
@@ -333,7 +334,6 @@ export default function QuestionBank({ token, children, request }: { token: stri
         <div className="flex gap-2">
           <button title="刷新题库" onClick={load} className="grid h-10 w-10 place-items-center rounded-lg border border-stone-200 bg-white text-stone-600"><RefreshCw size={17} /></button>
           {tab === "types" ? <button onClick={() => { setEditingType(null); setTypeDialog(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm text-white"><Plus size={17} />新建题型</button> : null}
-          {tab === "questions" ? <button onClick={() => { setEditingQuestion(null); setQuestionDialog(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-accent px-4 text-sm text-white"><Plus size={17} />录入题目</button> : null}
         </div>
       </div>
 
@@ -365,7 +365,7 @@ export default function QuestionBank({ token, children, request }: { token: stri
             </article>
           ))}
         </div>
-      ) : <EmptyState icon={BookMarked} title="题库还是空的" detail="可以在这里手动录入，也可以在 WorkBuddy 中发题目并明确说“保存到禾芽题库”。" action={<button onClick={() => setQuestionDialog(true)} className="rounded-lg bg-accent px-4 py-2 text-sm text-white">录入第一道题</button>} />)}
+      ) : <EmptyState icon={BookMarked} title="题库还是空的" detail="请在 WorkBuddy 中发送或上传题目，并明确说“保存到禾芽题库”。WorkBuddy 会通过家庭专属 MCP 完成题型识别和同步。" />)}
 
       {!loading && tab === "types" && (filteredTypes.length ? (
         <div className="divide-y divide-stone-200 border-y border-stone-200 bg-panel">

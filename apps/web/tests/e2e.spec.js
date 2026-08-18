@@ -61,6 +61,7 @@ test("question bank workflow, family isolation and mobile layout", async ({ page
 
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: "题库", exact: true }).click();
+  await expect(page.getByRole("button", { name: "录入题目", exact: true })).toHaveCount(0);
   await expect(page.getByText(question.stem)).toBeVisible();
   await page.getByRole("button", { name: "题型分类", exact: true }).click();
   await expect(page.getByText("两步应用题").first()).toBeVisible();

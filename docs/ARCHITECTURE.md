@@ -50,6 +50,8 @@ React Web 家长管理端
 
 项目不直接调用大模型出题。`get_question_generation_context` 向 WorkBuddy 返回题型不变量、可变参数、难度阶梯、学生薄弱点、答案校验和标准输出格式。WorkBuddy 生成后通过 `save_questions_batch` 写回。
 
+题目统一通过 WorkBuddy 和家庭专属 MCP 录入。Web 管理端不提供手工新建题目，只负责查看、修正元数据、停用、删除和掌握证据回溯。
+
 ## 部署
 
 服务通过 Docker Compose 独立运行 PostgreSQL、API 和 MinIO，API 仅监听 `127.0.0.1:4100`。Nginx 只代理 `/family-edu/`，不修改服务器其他站点。容器启动时先执行 `prisma migrate deploy`，然后启动 Fastify。
