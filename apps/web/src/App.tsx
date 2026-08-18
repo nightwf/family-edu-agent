@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
+  BookMarked,
   Check,
   ClipboardCheck,
   Copy,
@@ -16,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import RecordDetail from "./components/RecordDetail";
+import QuestionBank from "./components/QuestionBank";
 
 type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
@@ -28,6 +30,7 @@ const PAGES = [
   { id: "students", label: "学生", icon: Users },
   { id: "reports", label: "报告成长", icon: TrendingUp },
   { id: "textbooks", label: "教材", icon: BookOpen },
+  { id: "questions", label: "题库", icon: BookMarked },
   { id: "homework", label: "作业", icon: ClipboardCheck },
   { id: "knowledge", label: "知识库", icon: Library },
   { id: "settings", label: "设置", icon: Settings },
@@ -376,6 +379,10 @@ function App() {
                 </table>
               </div>
             </div>
+          )}
+
+          {page === "questions" && home && (
+            <QuestionBank token={token} children={home.children} request={request} />
           )}
 
           {page === "textbooks" && home && (

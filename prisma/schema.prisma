@@ -8,55 +8,61 @@ datasource db {
 }
 
 model Family {
-  id          String   @id @default(cuid())
-  name        String
-  inviteCode  String
-  educationPhilosophy  String?
+  id                  String                       @id @default(cuid())
+  name                String
+  inviteCode          String
+  educationPhilosophy String?
   communicationStyle  String?
   strictness          String?
   parentGoals         String[]
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       User[]
-  children    Child[]
-  records     Record[]
-  reports     Report[]
-  textbooks   Textbook[]
-  homework    Homework[]
-  knowledge   KnowledgeItem[]
+  status              String                       @default("active")
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  users               User[]
+  children            Child[]
+  records             Record[]
+  reports             Report[]
+  textbooks           Textbook[]
+  homework            Homework[]
+  knowledge           KnowledgeItem[]
+  questionTypes       QuestionType[]
+  questions           Question[]
+  questionAttempts    QuestionAttempt[]
+  questionMasteries   StudentQuestionTypeMastery[]
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   familyId     String
-  family       Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  email        String   @unique
+  family       Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  email        String    @unique
   passwordHash String
-  role         String   @default("parent")
-  status       String   @default("active")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role         String    @default("parent")
+  status       String    @default("active")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
   sessions     Session[]
 }
 
 model Child {
-  id             String   @id @default(cuid())
-  familyId       String
-  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  name           String
-  age            Int?
-  grade          String
-  subjects       String[]
-  textbookVersion String?
-  status         String   @default("active")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  records        Record[]
-  reports        Report[]
-  textbooks      Textbook[]
-  homework       Homework[]
-  knowledge      KnowledgeItem[]
+  id                String                       @id @default(cuid())
+  familyId          String
+  family            Family                       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name              String
+  age               Int?
+  grade             String
+  subjects          String[]
+  textbookVersion   String?
+  status            String                       @default("active")
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  records           Record[]
+  reports           Report[]
+  textbooks         Textbook[]
+  homework          Homework[]
+  knowledge         KnowledgeItem[]
+  questionAttempts  QuestionAttempt[]
+  questionMasteries StudentQuestionTypeMastery[]
 }
 
 model Record {
@@ -146,12 +152,12 @@ model KnowledgeItem {
 }
 
 model Session {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokenHash String
   expiresAt        DateTime
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
   revokedAt        DateTime?
 }
 
@@ -170,38 +176,38 @@ model SkillVersion {
 }
 
 model FamilySkillProfile {
-  id                 String   @id @default(cuid())
+  id                 String          @id @default(cuid())
   familyId           String
   skillId            String
-  baseVersion        String   @default("1.0.0")
-  active             Boolean  @default(true)
+  baseVersion        String          @default("1.0.0")
+  active             Boolean         @default(true)
   philosophy         String?
   communicationStyle String?
   strictness         String?
   parentGoals        String[]
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
   overrides          SkillOverride[]
 
   @@unique([familyId, skillId])
 }
 
 model SkillOverride {
-  id           String   @id @default(cuid())
-  profileId    String
-  profile      FamilySkillProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  path         String
+  id            String             @id @default(cuid())
+  profileId     String
+  profile       FamilySkillProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  path          String
   originalValue String?
-  customValue  String
-  reason       String?
-  createdBy    String?
-  approvedBy   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  customValue   String
+  reason        String?
+  createdBy     String?
+  approvedBy    String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 }
 
 model PolicyChange {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   familyId   String
   skillId    String?
   type       String
@@ -210,19 +216,143 @@ model PolicyChange {
   after      Json?
   reason     String?
   createdBy  String?
-  status     String   @default("proposed")
+  status     String    @default("proposed")
   effective  Boolean?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
   reviewedAt DateTime?
 }
 
 model McpToken {
-  id        String    @id @default(cuid())
-  familyId  String
-  tokenHash String    @unique
+  id          String    @id @default(cuid())
+  familyId    String
+  tokenHash   String    @unique
   tokenCipher String?
-  name      String?
-  status    String    @default("active")
-  createdAt DateTime  @default(now())
-  revokedAt DateTime?
+  name        String?
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+}
+
+model QuestionType {
+  id                 String                       @id @default(cuid())
+  familyId           String
+  family             Family                       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  subject            String
+  grade              String?
+  name               String
+  description        String?
+  textbook           String?
+  chapter            String?
+  knowledgePoints    String[]                     @default([])
+  tags               String[]                     @default([])
+  abilityGoal        String?
+  solutionMethod     String?
+  standardSteps      Json?
+  commonErrors       Json?
+  invariants         Json?
+  variableParameters Json?
+  difficultyLevels   Json?
+  generationRule     Json?
+  answerValidation   Json?
+  masteryCriteria    Json?
+  ruleVersion        String                       @default("1.0.0")
+  status             String                       @default("active")
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  questions          Question[]
+  attempts           QuestionAttempt[]
+  masteries          StudentQuestionTypeMastery[]
+
+  @@index([familyId, subject, grade])
+  @@index([familyId, status])
+}
+
+model Question {
+  id                    String            @id @default(cuid())
+  familyId              String
+  family                Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  questionTypeId        String
+  questionType          QuestionType      @relation(fields: [questionTypeId], references: [id], onDelete: Restrict)
+  stem                  String
+  format                String            @default("short_answer")
+  options               Json?
+  answer                Json?
+  solution              String?
+  scoringRubric         Json?
+  difficulty            String            @default("basic")
+  tags                  String[]          @default([])
+  source                String            @default("workbuddy")
+  originalContent       String?
+  fileKey               String?
+  sourceQuestionId      String?
+  generationRuleVersion String?
+  variationType         String?
+  generatedByWorkbuddy  Boolean           @default(false)
+  status                String            @default("active")
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  attempts              QuestionAttempt[]
+
+  @@index([familyId, questionTypeId, status])
+  @@index([familyId, difficulty])
+  @@index([sourceQuestionId])
+}
+
+model QuestionAttempt {
+  id              String       @id @default(cuid())
+  familyId        String
+  family          Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId         String
+  child           Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  questionId      String
+  question        Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionTypeId  String
+  questionType    QuestionType @relation(fields: [questionTypeId], references: [id], onDelete: Cascade)
+  studentAnswer   Json?
+  isCorrect       Boolean?
+  score           Float?
+  durationSeconds Int?
+  usedHint        Boolean      @default(false)
+  hintCount       Int          @default(0)
+  errorReason     String?
+  evaluation      String?
+  attemptedAt     DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  @@index([familyId, childId, attemptedAt])
+  @@index([childId, questionTypeId, attemptedAt])
+  @@index([questionId])
+}
+
+model StudentQuestionTypeMastery {
+  id                  String       @id @default(cuid())
+  familyId            String
+  family              Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId             String
+  child               Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  questionTypeId      String
+  questionType        QuestionType @relation(fields: [questionTypeId], references: [id], onDelete: Cascade)
+  status              String       @default("unassessed")
+  calculatedStatus    String       @default("unassessed")
+  masteryScore        Float        @default(0)
+  totalAttempts       Int          @default(0)
+  correctAttempts     Int          @default(0)
+  correctRate         Float        @default(0)
+  correctStreak       Int          @default(0)
+  independentAttempts Int          @default(0)
+  variationCount      Int          @default(0)
+  transferScore       Float?
+  lastPracticedAt     DateTime?
+  lastAssessedAt      DateTime?
+  nextReviewAt        DateTime?
+  evidence            Json?
+  manualStatus        String?
+  manualReason        String?
+  manualSource        String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([childId, questionTypeId])
+  @@index([familyId, childId, status])
+  @@index([familyId, questionTypeId])
 }

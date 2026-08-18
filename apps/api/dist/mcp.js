@@ -6,13 +6,32 @@ import { listEducationSkills, getEducationSkill, getCoachingPolicy, buildChildCo
 import { env } from "./env.js";
 import { resolveFamilyByMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, proposePolicyChange, reviewPolicyChange, getPolicyHistory, createSkillOverride, listSkillOverrides, } from "./personalization.js";
+import { createQuestion, createQuestionsBatch, createQuestionType, deleteQuestion, deleteQuestionType, getQuestion, getQuestionGenerationContext, getQuestionType, getStudentMastery, listQuestionAttempts, listQuestions, listQuestionTypes, listStudentMastery, recalculateMastery, recordQuestionAttempt, updateMasteryOverride, updateQuestion, updateQuestionType, } from "./question-bank.js";
 function textResult(payload) {
     return {
         content: [{ type: "text", text: typeof payload === "string" ? payload : JSON.stringify(payload, null, 2) }],
     };
 }
+async function questionBankResult(action) {
+    try {
+        return textResult(await action());
+    }
+    catch (error) {
+        return {
+            isError: true,
+            content: [{ type: "text", text: error instanceof Error ? error.message : "题库操作失败" }],
+        };
+    }
+}
 export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     const server = new McpServer({ name: "family-edu-mcp", version: "2.0.0" });
+    const ensureOwned = async (modelName, id, label) => {
+        const model = prisma[modelName];
+        const item = await model.findFirst({ where: { id, familyId }, select: { id: true } });
+        if (!item)
+            throw new Error(`${label}不存在或不属于当前家庭`);
+    };
+    const ensureChild = (childId) => ensureOwned("child", childId, "学生");
     server.tool("list_education_skills", "读取项目内置的教育 Skill 列表。", {}, async () => textResult(listEducationSkills()));
     server.tool("get_education_skill", { skill_id: z.string() }, async ({ skill_id }) => {
         const skill = getEducationSkill(skill_id);
@@ -22,14 +41,30 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         const policy = getCoachingPolicy(skill_id);
         return policy ? textResult(policy) : textResult({ error: "education skill not found" });
     });
+    server.tool("get_sync_spec", "读取禾芽最新版 WorkBuddy 数据同步与题库工作规范。首次连接、工具变化或不确定应保存什么时调用。", {}, async () => textResult({
+        version: "2.1",
+        family_identity: "家庭身份只由 X-MCP-Token 决定，不传入或猜测 family_id。",
+        child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
+        save_rule: "普通闲聊不保存；家长明确要求保存、同步、写入、记录时调用对应工具。",
+        workflows: {
+            writing: ["get_child_context", "get_education_skill(writing-coach)", "save_writing_record"],
+            reading: ["get_child_context", "get_education_skill(reading-coach)", "save_reading_record"],
+            homework: ["save_homework", "update_homework_status", "complete_homework"],
+            knowledge: ["save_knowledge_item", "list_knowledge_items"],
+            textbook: ["import_textbook", "list_textbooks", "update_textbook"],
+            question_bank: ["list_question_types", "create_question_type", "save_question or save_questions_batch"],
+            practice: ["get_question_generation_context", "save_questions_batch", "record_question_attempt", "get_student_question_type_mastery"],
+        },
+        mastery_rule: "单次答对不能判定已掌握；必须综合多次练习、变式覆盖、独立作答、迁移题和延迟复测。",
+    }));
     server.tool("list_family_policies", { family_id: z.string().optional() }, async ({ family_id }) => {
-        return textResult(await listFamilyPolicies(family_id || familyId));
+        return textResult(await listFamilyPolicies(familyId));
     });
     server.tool("get_effective_skill", {
         family_id: z.string().optional(),
         skill_id: z.string(),
     }, async ({ family_id, skill_id }) => {
-        const effective = await getEffectiveSkill(family_id || familyId, skill_id);
+        const effective = await getEffectiveSkill(familyId, skill_id);
         return effective ? textResult(effective) : textResult({ error: "education skill not found" });
     });
     server.tool("update_family_policy", {
@@ -40,7 +75,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         strictness: z.string().optional(),
         parent_goals: z.array(z.string()).optional(),
     }, async (input) => {
-        const profile = await updateFamilyProfile(input.family_id || familyId, input.skill_id, {
+        const profile = await updateFamilyProfile(familyId, input.skill_id, {
             philosophy: input.philosophy,
             communicationStyle: input.communication_style,
             strictness: input.strictness,
@@ -56,7 +91,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         reason: z.string().optional(),
         after: z.record(z.any()).optional(),
     }, async (input) => {
-        const change = await proposePolicyChange(input.family_id || familyId, input.skill_id, {
+        const change = await proposePolicyChange(familyId, input.skill_id, {
             type: input.type,
             summary: input.summary,
             reason: input.reason,
@@ -68,13 +103,14 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         change_id: z.string(),
         action: z.enum(["approved", "ignored"]),
     }, async ({ change_id, action }) => {
+        await ensureOwned("policyChange", change_id, "教育方式建议");
         return textResult(await reviewPolicyChange(change_id, action, "parent"));
     });
     server.tool("get_policy_history", {
         family_id: z.string().optional(),
         skill_id: z.string().optional(),
     }, async ({ family_id, skill_id }) => {
-        return textResult(await getPolicyHistory(family_id || familyId, skill_id));
+        return textResult(await getPolicyHistory(familyId, skill_id));
     });
     server.tool("create_skill_override", {
         family_id: z.string().optional(),
@@ -84,7 +120,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         custom_value: z.string(),
         reason: z.string().optional(),
     }, async (input) => {
-        return textResult(await createSkillOverride(input.family_id || familyId, input.skill_id, {
+        return textResult(await createSkillOverride(familyId, input.skill_id, {
             path: input.path,
             original_value: input.original_value,
             custom_value: input.custom_value,
@@ -95,17 +131,17 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         family_id: z.string().optional(),
         skill_id: z.string(),
     }, async ({ family_id, skill_id }) => {
-        return textResult(await listSkillOverrides(family_id || familyId, skill_id));
+        return textResult(await listSkillOverrides(familyId, skill_id));
     });
     server.tool("list_children", { family_id: z.string().optional() }, async ({ family_id }) => {
         const children = await prisma.child.findMany({
-            where: { familyId: family_id || familyId, status: "active" },
+            where: { familyId, status: "active" },
             orderBy: { createdAt: "asc" },
         });
         return textResult(children);
     });
     server.tool("get_family_summary", { family_id: z.string().optional() }, async ({ family_id }) => {
-        const activeFamilyId = family_id || familyId;
+        const activeFamilyId = familyId;
         const children = await prisma.child.findMany({
             where: { familyId: activeFamilyId, status: "active" },
             orderBy: { createdAt: "asc" },
@@ -131,7 +167,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     }, async (input) => {
         const child = await prisma.child.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 name: input.name,
                 age: input.age,
                 grade: input.grade,
@@ -150,6 +186,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         textbook_version: z.string().optional(),
         status: z.string().optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const child = await prisma.child.update({
             where: { id: input.child_id },
             data: {
@@ -164,11 +201,12 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(child);
     });
     server.tool("delete_child", { child_id: z.string() }, async ({ child_id }) => {
+        await ensureChild(child_id);
         await prisma.child.delete({ where: { id: child_id } });
         return textResult({ ok: true, child_id });
     });
     server.tool("get_child_context", { family_id: z.string().optional(), child_id: z.string() }, async ({ family_id, child_id }) => {
-        const activeFamilyId = family_id || familyId;
+        const activeFamilyId = familyId;
         const context = await buildChildContext(activeFamilyId, child_id);
         return context ? textResult(context) : textResult({ error: "child not found" });
     });
@@ -182,9 +220,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         score: z.number().optional(),
         notes: z.string().optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const record = await prisma.record.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 type: input.type,
                 title: input.title,
@@ -205,9 +244,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         score: z.number().optional(),
         notes: z.string().optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const record = await prisma.record.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 type: "writing",
                 title: input.title,
@@ -228,9 +268,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         score: z.number().optional(),
         notes: z.string().optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const record = await prisma.record.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 type: "reading",
                 title: input.title,
@@ -246,8 +287,9 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         child_id: z.string(),
         type: z.string().optional(),
     }, async ({ child_id, type }) => {
+        await ensureChild(child_id);
         const records = await prisma.record.findMany({
-            where: { childId: child_id, ...(type ? { type } : {}) },
+            where: { familyId, childId: child_id, ...(type ? { type } : {}) },
             orderBy: { date: "desc" },
         });
         return textResult(records);
@@ -260,10 +302,12 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         notes: z.string().optional(),
         type: z.string().optional(),
     }, async ({ record_id, ...data }) => {
+        await ensureOwned("record", record_id, "成长记录");
         const record = await prisma.record.update({ where: { id: record_id }, data });
         return textResult(record);
     });
     server.tool("delete_record", { record_id: z.string() }, async ({ record_id }) => {
+        await ensureOwned("record", record_id, "成长记录");
         await prisma.record.delete({ where: { id: record_id } });
         return textResult({ ok: true, record_id });
     });
@@ -274,9 +318,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         title: z.string(),
         content: z.string(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const item = await prisma.knowledgeItem.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 kind: input.kind || "summary",
                 title: input.title,
@@ -287,6 +332,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(item);
     });
     server.tool("delete_knowledge_item", { item_id: z.string() }, async ({ item_id }) => {
+        await ensureOwned("knowledgeItem", item_id, "知识库内容");
         await prisma.knowledgeItem.delete({ where: { id: item_id } });
         return textResult({ ok: true, item_id });
     });
@@ -294,7 +340,9 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         family_id: z.string().optional(),
         child_id: z.string().optional(),
     }, async ({ family_id, child_id }) => {
-        const activeFamilyId = family_id || familyId;
+        const activeFamilyId = familyId;
+        if (child_id)
+            await ensureChild(child_id);
         const items = await prisma.knowledgeItem.findMany({
             where: { familyId: activeFamilyId, ...(child_id ? { childId: child_id } : {}) },
             orderBy: { createdAt: "desc" },
@@ -302,7 +350,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(items);
     });
     server.tool("get_knowledge_item", { item_id: z.string() }, async ({ item_id }) => {
-        const item = await prisma.knowledgeItem.findUnique({ where: { id: item_id } });
+        const item = await prisma.knowledgeItem.findFirst({ where: { id: item_id, familyId } });
         return textResult(item || { error: "knowledge item not found" });
     });
     server.tool("update_knowledge_item", {
@@ -311,8 +359,11 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         content: z.string().optional(),
         kind: z.string().optional(),
         child_id: z.string().optional(),
-    }, async ({ item_id, ...data }) => {
-        const item = await prisma.knowledgeItem.update({ where: { id: item_id }, data });
+    }, async ({ item_id, child_id, ...data }) => {
+        await ensureOwned("knowledgeItem", item_id, "知识库内容");
+        if (child_id)
+            await ensureChild(child_id);
+        const item = await prisma.knowledgeItem.update({ where: { id: item_id }, data: { ...data, childId: child_id } });
         return textResult(item);
     });
     server.tool("save_homework", {
@@ -325,9 +376,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         due_date: z.string().optional(),
         priority: z.string().optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const homework = await prisma.homework.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 subject: input.subject,
                 title: input.title,
@@ -340,6 +392,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(homework);
     });
     server.tool("complete_homework", { homework_id: z.string() }, async ({ homework_id }) => {
+        await ensureOwned("homework", homework_id, "作业");
         const homework = await prisma.homework.update({
             where: { id: homework_id },
             data: { status: "done", completedAt: new Date() },
@@ -350,7 +403,9 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         family_id: z.string().optional(),
         child_id: z.string().optional(),
     }, async ({ family_id, child_id }) => {
-        const activeFamilyId = family_id || familyId;
+        const activeFamilyId = familyId;
+        if (child_id)
+            await ensureChild(child_id);
         const homework = await prisma.homework.findMany({
             where: {
                 familyId: activeFamilyId,
@@ -365,6 +420,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         status: z.enum(["pending", "in_progress", "done", "cancelled"]),
         completed_at: z.string().optional(),
     }, async ({ homework_id, status, completed_at }) => {
+        await ensureOwned("homework", homework_id, "作业");
         const homework = await prisma.homework.update({
             where: { id: homework_id },
             data: {
@@ -375,6 +431,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(homework);
     });
     server.tool("delete_homework", { homework_id: z.string() }, async ({ homework_id }) => {
+        await ensureOwned("homework", homework_id, "作业");
         await prisma.homework.delete({ where: { id: homework_id } });
         return textResult({ ok: true, homework_id });
     });
@@ -388,9 +445,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         version: z.string().optional(),
         file_key: z.string().optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const textbook = await prisma.textbook.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 title: input.title,
                 subject: input.subject,
@@ -408,7 +466,9 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         family_id: z.string().optional(),
         child_id: z.string().optional(),
     }, async ({ family_id, child_id }) => {
-        const activeFamilyId = family_id || familyId;
+        const activeFamilyId = familyId;
+        if (child_id)
+            await ensureChild(child_id);
         const textbooks = await prisma.textbook.findMany({
             where: { familyId: activeFamilyId, ...(child_id ? { childId: child_id } : {}) },
             orderBy: { createdAt: "desc" },
@@ -416,7 +476,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(textbooks);
     });
     server.tool("get_textbook", { textbook_id: z.string() }, async ({ textbook_id }) => {
-        const textbook = await prisma.textbook.findUnique({ where: { id: textbook_id } });
+        const textbook = await prisma.textbook.findFirst({ where: { id: textbook_id, familyId } });
         return textResult(textbook || { error: "textbook not found" });
     });
     server.tool("update_textbook", {
@@ -428,11 +488,15 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         version: z.string().optional(),
         status: z.string().optional(),
         child_id: z.string().optional(),
-    }, async ({ textbook_id, ...data }) => {
-        const textbook = await prisma.textbook.update({ where: { id: textbook_id }, data });
+    }, async ({ textbook_id, child_id, ...data }) => {
+        await ensureOwned("textbook", textbook_id, "教材");
+        if (child_id)
+            await ensureChild(child_id);
+        const textbook = await prisma.textbook.update({ where: { id: textbook_id }, data: { ...data, childId: child_id } });
         return textResult(textbook);
     });
     server.tool("delete_textbook", { textbook_id: z.string() }, async ({ textbook_id }) => {
+        await ensureOwned("textbook", textbook_id, "教材");
         await prisma.textbook.delete({ where: { id: textbook_id } });
         return textResult({ ok: true, textbook_id });
     });
@@ -447,9 +511,10 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         period_end: z.string().optional(),
         metrics: z.record(z.any()).optional(),
     }, async (input) => {
+        await ensureChild(input.child_id);
         const report = await prisma.report.create({
             data: {
-                familyId: input.family_id || familyId,
+                familyId,
                 childId: input.child_id,
                 type: input.type,
                 title: input.title,
@@ -466,7 +531,9 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         family_id: z.string().optional(),
         child_id: z.string().optional(),
     }, async ({ family_id, child_id }) => {
-        const activeFamilyId = family_id || familyId;
+        const activeFamilyId = familyId;
+        if (child_id)
+            await ensureChild(child_id);
         const reports = await prisma.report.findMany({
             where: { familyId: activeFamilyId, ...(child_id ? { childId: child_id } : {}) },
             orderBy: { createdAt: "desc" },
@@ -480,20 +547,164 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         content: z.string().optional(),
         metrics: z.record(z.any()).optional(),
     }, async ({ report_id, ...data }) => {
+        await ensureOwned("report", report_id, "报告");
         const report = await prisma.report.update({ where: { id: report_id }, data });
         return textResult(report);
     });
     server.tool("delete_report", { report_id: z.string() }, async ({ report_id }) => {
+        await ensureOwned("report", report_id, "报告");
         await prisma.report.delete({ where: { id: report_id } });
         return textResult({ ok: true, report_id });
     });
     server.tool("get_growth_summary", { child_id: z.string() }, async ({ child_id }) => {
+        await ensureChild(child_id);
         const [records, reports] = await Promise.all([
-            prisma.record.findMany({ where: { childId: child_id }, orderBy: { date: "asc" } }),
-            prisma.report.findMany({ where: { childId: child_id }, orderBy: { createdAt: "desc" } }),
+            prisma.record.findMany({ where: { familyId, childId: child_id }, orderBy: { date: "asc" } }),
+            prisma.report.findMany({ where: { familyId, childId: child_id }, orderBy: { createdAt: "desc" } }),
         ]);
         return textResult({ child_id, record_count: records.length, records, reports });
     });
+    const questionTypeFields = {
+        subject: z.string().min(1).describe("学科，例如数学、语文、英语、科学、物理或化学"),
+        grade: z.string().optional(),
+        name: z.string().min(1).describe("可复用的题型名称"),
+        description: z.string().optional(),
+        textbook: z.string().optional(),
+        chapter: z.string().optional(),
+        knowledge_points: z.array(z.string()).optional(),
+        tags: z.array(z.string()).optional(),
+        ability_goal: z.string().optional(),
+        solution_method: z.string().optional(),
+        standard_steps: z.any().optional(),
+        common_errors: z.any().optional(),
+        invariants: z.any().optional(),
+        variable_parameters: z.any().optional(),
+        difficulty_levels: z.any().optional(),
+        generation_rule: z.any().optional(),
+        answer_validation: z.any().optional(),
+        mastery_criteria: z.any().optional(),
+        rule_version: z.string().optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+    };
+    const questionFields = {
+        question_type_id: z.string().min(1),
+        stem: z.string().min(1),
+        format: z.enum(["single_choice", "multiple_choice", "true_false", "fill_blank", "short_answer", "essay", "calculation"]).optional(),
+        options: z.any().optional(),
+        answer: z.any().optional(),
+        solution: z.string().optional(),
+        scoring_rubric: z.any().optional(),
+        difficulty: z.enum(["basic", "advanced", "transfer", "review"]).optional(),
+        tags: z.array(z.string()).optional(),
+        source: z.string().optional(),
+        original_content: z.string().optional(),
+        file_key: z.string().optional(),
+        source_question_id: z.string().optional(),
+        generation_rule_version: z.string().optional(),
+        variation_type: z.string().optional(),
+        generated_by_workbuddy: z.boolean().optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+    };
+    server.tool("create_question_type", "创建家庭题型分类及其解题、生成和掌握判定规则。找不到合适题型且家长确认后使用。", questionTypeFields, async (input) => (questionBankResult(() => createQuestionType(familyId, input))));
+    server.tool("list_question_types", "分页查询当前家庭的题型分类。录入题目和生成变式题前先调用，避免重复创建题型。", {
+        subject: z.string().optional(),
+        grade: z.string().optional(),
+        knowledge_point: z.string().optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+        query: z.string().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+    }, async (input) => questionBankResult(() => listQuestionTypes(familyId, input)));
+    server.tool("get_question_type", "读取一个题型的完整定义、生成规则、题目和学生掌握情况。", {
+        question_type_id: z.string(),
+    }, async ({ question_type_id }) => questionBankResult(() => getQuestionType(familyId, question_type_id)));
+    server.tool("update_question_type", "更新当前家庭的题型定义或规则。规则变化时应同步更新 rule_version。", {
+        question_type_id: z.string(),
+        ...Object.fromEntries(Object.entries(questionTypeFields).map(([key, schema]) => [key, schema.optional()])),
+    }, async ({ question_type_id, ...input }) => questionBankResult(() => updateQuestionType(familyId, question_type_id, input)));
+    server.tool("delete_question_type", "删除没有关联题目的题型。已有题目时会拒绝删除，应改用 update_question_type 停用。", {
+        question_type_id: z.string(),
+    }, async ({ question_type_id }) => questionBankResult(() => deleteQuestionType(familyId, question_type_id)));
+    server.tool("save_question", "向当前家庭题库保存一道题，必须归入已有题型，并附答案、解析和难度。", questionFields, async (input) => (questionBankResult(() => createQuestion(familyId, input))));
+    server.tool("save_questions_batch", "批量保存最多 50 道同题型或多题型题目。生成变式练习后使用。", {
+        questions: z.array(z.object(questionFields)).min(1).max(50),
+    }, async ({ questions }) => questionBankResult(() => createQuestionsBatch(familyId, questions)));
+    server.tool("list_questions", "分页查询当前家庭题库，可按学科、学生掌握情况、题型、难度和来源筛选。", {
+        child_id: z.string().optional(),
+        subject: z.string().optional(),
+        grade: z.string().optional(),
+        chapter: z.string().optional(),
+        knowledge_point: z.string().optional(),
+        question_type_id: z.string().optional(),
+        difficulty: z.enum(["basic", "advanced", "transfer", "review"]).optional(),
+        source: z.string().optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+        query: z.string().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+    }, async (input) => questionBankResult(() => listQuestions(familyId, input)));
+    server.tool("get_question", "读取题目详情、题型规则和最近学生作答记录。", {
+        question_id: z.string(),
+    }, async ({ question_id }) => questionBankResult(() => getQuestion(familyId, question_id)));
+    server.tool("update_question", "更新当前家庭的一道题。已有作答记录时不能改变题型。", {
+        question_id: z.string(),
+        ...Object.fromEntries(Object.entries(questionFields).map(([key, schema]) => [key, schema.optional()])),
+    }, async ({ question_id, ...input }) => questionBankResult(() => updateQuestion(familyId, question_id, input)));
+    server.tool("delete_question", "删除没有学生作答记录的题目。已有作答证据时会拒绝删除，应改为停用。", {
+        question_id: z.string(),
+    }, async ({ question_id }) => questionBankResult(() => deleteQuestion(familyId, question_id)));
+    server.tool("get_question_generation_context", "生成同题型练习前必须调用。返回题型不变量、可变参数、难度规则、学生薄弱点、掌握度和标准输出结构。", {
+        question_type_id: z.string(),
+        child_id: z.string().optional(),
+        source_question_id: z.string().optional(),
+        target_difficulty: z.enum(["basic", "advanced", "transfer", "review"]).optional(),
+        count: z.number().int().min(1).max(20).optional(),
+    }, async (input) => questionBankResult(() => getQuestionGenerationContext(familyId, input)));
+    server.tool("record_question_attempt", "保存学生一次真实作答并自动重算该学生对此题型的掌握度。", {
+        child_id: z.string(),
+        question_id: z.string(),
+        question_type_id: z.string().optional(),
+        student_answer: z.any().optional(),
+        is_correct: z.boolean().optional(),
+        score: z.number().min(0).max(100).optional(),
+        duration_seconds: z.number().int().min(0).optional(),
+        used_hint: z.boolean().optional(),
+        hint_count: z.number().int().min(0).optional(),
+        error_reason: z.string().optional(),
+        evaluation: z.string().optional(),
+        attempted_at: z.string().datetime().optional(),
+    }, async (input) => questionBankResult(() => recordQuestionAttempt(familyId, input)));
+    server.tool("list_question_attempts", "分页查询当前家庭的学生作答证据。", {
+        child_id: z.string().optional(),
+        question_id: z.string().optional(),
+        question_type_id: z.string().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+    }, async (input) => questionBankResult(() => listQuestionAttempts(familyId, input)));
+    server.tool("get_student_question_type_mastery", "读取一名学生对一个题型的掌握分、状态、证据和复习时间。", {
+        child_id: z.string(),
+        question_type_id: z.string(),
+    }, async ({ child_id, question_type_id }) => questionBankResult(() => getStudentMastery(familyId, child_id, question_type_id)));
+    server.tool("list_student_mastery", "分页查询学生题型掌握情况，可筛选学生、学科和状态。", {
+        child_id: z.string().optional(),
+        question_type_id: z.string().optional(),
+        subject: z.string().optional(),
+        status: z.enum(["unassessed", "learning", "basic", "mastered", "needs_review"]).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+    }, async (input) => questionBankResult(() => listStudentMastery(familyId, input)));
+    server.tool("update_student_question_type_mastery", "人工修正学生题型掌握状态，必须说明原因；也可清除人工修正恢复自动计算。", {
+        child_id: z.string(),
+        question_type_id: z.string(),
+        status: z.enum(["unassessed", "learning", "basic", "mastered", "needs_review"]).optional(),
+        reason: z.string().optional(),
+        source: z.enum(["parent", "workbuddy"]).optional(),
+        clear_manual_override: z.boolean().optional(),
+    }, async ({ child_id, question_type_id, ...input }) => questionBankResult(() => updateMasteryOverride(familyId, child_id, question_type_id, input)));
+    server.tool("recalculate_student_mastery", "根据全部作答证据重新计算学生对一个题型的掌握度，人工修正仍会保留。", {
+        child_id: z.string(),
+        question_type_id: z.string(),
+    }, async ({ child_id, question_type_id }) => questionBankResult(() => recalculateMastery(familyId, child_id, question_type_id)));
     return server;
 }
 export async function registerMcpHttp(app) {

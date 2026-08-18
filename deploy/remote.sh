@@ -10,7 +10,12 @@ rsync -az \
   --exclude 'node_modules' \
   --exclude 'data' \
   --exclude '.git' \
+  --exclude 'task_plan.md' \
+  --exclude 'findings.md' \
+  --exclude 'progress.md' \
+  --exclude 'test-results' \
+  --exclude 'playwright-report' \
   -e "ssh ${SSH_OPTS[*]}" \
   ./ "$HOST:$REMOTE_DIR/"
 
-ssh "${SSH_OPTS[@]}" "$HOST" "systemctl restart family-edu-agent && systemctl status family-edu-agent --no-pager -l | head -25"
+ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_DIR' && docker compose up -d --build api && docker compose ps api"

@@ -52,3 +52,17 @@ export async function deleteFile(key: string) {
     if (fs.existsSync(target)) fs.unlinkSync(target);
   }
 }
+
+export async function openFile(fileKey: string) {
+  const client = createS3Client();
+  const s3Match = /^s3:\/\/([^/]+)\/(.+)$/.exec(fileKey);
+  if (s3Match) {
+    if (!client) throw new Error("对象存储未配置");
+    return client.getObject(s3Match[1], s3Match[2]);
+  }
+  const storageRoot = path.resolve(env.STORAGE_DIR);
+  const target = path.resolve(fileKey);
+  if (target !== storageRoot && !target.startsWith(`${storageRoot}${path.sep}`)) throw new Error("无效的文件路径");
+  if (!fs.existsSync(target)) throw new Error("文件不存在");
+  return fs.createReadStream(target);
+}

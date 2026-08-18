@@ -22,6 +22,7 @@ import {
   updateFamilyEducationSettings,
 } from "./personalization.js";
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
+import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -38,6 +39,10 @@ function getAuth(request: FastifyRequest) {
 
 export async function buildApp() {
   const app: FastifyInstance = Fastify({ logger: true });
+  const ownsResource = async (familyId: string, modelName: string, id: string) => {
+    const model = (prisma as any)[modelName];
+    return Boolean(await model.findFirst({ where: { id, familyId }, select: { id: true } }));
+  };
 
   await app.register(cors, { origin: true });
   await app.register(jwt, { secret: env.JWT_SECRET });
@@ -168,8 +173,9 @@ export async function buildApp() {
     });
   });
 
-  app.patch("/api/children/:childId", { preHandler: requireAuth as any }, async (request) => {
+  app.patch("/api/children/:childId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { childId } = request.params as any;
+    if (!(await ownsResource(getAuth(request).familyId, "child", childId))) return reply.code(404).send({ error: "学生不存在" });
     const body = request.body as any;
     return prisma.child.update({
       where: { id: childId },
@@ -185,23 +191,24 @@ export async function buildApp() {
 
   app.delete("/api/children/:childId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { childId } = request.params as any;
+    if (!(await ownsResource(getAuth(request).familyId, "child", childId))) return reply.code(404).send({ error: "学生不存在" });
     await prisma.child.delete({ where: { id: childId } });
     return reply.send({ ok: true });
   });
 
   app.get("/api/children/:childId/records", { preHandler: requireAuth as any }, async (request) => {
     const { childId } = request.params as any;
-    return prisma.record.findMany({ where: { childId }, orderBy: { date: "desc" } });
+    return prisma.record.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { date: "desc" } });
   });
 
   app.get("/api/children/:childId/reports", { preHandler: requireAuth as any }, async (request) => {
     const { childId } = request.params as any;
-    return prisma.report.findMany({ where: { childId }, orderBy: { createdAt: "desc" } });
+    return prisma.report.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
   });
 
   app.get("/api/children/:childId/growth", { preHandler: requireAuth as any }, async (request) => {
     const { childId } = request.params as any;
-    const records = await prisma.record.findMany({ where: { childId }, orderBy: { date: "asc" } });
+    const records = await prisma.record.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { date: "asc" } });
     return records.map((record) => ({
       date: record.date.toISOString().slice(0, 10),
       type: record.type,
@@ -213,9 +220,10 @@ export async function buildApp() {
     return prisma.knowledgeItem.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
   });
 
-  app.post("/api/knowledge", { preHandler: requireAuth as any }, async (request) => {
+  app.post("/api/knowledge", { preHandler: requireAuth as any }, async (request, reply) => {
     const familyId = getAuth(request).familyId;
     const body = request.body as any;
+    if (!(await ownsResource(familyId, "child", body.child_id))) return reply.code(404).send({ error: "学生不存在" });
     return prisma.knowledgeItem.create({
       data: {
         familyId,
@@ -228,8 +236,9 @@ export async function buildApp() {
     });
   });
 
-  app.delete("/api/knowledge/:itemId", { preHandler: requireAuth as any }, async (request) => {
+  app.delete("/api/knowledge/:itemId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { itemId } = request.params as any;
+    if (!(await ownsResource(getAuth(request).familyId, "knowledgeItem", itemId))) return reply.code(404).send({ error: "知识库内容不存在" });
     await prisma.knowledgeItem.delete({ where: { id: itemId } });
     return { ok: true };
   });
@@ -238,9 +247,10 @@ export async function buildApp() {
     return prisma.homework.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { dueDate: "asc" } });
   });
 
-  app.post("/api/homework", { preHandler: requireAuth as any }, async (request) => {
+  app.post("/api/homework", { preHandler: requireAuth as any }, async (request, reply) => {
     const familyId = getAuth(request).familyId;
     const body = request.body as any;
+    if (!(await ownsResource(familyId, "child", body.child_id))) return reply.code(404).send({ error: "学生不存在" });
     return prisma.homework.create({
       data: {
         familyId,
@@ -256,19 +266,25 @@ export async function buildApp() {
     });
   });
 
-  app.post("/api/homework/:homeworkId/complete", { preHandler: requireAuth as any }, async (request) => {
+  app.post("/api/homework/:homeworkId/complete", { preHandler: requireAuth as any }, async (request, reply) => {
     const { homeworkId } = request.params as any;
+    if (!(await ownsResource(getAuth(request).familyId, "homework", homeworkId))) return reply.code(404).send({ error: "作业不存在" });
     return prisma.homework.update({ where: { id: homeworkId }, data: { status: "done", completedAt: new Date() } });
   });
 
-  app.patch("/api/homework/:homeworkId", { preHandler: requireAuth as any }, async (request) => {
+  app.patch("/api/homework/:homeworkId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { homeworkId } = request.params as any;
     const body = request.body as any;
-    return prisma.homework.update({ where: { id: homeworkId }, data: body });
+    const familyId = getAuth(request).familyId;
+    if (!(await ownsResource(familyId, "homework", homeworkId))) return reply.code(404).send({ error: "作业不存在" });
+    if (body.childId && !(await ownsResource(familyId, "child", body.childId))) return reply.code(404).send({ error: "学生不存在" });
+    const { id: _id, familyId: _familyId, family: _family, child: _child, ...safeBody } = body;
+    return prisma.homework.update({ where: { id: homeworkId }, data: safeBody });
   });
 
-  app.delete("/api/homework/:homeworkId", { preHandler: requireAuth as any }, async (request) => {
+  app.delete("/api/homework/:homeworkId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { homeworkId } = request.params as any;
+    if (!(await ownsResource(getAuth(request).familyId, "homework", homeworkId))) return reply.code(404).send({ error: "作业不存在" });
     await prisma.homework.delete({ where: { id: homeworkId } });
     return { ok: true };
   });
@@ -277,9 +293,10 @@ export async function buildApp() {
     return prisma.textbook.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
   });
 
-  app.post("/api/textbooks", { preHandler: requireAuth as any }, async (request) => {
+  app.post("/api/textbooks", { preHandler: requireAuth as any }, async (request, reply) => {
     const familyId = getAuth(request).familyId;
     const body = request.body as any;
+    if (!(await ownsResource(familyId, "child", body.child_id))) return reply.code(404).send({ error: "学生不存在" });
     return prisma.textbook.create({
       data: {
         familyId,
@@ -305,12 +322,14 @@ export async function buildApp() {
     const filename = filePart.filename || "textbook";
     const mimetype = filePart.mimetype || "application/octet-stream";
     const value = (key: string) => body[key]?.value ?? body[key] ?? (request.query as any)?.[key] ?? "";
+    const childId = String(value("child_id"));
+    if (!(await ownsResource(familyId, "child", childId))) return reply.code(404).send({ error: "学生不存在" });
     const key = `textbooks/${familyId}/${crypto.randomUUID()}-${filename}`;
     const fileKey = await saveFile(key, buffer, mimetype);
     return prisma.textbook.create({
       data: {
         familyId,
-        childId: String(value("child_id")),
+        childId,
         title: String(value("title") || filename),
         subject: String(value("subject") || ""),
         grade: String(value("grade") || ""),
@@ -322,14 +341,19 @@ export async function buildApp() {
     });
   });
 
-  app.patch("/api/textbooks/:textbookId", { preHandler: requireAuth as any }, async (request) => {
+  app.patch("/api/textbooks/:textbookId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { textbookId } = request.params as any;
     const body = request.body as any;
-    return prisma.textbook.update({ where: { id: textbookId }, data: body });
+    const familyId = getAuth(request).familyId;
+    if (!(await ownsResource(familyId, "textbook", textbookId))) return reply.code(404).send({ error: "教材不存在" });
+    if (body.childId && !(await ownsResource(familyId, "child", body.childId))) return reply.code(404).send({ error: "学生不存在" });
+    const { id: _id, familyId: _familyId, family: _family, child: _child, ...safeBody } = body;
+    return prisma.textbook.update({ where: { id: textbookId }, data: safeBody });
   });
 
-  app.delete("/api/textbooks/:textbookId", { preHandler: requireAuth as any }, async (request) => {
+  app.delete("/api/textbooks/:textbookId", { preHandler: requireAuth as any }, async (request, reply) => {
     const { textbookId } = request.params as any;
+    if (!(await ownsResource(getAuth(request).familyId, "textbook", textbookId))) return reply.code(404).send({ error: "教材不存在" });
     await prisma.textbook.delete({ where: { id: textbookId } });
     return { ok: true };
   });
@@ -403,11 +427,14 @@ export async function buildApp() {
     };
   });
 
-  app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth as any }, async (request) => {
+  app.post("/api/policy-changes/:changeId/review", { preHandler: requireAuth as any }, async (request, reply) => {
     const { changeId } = request.params as any;
     const { action } = request.body as any;
+    if (!(await ownsResource(getAuth(request).familyId, "policyChange", changeId))) return reply.code(404).send({ error: "优化建议不存在" });
     return reviewPolicyChange(changeId, action);
   });
+
+  registerQuestionBankRoutes(app, requireAuth, (request) => getAuth(request).familyId);
 
   await registerMcpHttp(app);
 

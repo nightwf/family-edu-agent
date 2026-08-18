@@ -1,34 +1,42 @@
 # WorkBuddy 同步规范
 
-WorkBuddy 生成家庭教育内容后，通过 Family Education MCP 写入项目。规范源文件位于 `src/workbuddy-spec.js`，MCP 提供 `get_sync_spec` 工具供 WorkBuddy 主动读取。
+WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education MCP 读取教育规则并写入家庭数据。首次连接、工具变化或不确定同步范围时调用 `get_sync_spec`。
+
+## 通用规则
+
+- 家庭身份只由 `X-MCP-Token` 确定，不传入或猜测 `family_id`；
+- 涉及学生时先调用 `list_children` 确认 `child_id`；
+- 普通闲聊不自动保存；家长明确要求保存、同步、写入或记录时调用对应工具；
+- 写入后读取结果确认，不把没有成功保存的内容描述为“已经同步”。
 
 ## 同步类型
 
-| 类型 | 保存工具 | 关键字段 |
-| --- | --- | --- |
-| 作文 / 日记 | `save_writing_record` | `child_id`、`title`、`date`、`score`、`notes` |
-| 阅读复述 | `save_reading_record` | `child_id`、`title`、`date`、`score`、`notes` |
-| 学习记录 | `save_learning_record` | `child_id`、`type`、`title`、`score` |
-| 家长笔记 | `save_parent_note` | `child_id`、`title`、`notes` |
-| 阶段总结 | `save_knowledge_item` | `kind="summary"`、`title`、`content` |
-| 成长报告 | `save_knowledge_item` | `kind="report"`、`title`、`content` |
-| 教育建议 | `save_knowledge_item` | `kind="suggestion"`、`title`、`content` |
-| 教材 | `import_textbook` | `child_id`、`title`、`subject`、`grade`、`publisher`、`version`、`file` |
-| 学习任务 | `create_learning_task` | `child_id`、`title`、`estimated_minutes`、`deadline` |
-| 家庭作业 | `save_homework` | `child_id`、`title`、`subject`、`deadline`、`status` |
-| 作业完成 | `complete_homework` | `homework_id` |
+| 场景 | 主要工具 |
+| --- | --- |
+| 写作 / 日记 | `save_writing_record`、`save_learning_record` |
+| 阅读 / 复述 | `save_reading_record` |
+| 家庭作业 | `save_homework`、`update_homework_status`、`complete_homework` |
+| 总结 / 报告 / 建议 | `save_knowledge_item`、`list_knowledge_items` |
+| 教材 | `import_textbook`、`list_textbooks`、`update_textbook` |
+| 题型 | `list_question_types`、`create_question_type`、`update_question_type` |
+| 题目 | `save_question`、`save_questions_batch`、`list_questions` |
+| 同题型练习 | `get_question_generation_context`、`save_questions_batch` |
+| 学生作答 | `record_question_attempt`、`list_question_attempts` |
+| 掌握度 | `get_student_question_type_mastery`、`list_student_mastery`、`recalculate_student_mastery` |
 
-## 保存原则
+## 题库流程
 
-- 涉及孩子时必须先确认 `child_id`；
-- 家长明确要求“保存、同步、写入、记录”时必须执行；
-- 生成报告、总结、建议后主动建议保存；
-- 普通闲聊和泛化教育内容不自动保存。
+1. 识别题目的学科、年级、知识点和题型。
+2. 调用 `list_question_types` 查重；没有匹配项时先询问家长，再创建题型。
+3. 保存题目时必须包含题干、答案、解析、难度和变式类型；主观题还需评分量表。
+4. 生成变式题前调用 `get_question_generation_context`。
+5. 变式需覆盖不同表述、条件、易错点、综合步骤、迁移场景和延迟复习，不能只替换数字或人名。
+6. 学生完成后调用 `record_question_attempt`，系统自动更新掌握度。
+7. 单次答对不能宣布完全掌握。
 
-## WorkBuddy 接入
+## 安全与删除
 
-连接提示词已包含本规范。WorkBuddy 不确定同步规则时，可调用：
-
-```text
-get_sync_spec
-```
+- MCP 工具只访问 Token 对应家庭的数据；
+- 有作答证据的题目不能硬删除，只能停用；
+- 有关联题目的题型不能硬删除，只能停用；
+- 人工调整掌握状态必须填写原因，可以清除人工调整恢复自动判断。

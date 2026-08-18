@@ -1,49 +1,55 @@
 # 技术架构
 
-WorkBuddy 负责 AI 理解、对话和生成；Family Education MCP 负责把记录、总结、报告、教材和任务写入业务服务；本项目作为家庭长期知识库和展示管理端，面向家长提供查看、回溯和基础设置能力。
-
-教育能力由项目内置的 `skills/` 教育 Skill 库提供。WorkBuddy 处理教育问题前，应先通过 `get_child_context` 获取孩子上下文，再通过 `get_education_skill` 获取对应教育方法。
+WorkBuddy 负责 AI 理解、对话、讲解和出题；Family Education MCP 提供教育规则与受控数据工具；本项目保存家庭长期数据，并通过 Web 管理端供家长查看和管理。
 
 ```text
 WorkBuddy
-   │ MCP HTTP + Token
+   │ Streamable HTTP MCP + 家庭专属 Token
    ▼
 Fastify API / Family Education MCP
+   ├── 家庭认证与资源归属校验
+   ├── Education Skills / 家庭教育方式
+   ├── 成长、报告、教材、作业、知识库
+   └── 题库、题型规则、答题证据、掌握度
    │
-   ├── Education Domain
-   ├── 认证与家庭隔离
-   ├── 成长记录与报告
-   ├── 教材与作业
-   └── 知识库
-   │
-   ├── PostgreSQL 16
-   └── MinIO / 腾讯云 COS
+   ├── PostgreSQL 16（结构化数据）
+   └── 腾讯云 COS / MinIO（教材和题目附件）
+   ▲
+React Web 家长管理端
 ```
+
+## 数据边界
+
+- `Family` 是租户边界，一个注册账号对应一个家庭；
+- Web API 从登录 JWT 获取 `familyId`；
+- MCP 从 `X-MCP-Token` 获取 `familyId`，忽略调用方提供的家庭编号；
+- 所有学生和资源 ID 在读写前再次校验属于当前家庭；
+- 题目属于家庭，可供家庭内多个学生复用；
+- 作答和掌握度属于“学生 + 题型”，不同学生互不影响。
 
 ## 数据模型
 
-- Family：一个家庭账号，使用邀请码注册；
-- User：邮箱 + 密码登录；
-- Child：孩子档案，包含年龄、年级、学科、教材版本；
-- Record：作文、阅读、作业、家长笔记等成长记录；
-- Report：周报 / 月报；
-- Textbook：WorkBuddy 上传的教材，包含章节和知识点；
-- Homework：家庭作业；
-- KnowledgeItem：WorkBuddy 生成并同步到项目的总结、报告和建议；
-- Session：Refresh Token 会话。
-- SkillVersion：全局基础 Skill 的版本记录；
-- FamilySkillProfile：家庭级教育方式配置；
-- SkillOverride：家庭对基础 Skill 的受控覆盖；
-- PolicyChange：教育方式调整、建议和审核历史。
+基础模型：`Family`、`User`、`Child`、`Session`、`McpToken`。
 
-## MCP 工具
+教育数据：`Record`、`Report`、`Textbook`、`Homework`、`KnowledgeItem`。
 
-Family Education MCP 提供 `get_child_profile`、`save_writing_record`、`analyze_writing_progress`、`save_knowledge_item`、`list_knowledge_items`、`save_homework`、`complete_homework`、`import_textbook`、`update_textbook` 等工具，完整清单见 PRD V1.1 第 23 节。
+教育方式：`SkillVersion`、`FamilySkillProfile`、`SkillOverride`、`PolicyChange`。
 
-教育 Skill 库位于 `skills/`，包含写作教练、阅读教练、作业规划、家长教练和成长分析五个标准 `skill.md`。
+题库模型：
 
-## 同步兜底
+- `QuestionType`：题型分类、解题结构、生成规则、答案校验和掌握标准；
+- `Question`：家庭可复用题目、答案、解析、附件及规则版本；
+- `QuestionAttempt`：学生每次真实作答及错误证据；
+- `StudentQuestionTypeMastery`：学生对题型的自动判断、人工修正和复习安排。
 
-业务服务同时暴露 HTTP MCP 入口 `/mcp`，通过 `X-MCP-Token` 鉴权。Web 管理端由 Fastify 静态托管，使用 `/family-edu/` 子路径对外提供。
+## 掌握度
 
-部署使用 Docker Compose：PostgreSQL、API、MinIO 三个容器。数据库备份脚本见 `deploy/backup.sh`。
+自动掌握分由正确率、独立作答、变式覆盖、迁移题和延迟复测组成。默认达到 80 分、至少 5 次有效练习、3 种变式，并通过迁移题和 24 小时后的复测才可标记“已掌握”。人工调整必须保留原因和来源，自动重算不会覆盖人工结论。
+
+## 同题型生成
+
+项目不直接调用大模型出题。`get_question_generation_context` 向 WorkBuddy 返回题型不变量、可变参数、难度阶梯、学生薄弱点、答案校验和标准输出格式。WorkBuddy 生成后通过 `save_questions_batch` 写回。
+
+## 部署
+
+服务通过 Docker Compose 独立运行 PostgreSQL、API 和 MinIO，API 仅监听 `127.0.0.1:4100`。Nginx 只代理 `/family-edu/`，不修改服务器其他站点。容器启动时先执行 `prisma migrate deploy`，然后启动 Fastify。

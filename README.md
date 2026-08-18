@@ -1,10 +1,20 @@
-# 家庭 AI 教育 Agent
+# 禾芽家庭 AI 教育
 
-基于最终生产架构的 TypeScript 重构：Fastify API + Prisma + PostgreSQL + React Web + Family Education MCP。
+禾芽以 WorkBuddy 作为 Agent 对话与执行入口，项目本身提供家庭教育知识、题库规则、学生长期数据、家庭专属 MCP 和家长 Web 管理端。
 
-职责定位：WorkBuddy 负责 Agent 运行和对话，项目负责教育知识库、教育 Skill、孩子成长数据和数据持久化，Web 端负责家长查看与管理。
+生产架构：TypeScript + Fastify + Prisma + PostgreSQL 16 + React/Vite + Tailwind CSS + 腾讯云 COS。
 
-## 快速启动
+## 已实现能力
+
+- 邀请码注册、邮箱密码登录和会话管理；
+- 单家庭多学生档案，家庭专属 MCP Token 隔离数据；
+- 成长记录、报告、教材、作业和知识库；
+- 家庭级教育理念、沟通方式和教育方法推荐；
+- 家庭题库、题型生成规则、学生作答证据和题型掌握度；
+- WorkBuddy 录题、生成变式练习、同步作答与查询掌握度；
+- 明亮学堂 Web 管理端，支持桌面端和手机端。
+
+## 本地启动
 
 ```bash
 cd /Users/nightwf/Desktop/儿童AI教育/family-edu-agent
@@ -12,96 +22,85 @@ npm install
 docker compose up -d --build
 ```
 
-打开 `http://localhost:4100/family-edu/`。
-
-正式环境通过邀请码注册，不预置演示账号。
-
-## 已实现功能
-
-- 邀请码注册、邮箱密码登录、Refresh Token 会话管理；
-- PostgreSQL 存储家庭、孩子、记录、报告、教材、作业和知识库；
-- React Web 七个管理端页面；
-- 教育 Skill 库和 MCP 教育专家工具；
-- 家庭级个性化教育方式：教育理念、沟通风格、严格程度、家长目标；
-- 教育方式优化建议与历史记录，支持采纳或忽略；
-- HTTP MCP 鉴权和家庭数据隔离；
-- Docker Compose 一键部署。
+打开 `http://localhost:4100/family-edu/`。正式环境不预置演示账号或假数据。
 
 ## 常用命令
 
 ```bash
-npm run dev           # 启动 API 开发服务
-npm run build         # 构建 Web 前端
-npm test              # 运行测试
-npm run db:migrate    # 创建本地数据库 migration
-npm run db:deploy     # 执行数据库 migration
+npm run build         # 构建 Web
+npm run test          # 全部单元测试
+npm run test:e2e      # Playwright 端到端测试
+npm run test:mcp      # MCP 握手检查，需要 MCP_SMOKE_TOKEN
+npm run db:generate   # 生成 Prisma Client
+npm run db:deploy     # 执行增量 migration
 ```
 
-同步规范见 [docs/workbuddy-sync-spec.md](docs/workbuddy-sync-spec.md)。
+## 核心 API
 
-教育 Skill 库位于 `skills/`，每个 `skill.md` 包含适用年龄、使用场景、执行流程、提问方式、评价标准、禁忌、输出格式和数据写入规则。
-
-## API
+除注册、登录和健康检查外，Web API 均需 `Authorization: Bearer <token>`。
 
 ```text
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/logout
-GET  /api/auth/me
-GET  /api/home
-GET  /api/children
-POST /api/children
-PATCH /api/children/:childId
-DELETE /api/children/:childId
-GET  /api/children/:childId/reports
-POST /api/children/:childId/reports
-GET  /api/children/:childId/growth
-GET  /api/textbooks
-POST /api/textbooks/import
-PATCH /api/textbooks/:textbookId
-DELETE /api/textbooks/:textbookId
-GET  /api/knowledge
-POST /api/knowledge
-DELETE /api/knowledge/:itemId
-GET  /api/homework
-POST /api/homework
-PATCH /api/homework/:homeworkId
-POST /api/homework/:homeworkId/complete
-POST /api/sync/local
-GET  /api/settings
-```
+POST   /api/auth/register
+POST   /api/auth/login
+GET    /api/home
+GET    /api/children
+GET    /api/textbooks
+GET    /api/homework
+GET    /api/knowledge
 
-除注册、登录、健康检查外，接口都需要 `Authorization: Bearer <token>`。
+GET    /api/question-types
+POST   /api/question-types
+GET    /api/question-types/:questionTypeId
+PATCH  /api/question-types/:questionTypeId
+DELETE /api/question-types/:questionTypeId
+
+GET    /api/questions
+POST   /api/questions
+POST   /api/questions/batch
+POST   /api/questions/upload
+GET    /api/questions/:questionId
+PATCH  /api/questions/:questionId
+DELETE /api/questions/:questionId
+
+POST   /api/question-generation-context
+GET    /api/question-attempts
+POST   /api/question-attempts
+GET    /api/mastery
+PATCH  /api/mastery/:childId/:questionTypeId
+POST   /api/mastery/:childId/:questionTypeId/recalculate
+```
 
 ## WorkBuddy 接入
 
-1. 登录管理端后进入“设置”；
-2. 复制 WorkBuddy 连接提示词；
-3. 在 WorkBuddy 中新建自定义助手，把提示词粘贴到助手说明；
-4. 将 `family-edu-mcp` 接入助手。
+1. 登录管理端并进入“设置”；
+2. 复制完整 WorkBuddy 连接提示词，其中包含家庭专属 Token；
+3. 在 WorkBuddy 配置同一个 `family-edu-mcp`；
+4. 首次使用时让 WorkBuddy 调用 `get_sync_spec` 读取最新版规范。
 
-远程 MCP 可用时直接连接 `http://49.234.4.212/family-edu/mcp`；如果 WorkBuddy 当前不支持远程 MCP，可使用本地 MCP：
+远程 MCP 地址：`http://49.234.4.212/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
 
-```bash
-npm run mcp
+题库工作流：
+
+```text
+list_question_types
+  -> create_question_type（必要时）
+  -> save_question / save_questions_batch
+  -> get_question_generation_context
+  -> WorkBuddy 生成变式练习
+  -> record_question_attempt
+  -> get_student_question_type_mastery
 ```
-
-本地 MCP 产生的数据可通过 `POST /api/sync/local` 同步到云端业务服务。
 
 ## 项目结构
 
 ```text
-family-edu-agent/
-├── apps/web/index.html       # 明亮学堂 Web 管理端
-├── src/api.js                # 云端业务服务
-├── src/store.js              # 数据模型与业务逻辑
-├── src/mcp/server.js         # Family Education MCP 工具
-├── src/mcp/standalone.js     # MCP stdio 启动入口
-├── data/db.json              # MVP JSON 数据（运行后生成）
-├── tests/store.test.js       # 数据层测试
-└── README.md
+apps/api/src/                 Fastify API、MCP 和领域服务
+apps/web/src/                 React 家长管理端
+prisma/schema.prisma          PostgreSQL 数据模型
+prisma/migrations/            增量数据库迁移
+skills/                       全局教育 Skill 库
+docs/                         架构、同步、存储与备份说明
+deploy/                       腾讯云独立部署配置
 ```
 
-## 范围说明
-
-MVP 暂不做支付、手机 App、内置教材库、向量数据库和孩子登录。数据层使用 JSON 文件便于本地运行和备份，接口与数据模型已按云端 PostgreSQL + 对象存储方向抽象。
+更多说明见 [技术架构](docs/ARCHITECTURE.md) 和 [WorkBuddy 同步规范](docs/workbuddy-sync-spec.md)。

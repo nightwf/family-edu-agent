@@ -1,6 +1,6 @@
 # 对象存储
 
-教材文件使用 S3 兼容对象存储。开发环境默认使用 Docker Compose 中的 MinIO，生产环境通过环境变量切换到腾讯云 COS。
+教材文件和题目图片/附件使用 S3 兼容对象存储。开发环境默认使用 Docker Compose 中的 MinIO，生产环境通过环境变量切换到腾讯云 COS。
 
 ## 环境变量
 
@@ -22,4 +22,4 @@ S3_BUCKET=family-edu-files
 S3_USE_SSL=false
 ```
 
-数据库只保存 `fileKey`，文件本体保存在对象存储中。
+数据库只保存 `fileKey`，文件本体保存在对象存储中。题目附件按 `questions/<familyId>/` 隔离，读取前由 API 校验题目属于当前家庭。
