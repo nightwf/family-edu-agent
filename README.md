@@ -1,4 +1,4 @@
-# 家庭 AI 教育 Agent MVP
+# 家庭 AI 教育 Agent
 
 基于最终生产架构的 TypeScript 重构：Fastify API + Prisma + PostgreSQL + React Web + Family Education MCP。
 
