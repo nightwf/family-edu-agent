@@ -29,6 +29,9 @@ model Family {
   questions           Question[]
   questionAttempts    QuestionAttempt[]
   questionMasteries   StudentQuestionTypeMastery[]
+  wrongQuestions      WrongQuestionEntry[]
+  practicePapers      PracticePaper[]
+  remediationPlans    RemediationPlan[]
 }
 
 model User {
@@ -63,6 +66,9 @@ model Child {
   knowledge         KnowledgeItem[]
   questionAttempts  QuestionAttempt[]
   questionMasteries StudentQuestionTypeMastery[]
+  wrongQuestions    WrongQuestionEntry[]
+  practicePapers    PracticePaper[]
+  remediationPlans  RemediationPlan[]
 }
 
 model Record {
@@ -262,36 +268,40 @@ model QuestionType {
   questions          Question[]
   attempts           QuestionAttempt[]
   masteries          StudentQuestionTypeMastery[]
+  wrongQuestions     WrongQuestionEntry[]
+  remediationTasks   RemediationTask[]
 
   @@index([familyId, subject, grade])
   @@index([familyId, status])
 }
 
 model Question {
-  id                    String            @id @default(cuid())
+  id                    String                  @id @default(cuid())
   familyId              String
-  family                Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  family                Family                  @relation(fields: [familyId], references: [id], onDelete: Cascade)
   questionTypeId        String
-  questionType          QuestionType      @relation(fields: [questionTypeId], references: [id], onDelete: Restrict)
+  questionType          QuestionType            @relation(fields: [questionTypeId], references: [id], onDelete: Restrict)
   stem                  String
-  format                String            @default("short_answer")
+  format                String                  @default("short_answer")
   options               Json?
   answer                Json?
   solution              String?
   scoringRubric         Json?
-  difficulty            String            @default("basic")
-  tags                  String[]          @default([])
-  source                String            @default("workbuddy")
+  difficulty            String                  @default("basic")
+  tags                  String[]                @default([])
+  source                String                  @default("workbuddy")
   originalContent       String?
   fileKey               String?
   sourceQuestionId      String?
   generationRuleVersion String?
   variationType         String?
-  generatedByWorkbuddy  Boolean           @default(false)
-  status                String            @default("active")
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  generatedByWorkbuddy  Boolean                 @default(false)
+  status                String                  @default("active")
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
   attempts              QuestionAttempt[]
+  wrongQuestions        WrongQuestionEntry[]
+  practicePaperItems    PracticePaperQuestion[]
 
   @@index([familyId, questionTypeId, status])
   @@index([familyId, difficulty])
@@ -299,29 +309,40 @@ model Question {
 }
 
 model QuestionAttempt {
-  id              String       @id @default(cuid())
-  familyId        String
-  family          Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  childId         String
-  child           Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
-  questionId      String
-  question        Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  questionTypeId  String
-  questionType    QuestionType @relation(fields: [questionTypeId], references: [id], onDelete: Cascade)
-  studentAnswer   Json?
-  isCorrect       Boolean?
-  score           Float?
-  durationSeconds Int?
-  usedHint        Boolean      @default(false)
-  hintCount       Int          @default(0)
-  errorReason     String?
-  evaluation      String?
-  attemptedAt     DateTime     @default(now())
-  createdAt       DateTime     @default(now())
+  id                     String              @id @default(cuid())
+  familyId               String
+  family                 Family              @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId                String
+  child                  Child               @relation(fields: [childId], references: [id], onDelete: Cascade)
+  questionId             String
+  question               Question            @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionTypeId         String
+  questionType           QuestionType        @relation(fields: [questionTypeId], references: [id], onDelete: Cascade)
+  studentAnswer          Json?
+  isCorrect              Boolean?
+  score                  Float?
+  durationSeconds        Int?
+  usedHint               Boolean             @default(false)
+  hintCount              Int                 @default(0)
+  errorReason            String?
+  evaluation             String?
+  wrongQuestionId        String?
+  wrongQuestion          WrongQuestionEntry? @relation("WrongQuestionAttempts", fields: [wrongQuestionId], references: [id], onDelete: SetNull)
+  latestForWrongQuestion WrongQuestionEntry? @relation("LatestWrongSourceAttempt")
+  practicePaperId        String?
+  practicePaper          PracticePaper?      @relation(fields: [practicePaperId], references: [id], onDelete: SetNull)
+  isOriginalCorrection   Boolean             @default(false)
+  isIndependent          Boolean?
+  variationType          String?
+  sessionId              String?
+  attemptedAt            DateTime            @default(now())
+  createdAt              DateTime            @default(now())
 
   @@index([familyId, childId, attemptedAt])
   @@index([childId, questionTypeId, attemptedAt])
   @@index([questionId])
+  @@index([wrongQuestionId, attemptedAt])
+  @@index([practicePaperId])
 }
 
 model StudentQuestionTypeMastery {
@@ -355,4 +376,149 @@ model StudentQuestionTypeMastery {
   @@unique([childId, questionTypeId])
   @@index([familyId, childId, status])
   @@index([familyId, questionTypeId])
+}
+
+model WrongQuestionEntry {
+  id                    String                  @id @default(cuid())
+  familyId              String
+  family                Family                  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId               String
+  child                 Child                   @relation(fields: [childId], references: [id], onDelete: Cascade)
+  questionId            String
+  question              Question                @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionTypeId        String
+  questionType          QuestionType            @relation(fields: [questionTypeId], references: [id], onDelete: Restrict)
+  subject               String
+  grade                 String?
+  textbook              String?
+  chapter               String?
+  knowledgePoints       String[]                @default([])
+  latestSourceAttemptId String?                 @unique
+  latestSourceAttempt   QuestionAttempt?        @relation("LatestWrongSourceAttempt", fields: [latestSourceAttemptId], references: [id], onDelete: SetNull)
+  latestWrongAnswer     Json?
+  errorReason           String?
+  errorCategory         String?
+  workbuddyAnalysis     String?
+  correctionMethod      String?
+  keyLearningPoint      String?
+  firstWrongAt          DateTime                @default(now())
+  lastWrongAt           DateTime                @default(now())
+  mistakeCount          Int                     @default(1)
+  status                String                  @default("pending_correction")
+  calculatedStatus      String                  @default("pending_correction")
+  masteryScore          Float                   @default(0)
+  masteryEvidence       Json?
+  nextReviewAt          DateTime?
+  masteredAt            DateTime?
+  manualStatus          String?
+  manualReason          String?
+  manualSource          String?
+  source                String                  @default("workbuddy")
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  attempts              QuestionAttempt[]       @relation("WrongQuestionAttempts")
+  practicePaperItems    PracticePaperQuestion[]
+  remediationTasks      RemediationTask[]
+
+  @@unique([childId, questionId])
+  @@index([familyId, childId, status])
+  @@index([familyId, subject, lastWrongAt])
+  @@index([questionTypeId])
+}
+
+model PracticePaper {
+  id                     String                  @id @default(cuid())
+  familyId               String
+  family                 Family                  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId                String
+  child                  Child                   @relation(fields: [childId], references: [id], onDelete: Cascade)
+  title                  String
+  subject                String?
+  grade                  String?
+  objective              String?
+  diagnosisSummary       String?
+  difficultyDistribution Json?
+  estimatedMinutes       Int?
+  totalScore             Float?
+  status                 String                  @default("draft")
+  source                 String                  @default("workbuddy")
+  generatedAt            DateTime                @default(now())
+  completedAt            DateTime?
+  resultSummary          Json?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  questions              PracticePaperQuestion[]
+  attempts               QuestionAttempt[]
+
+  @@index([familyId, childId, status])
+  @@index([familyId, subject, generatedAt])
+}
+
+model PracticePaperQuestion {
+  id                  String              @id @default(cuid())
+  practicePaperId     String
+  practicePaper       PracticePaper       @relation(fields: [practicePaperId], references: [id], onDelete: Cascade)
+  questionId          String
+  question            Question            @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  wrongQuestionId     String?
+  wrongQuestion       WrongQuestionEntry? @relation(fields: [wrongQuestionId], references: [id], onDelete: SetNull)
+  section             String?
+  sequence            Int
+  score               Float?
+  purpose             String?
+  targetErrorCategory String?
+  createdAt           DateTime            @default(now())
+
+  @@unique([practicePaperId, sequence])
+  @@index([questionId])
+  @@index([wrongQuestionId])
+}
+
+model RemediationPlan {
+  id         String            @id @default(cuid())
+  familyId   String
+  family     Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId    String
+  child      Child             @relation(fields: [childId], references: [id], onDelete: Cascade)
+  title      String
+  subject    String?
+  diagnosis  Json?
+  objectives Json?
+  strategy   String?
+  startDate  DateTime?
+  endDate    DateTime?
+  status     String            @default("active")
+  source     String            @default("workbuddy")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  tasks      RemediationTask[]
+
+  @@index([familyId, childId, status])
+  @@index([familyId, subject, startDate])
+}
+
+model RemediationTask {
+  id                 String              @id @default(cuid())
+  planId             String
+  plan               RemediationPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  wrongQuestionId    String?
+  wrongQuestion      WrongQuestionEntry? @relation(fields: [wrongQuestionId], references: [id], onDelete: SetNull)
+  questionTypeId     String?
+  questionType       QuestionType?       @relation(fields: [questionTypeId], references: [id], onDelete: Restrict)
+  title              String
+  description        String?
+  taskType           String
+  sequence           Int
+  estimatedMinutes   Int?
+  dueAt              DateTime?
+  status             String              @default("pending")
+  completionEvidence Json?
+  completedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([planId, sequence])
+  @@index([wrongQuestionId])
+  @@index([questionTypeId])
+  @@index([status, dueAt])
 }

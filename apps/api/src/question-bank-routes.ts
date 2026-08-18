@@ -18,13 +18,13 @@ import {
   listQuestionTypes,
   listStudentMastery,
   recalculateMastery,
-  recordQuestionAttempt,
   updateMasteryOverride,
   updateQuestion,
   updateQuestionType,
 } from "./question-bank.js";
+import { recordQuestionAttemptWithWrongBook } from "./wrong-book.js";
 
-const DEFAULT_SUBJECTS = ["数学", "语文", "英语", "科学", "物理", "化学"];
+const DEFAULT_SUBJECTS = ["数学", "语文", "英语", "科学", "地理", "物理", "化学", "其他"];
 
 async function respond(reply: FastifyReply, action: () => Promise<unknown>) {
   try {
@@ -108,7 +108,7 @@ export function registerQuestionBankRoutes(
   });
 
   app.get("/api/question-attempts", auth, async (request, reply) => respond(reply, () => listQuestionAttempts(getFamilyId(request), request.query as any)));
-  app.post("/api/question-attempts", auth, async (request, reply) => respond(reply.code(201), () => recordQuestionAttempt(getFamilyId(request), request.body as any)));
+  app.post("/api/question-attempts", auth, async (request, reply) => respond(reply.code(201), () => recordQuestionAttemptWithWrongBook(getFamilyId(request), request.body as any)));
 
   app.get("/api/mastery", auth, async (request, reply) => respond(reply, () => listStudentMastery(getFamilyId(request), request.query as any)));
   app.get("/api/mastery/:childId/:questionTypeId", auth, async (request, reply) => {

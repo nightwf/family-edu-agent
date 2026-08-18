@@ -23,6 +23,7 @@ import {
 } from "./personalization.js";
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
+import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -435,6 +436,7 @@ export async function buildApp() {
   });
 
   registerQuestionBankRoutes(app, requireAuth, (request) => getAuth(request).familyId);
+  registerWrongBookRoutes(app, requireAuth, (request) => getAuth(request).familyId);
 
   await registerMcpHttp(app);
 

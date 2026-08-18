@@ -104,7 +104,7 @@ type Mastery = {
 const DIFFICULTY_LABELS: Record<string, string> = { basic: "基础", advanced: "进阶", transfer: "迁移", review: "复习" };
 const STATUS_LABELS: Record<string, string> = { unassessed: "未评估", learning: "学习中", basic: "基本掌握", mastered: "已掌握", needs_review: "需复习" };
 const FORMAT_LABELS: Record<string, string> = { single_choice: "单选题", multiple_choice: "多选题", true_false: "判断题", fill_blank: "填空题", short_answer: "简答题", essay: "写作题", calculation: "计算题" };
-const SUBJECTS = ["数学", "语文", "英语", "科学", "物理", "化学"];
+const SUBJECTS = ["数学", "语文", "英语", "科学", "地理", "物理", "化学", "其他"];
 
 function textLines(value: unknown) {
   if (Array.isArray(value)) return value.map((item) => typeof item === "string" ? item : JSON.stringify(item));

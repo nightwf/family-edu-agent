@@ -15,6 +15,7 @@ import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
+import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 async function requireAuth(request, reply) {
     try {
         await request.jwtVerify();
@@ -406,6 +407,7 @@ export async function buildApp() {
         return reviewPolicyChange(changeId, action);
     });
     registerQuestionBankRoutes(app, requireAuth, (request) => getAuth(request).familyId);
+    registerWrongBookRoutes(app, requireAuth, (request) => getAuth(request).familyId);
     await registerMcpHttp(app);
     app.setNotFoundHandler((request, reply) => {
         if (!request.url.startsWith("/api") && !request.url.startsWith("/mcp")) {

@@ -52,6 +52,30 @@ MCP 连接信息：
 - 只有多次练习、多个变式、迁移题和延迟复测均形成证据后，才能说明“已掌握”；单次答对不能宣布完全掌握
 - 需要人工修正掌握状态时调用 update_student_question_type_mastery，并填写明确原因
 
+错题本：
+- 发现学生真实答错且家长明确要求保存时，先确认 child_id，并检查题型和题目是否已存在
+- 题目不存在时先按题库规范调用 save_question，再调用 record_question_attempt，并设置 is_correct=false、save_to_wrong_book=true
+- 已有错误作答记录时也可调用 save_wrong_question，记录错误答案、错误原因、错误分类、WorkBuddy 分析、订正方法和关键学习点
+- 同一学生同一道题重复出错应累计次数，不创建重复错题；不得把其他学生的错误记录到当前学生名下
+- 查看错题调用 list_wrong_questions 或 get_wrong_question；修正错题元数据调用 update_wrong_question
+- 错题状态由系统根据证据自动判定。原题订正、变式练习或延迟复测后，用 record_question_attempt 关联 wrong_question_id
+- 默认“已掌握”必须同时满足：原题订正通过、至少 3 道不同的独立正确变式、至少 2 次练习会话、迁移题通过、24 小时后延迟复测通过，且掌握分达到 80
+- 单次答对不能宣布掌握；已经掌握后再次答错，必须调用 record_question_attempt 记录，系统会转为“需复习”
+- 人工调整错题状态调用 update_wrong_question_status，必须说明原因；需要恢复自动判定时清除人工调整
+
+错题变式题与针对性试卷：
+- 生成错题同类题前必须调用 get_wrong_question_practice_context，读取原题、题型不变量、错误原因、未覆盖变式和学生掌握证据
+- 变式题不能只替换数字或人名，应逐步覆盖同结构不同表述、条件变化、易错点专项、多步骤综合、新场景迁移和延迟复习检测
+- 生成的每道题必须带标准答案、解析、难度、variation_type、source_question_id 和 generation_rule_version
+- 先用 save_questions_batch 将合格题目写入家庭题库，再调用 create_practice_paper 保存完整试卷；不得保存无法校验答案的题目
+- 学生完成试卷后，逐题调用 record_question_attempt，传入 practice_paper_id、对应 wrong_question_id、session_id、独立作答和变式类型
+
+错题教学规划：
+- 生成教学规划前必须先调用 get_wrong_question 和 get_wrong_question_practice_context，不得只根据题目标题判断薄弱点
+- 规划应包含诊断、可验证目标、执行策略、起止时间和分阶段任务；任务可关联 wrong_question_id 与 question_type_id
+- 调用 save_remediation_plan 保存规划；任务执行后调用 update_remediation_task_status 记录状态和完成证据
+- 教学规划只负责安排订正、讲解、变式、迁移和复测，不把“完成任务”等同于“已经掌握”
+
 安全规则：
 - 不替孩子完成作业或直接代写
 - 不做医学或心理诊断

@@ -172,6 +172,12 @@ export async function recordQuestionAttempt(familyId, input) {
             hintCount: Number(input.hint_count || 0),
             errorReason: input.error_reason,
             evaluation: input.evaluation,
+            wrongQuestionId: input.wrong_question_id,
+            practicePaperId: input.practice_paper_id,
+            isOriginalCorrection: Boolean(input.is_original_correction),
+            isIndependent: input.is_independent === undefined ? undefined : Boolean(input.is_independent),
+            variationType: input.variation_type,
+            sessionId: input.session_id,
             attemptedAt: input.attempted_at ? new Date(input.attempted_at) : new Date(),
         },
     });
@@ -373,9 +379,14 @@ export async function updateQuestionType(familyId, questionTypeId, input) {
 }
 export async function deleteQuestionType(familyId, questionTypeId) {
     await requireQuestionType(familyId, questionTypeId);
-    const questionCount = await prisma.question.count({ where: { familyId, questionTypeId } });
-    if (questionCount > 0)
-        throw new QuestionBankError("该题型已有题目，不能直接删除；请先停用或处理关联题目", 409);
+    const [questionCount, wrongCount, taskCount] = await Promise.all([
+        prisma.question.count({ where: { familyId, questionTypeId } }),
+        prisma.wrongQuestionEntry.count({ where: { familyId, questionTypeId } }),
+        prisma.remediationTask.count({ where: { questionType: { familyId, id: questionTypeId } } }),
+    ]);
+    if (questionCount + wrongCount + taskCount > 0) {
+        throw new QuestionBankError("该题型已有题目、错题或教学任务，不能直接删除；请改为停用", 409);
+    }
     await prisma.questionType.delete({ where: { id: questionTypeId } });
     return { ok: true, question_type_id: questionTypeId };
 }
@@ -502,18 +513,27 @@ export async function updateQuestion(familyId, questionId, input) {
     const existing = await requireQuestion(familyId, questionId);
     const data = questionData(input);
     if (data.questionTypeId && data.questionTypeId !== existing.questionTypeId) {
-        const attemptCount = await prisma.questionAttempt.count({ where: { familyId, questionId } });
-        if (attemptCount)
-            throw new QuestionBankError("已有作答记录的题目不能变更题型", 409);
+        const [attemptCount, wrongCount, paperCount] = await Promise.all([
+            prisma.questionAttempt.count({ where: { familyId, questionId } }),
+            prisma.wrongQuestionEntry.count({ where: { familyId, questionId } }),
+            prisma.practicePaperQuestion.count({ where: { question: { familyId, id: questionId } } }),
+        ]);
+        if (attemptCount + wrongCount + paperCount > 0)
+            throw new QuestionBankError("已有作答、错题或试卷关联的题目不能变更题型", 409);
         await requireQuestionType(familyId, data.questionTypeId);
     }
     return prisma.question.update({ where: { id: questionId }, data, include: { questionType: true } });
 }
 export async function deleteQuestion(familyId, questionId) {
     await requireQuestion(familyId, questionId);
-    const attemptCount = await prisma.questionAttempt.count({ where: { familyId, questionId } });
-    if (attemptCount > 0)
-        throw new QuestionBankError("该题目已有学生作答记录，不能直接删除；请改为停用", 409);
+    const [attemptCount, wrongCount, paperCount] = await Promise.all([
+        prisma.questionAttempt.count({ where: { familyId, questionId } }),
+        prisma.wrongQuestionEntry.count({ where: { familyId, questionId } }),
+        prisma.practicePaperQuestion.count({ where: { question: { familyId, id: questionId } } }),
+    ]);
+    if (attemptCount + wrongCount + paperCount > 0) {
+        throw new QuestionBankError("该题目已有作答、错题或试卷关联，不能直接删除；请改为停用", 409);
+    }
     await prisma.question.delete({ where: { id: questionId } });
     return { ok: true, question_id: questionId };
 }

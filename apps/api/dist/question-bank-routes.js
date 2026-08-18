@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
 import { prisma } from "./prisma.js";
 import { openFile, saveFile } from "./storage.js";
-import { QuestionBankError, createQuestion, createQuestionsBatch, createQuestionType, deleteQuestion, deleteQuestionType, getQuestion, getQuestionGenerationContext, getQuestionType, getStudentMastery, listQuestionAttempts, listQuestions, listQuestionTypes, listStudentMastery, recalculateMastery, recordQuestionAttempt, updateMasteryOverride, updateQuestion, updateQuestionType, } from "./question-bank.js";
-const DEFAULT_SUBJECTS = ["数学", "语文", "英语", "科学", "物理", "化学"];
+import { QuestionBankError, createQuestion, createQuestionsBatch, createQuestionType, deleteQuestion, deleteQuestionType, getQuestion, getQuestionGenerationContext, getQuestionType, getStudentMastery, listQuestionAttempts, listQuestions, listQuestionTypes, listStudentMastery, recalculateMastery, updateMasteryOverride, updateQuestion, updateQuestionType, } from "./question-bank.js";
+import { recordQuestionAttemptWithWrongBook } from "./wrong-book.js";
+const DEFAULT_SUBJECTS = ["数学", "语文", "英语", "科学", "地理", "物理", "化学", "其他"];
 async function respond(reply, action) {
     try {
         return await action();
@@ -81,7 +82,7 @@ export function registerQuestionBankRoutes(app, requireAuth, getFamilyId) {
         return respond(reply, () => deleteQuestion(getFamilyId(request), questionId));
     });
     app.get("/api/question-attempts", auth, async (request, reply) => respond(reply, () => listQuestionAttempts(getFamilyId(request), request.query)));
-    app.post("/api/question-attempts", auth, async (request, reply) => respond(reply.code(201), () => recordQuestionAttempt(getFamilyId(request), request.body)));
+    app.post("/api/question-attempts", auth, async (request, reply) => respond(reply.code(201), () => recordQuestionAttemptWithWrongBook(getFamilyId(request), request.body)));
     app.get("/api/mastery", auth, async (request, reply) => respond(reply, () => listStudentMastery(getFamilyId(request), request.query)));
     app.get("/api/mastery/:childId/:questionTypeId", auth, async (request, reply) => {
         const { childId, questionTypeId } = request.params;

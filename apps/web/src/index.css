@@ -9,3 +9,36 @@ body {
   color: #26343b;
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    min-width: 0;
+    background: white;
+  }
+
+  body > *:not(#root),
+  #root > *:not(.print-paper) {
+    visibility: hidden;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-paper,
+  .print-paper * {
+    visibility: visible;
+  }
+
+  .print-paper {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white;
+  }
+}

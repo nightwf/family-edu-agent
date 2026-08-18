@@ -12,6 +12,7 @@
 - 家庭级教育理念、沟通方式和教育方法推荐；
 - 家庭题库、题型生成规则、学生作答证据和题型掌握度；
 - WorkBuddy 录题、生成变式练习、同步作答与查询掌握度；
+- 学生错题本、严格掌握证据、针对性练习试卷和错题教学规划；
 - 明亮学堂 Web 管理端，支持桌面端和手机端。
 
 ## 本地启动
@@ -68,6 +69,20 @@ POST   /api/question-attempts
 GET    /api/mastery
 PATCH  /api/mastery/:childId/:questionTypeId
 POST   /api/mastery/:childId/:questionTypeId/recalculate
+
+GET    /api/wrong-questions
+POST   /api/wrong-questions
+GET    /api/wrong-questions/:wrongQuestionId
+PATCH  /api/wrong-questions/:wrongQuestionId/status
+POST   /api/wrong-questions/:wrongQuestionId/recalculate
+
+GET    /api/practice-papers
+POST   /api/practice-papers
+GET    /api/practice-papers/:practicePaperId
+
+GET    /api/remediation-plans
+POST   /api/remediation-plans
+PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
 ```
 
 ## WorkBuddy 接入
@@ -90,6 +105,20 @@ list_question_types
   -> record_question_attempt
   -> get_student_question_type_mastery
 ```
+
+错题学习工作流：
+
+```text
+record_question_attempt(save_to_wrong_book=true)
+  -> get_wrong_question_practice_context
+  -> save_questions_batch
+  -> create_practice_paper
+  -> record_question_attempt(wrong_question_id + practice_paper_id)
+  -> recalculate_wrong_question_mastery
+  -> save_remediation_plan（需要教学规划时）
+```
+
+错题单次订正不会自动进入“已掌握”。默认还需 3 道独立正确变式、2 次练习会话、迁移题和 24 小时后复测。完整 MCP 参数见 [MCP 工具说明](docs/MCP.md)。
 
 ## 项目结构
 
