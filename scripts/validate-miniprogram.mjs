@@ -31,6 +31,10 @@ for (const file of jsonFiles) {
 }
 
 const appConfig = JSON.parse(fs.readFileSync(path.join(root, "app.json"), "utf8"));
+const projectConfigPath = path.resolve("project.config.json");
+if (fs.existsSync(projectConfigPath)) {
+  JSON.parse(fs.readFileSync(projectConfigPath, "utf8"));
+}
 for (const page of appConfig.pages) {
   for (const extension of ["js", "wxml", "wxss", "json"]) {
     const file = path.join(root, `${page}.${extension}`);
