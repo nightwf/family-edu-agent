@@ -1,0 +1,77 @@
+.welcome {
+  background: linear-gradient(135deg, #23353b 0%, #31525a 100%);
+  color: #ffffff;
+  border: none;
+  margin-bottom: 24rpx;
+}
+
+.welcome-label {
+  font-size: 26rpx;
+  color: #f3c969;
+  font-weight: 600;
+}
+
+.welcome-title {
+  margin-top: 8rpx;
+  font-size: 44rpx;
+  font-weight: 800;
+}
+
+.welcome .muted {
+  margin-top: 10rpx;
+  color: #c7d6d8;
+  font-size: 26rpx;
+}
+
+.child-name {
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.report-title {
+  font-weight: 700;
+}
+
+.report-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+}
+
+.report-summary {
+  margin-top: 12rpx;
+  color: #6d5a35;
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.quick-card {
+  background: #fffaf0;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 16rpx;
+  padding: 26rpx;
+}
+
+.quick-title {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.quick-card .muted {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+}
+
+.error-tip {
+  background: #ffeae4;
+  color: #c9503a;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 18rpx;
+  font-size: 26rpx;
+}

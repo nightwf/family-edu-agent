@@ -1,0 +1,48 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/students/students",
+    "pages/growth/growth",
+    "pages/learning/learning",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#23353b",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "禾芽家庭教务",
+    "backgroundColor": "#f6f0dc",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#7a8a90",
+    "selectedColor": "#0f766e",
+    "backgroundColor": "#fffaf0",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/students/students",
+        "text": "学生"
+      },
+      {
+        "pagePath": "pages/growth/growth",
+        "text": "成长"
+      },
+      {
+        "pagePath": "pages/learning/learning",
+        "text": "学习"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "我的"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}

@@ -12,6 +12,8 @@ Environment=NODE_ENV=production
 Environment=PORT=4100
 Environment=FAMILY_ID=family_001
 Environment=INVITE_CODES=HE-2026,JOJO-2026
+Environment=WECHAT_APP_ID=
+Environment=WECHAT_APP_SECRET=
 
 [Install]
 WantedBy=multi-user.target

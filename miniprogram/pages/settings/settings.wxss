@@ -1,0 +1,122 @@
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 14rpx 0;
+  border-bottom: 1rpx dashed #e8ddc5;
+  font-size: 28rpx;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  color: #7a8a90;
+}
+
+.wechat-panel {
+  margin-top: 22rpx;
+}
+
+.wechat-title {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.bind-btn {
+  min-height: 64rpx;
+  padding: 0 24rpx;
+  background: #07c160;
+  color: #ffffff;
+  font-size: 26rpx;
+}
+
+.prompt-header .section-title {
+  margin: 0;
+}
+
+.copy-btn {
+  color: #0f766e;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.token-box {
+  margin: 18rpx 0;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: #f1e9d8;
+}
+
+.token-text {
+  display: block;
+  margin-top: 8rpx;
+  word-break: break-all;
+  color: #6d5a35;
+  font-size: 24rpx;
+}
+
+.prompt-area {
+  height: 320rpx;
+  font-size: 24rpx;
+  color: #26343b;
+}
+
+.picker-input {
+  display: flex;
+  align-items: center;
+}
+
+.logout-btn {
+  margin-top: 30rpx;
+}
+
+.policy-card {
+  margin-bottom: 16rpx;
+  padding: 18rpx;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 14rpx;
+  background: #ffffff;
+}
+
+.policy-title {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.policy-desc {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+}
+
+.policy-actions {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.approve-btn,
+.ignore-btn {
+  padding: 10rpx 26rpx;
+  border-radius: 10rpx;
+  font-size: 26rpx;
+}
+
+.approve-btn {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.ignore-btn {
+  background: #f1e9d8;
+  color: #7a8a90;
+}
+
+.error-tip {
+  background: #ffeae4;
+  color: #c9503a;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 18rpx;
+  font-size: 26rpx;
+}

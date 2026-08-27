@@ -35,16 +35,21 @@ model Family {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  familyId     String
-  family       Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  email        String    @unique
-  passwordHash String
-  role         String    @default("parent")
-  status       String    @default("active")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sessions     Session[]
+  id                String    @id @default(cuid())
+  familyId          String
+  family            Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  email             String    @unique
+  passwordHash      String
+  role              String    @default("parent")
+  status            String    @default("active")
+  wechatOpenId      String?   @unique
+  wechatUnionId     String?
+  wechatNickname    String?
+  wechatAvatarUrl   String?
+  lastWechatLoginAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  sessions          Session[]
 }
 
 model Child {

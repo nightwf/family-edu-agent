@@ -7,6 +7,8 @@ export const env = {
   WEB_DIST: process.env.WEB_DIST || "public",
   MCP_TOKEN: process.env.MCP_TOKEN || "",
   MCP_FAMILY_ID: process.env.MCP_FAMILY_ID || "family_001",
+  WECHAT_APP_ID: process.env.WECHAT_APP_ID || "",
+  WECHAT_APP_SECRET: process.env.WECHAT_APP_SECRET || "",
   S3_ENDPOINT: process.env.S3_ENDPOINT || "",
   S3_PORT: Number(process.env.S3_PORT || 0),
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY || "",

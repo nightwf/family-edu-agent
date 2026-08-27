@@ -1,0 +1,61 @@
+<view class="page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+
+  <view class="welcome panel">
+    <view class="welcome-label">禾芽家庭教务</view>
+    <view class="welcome-title">{{family && family.name ? family.name : '我的家庭'}}</view>
+    <view class="muted">把孩子的每一次进步，都存成看得见的成长轨迹</view>
+  </view>
+
+  <view class="stat-grid">
+    <view wx:for="{{stats}}" wx:key="label" class="stat-card {{item.tone}}">
+      <view class="muted">{{item.label}}</view>
+      <view class="stat-value">{{item.value}}</view>
+    </view>
+  </view>
+
+  <view class="section-title">孩子</view>
+  <view wx:if="{{children.length}}">
+    <view wx:for="{{children}}" wx:key="id" class="card row between">
+      <view>
+        <view class="child-name">{{item.name}}</view>
+        <view class="muted">{{item.grade}} · {{item.subjectsText}}</view>
+      </view>
+      <view class="pill">已建档</view>
+    </view>
+  </view>
+  <view wx:else class="empty">还没有学生档案，先去添加孩子</view>
+
+  <view class="section-title">最近报告</view>
+  <view wx:if="{{reports.length}}">
+    <view wx:for="{{reports}}" wx:key="id" class="card">
+      <view class="between">
+        <view class="report-title">{{item.title}}</view>
+        <view class="pill">{{item.type === 'weekly' ? '周报' : '月报'}}</view>
+      </view>
+      <view class="muted report-meta">{{item.childName}} · {{item.dateText}}</view>
+      <view wx:if="{{item.summary}}" class="report-summary">{{item.summary}}</view>
+    </view>
+  </view>
+  <view wx:else class="empty">暂无报告，WorkBuddy 生成后会自动同步到这里</view>
+
+  <view class="section-title">快速进入</view>
+  <view class="quick-grid">
+    <view class="quick-card" bindtap="goStudents">
+      <view class="quick-title">学生</view>
+      <view class="muted">档案管理</view>
+    </view>
+    <view class="quick-card" bindtap="goGrowth">
+      <view class="quick-title">成长</view>
+      <view class="muted">记录与报告</view>
+    </view>
+    <view class="quick-card" bindtap="goLearning">
+      <view class="quick-title">学习</view>
+      <view class="muted">题库与错题</view>
+    </view>
+    <view class="quick-card" bindtap="goSettings">
+      <view class="quick-title">我的</view>
+      <view class="muted">账号与设置</view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,268 @@
+.top-panel {
+  margin-bottom: 22rpx;
+}
+
+.module-tabs {
+  display: flex;
+  white-space: nowrap;
+  margin-bottom: 20rpx;
+}
+
+.module-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120rpx;
+  padding: 12rpx 24rpx;
+  margin-right: 12rpx;
+  border-radius: 999rpx;
+  background: #f1e9d8;
+  color: #7a8a90;
+  font-size: 26rpx;
+}
+
+.module-tab.active {
+  background: #0f766e;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+}
+
+.filter-value {
+  height: 76rpx;
+  display: flex;
+  align-items: center;
+  padding: 0 20rpx;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 12rpx;
+  background: #ffffff;
+  color: #26343b;
+  font-size: 26rpx;
+}
+
+.search-row {
+  grid-column: 1 / 3;
+  display: flex;
+  gap: 14rpx;
+}
+
+.search-input {
+  flex: 1;
+  height: 76rpx;
+  padding: 0 20rpx;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 12rpx;
+  background: #ffffff;
+  font-size: 26rpx;
+}
+
+.search-btn {
+  width: 120rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12rpx;
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 26rpx;
+}
+
+.question-stem {
+  margin: 16rpx 0 10rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.question-stem.small {
+  font-size: 26rpx;
+  font-weight: 400;
+  color: #6d5a35;
+}
+
+.question-meta {
+  font-size: 24rpx;
+}
+
+.type-name {
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.actions {
+  display: flex;
+  gap: 4rpx;
+  flex-shrink: 0;
+}
+
+.mastery-progress {
+  margin: 16rpx 0 8rpx;
+}
+
+.module-header {
+  margin-bottom: 20rpx;
+}
+
+.module-header .title {
+  font-size: 34rpx;
+}
+
+.add-btn {
+  min-height: 64rpx;
+  padding: 0 22rpx;
+  font-size: 26rpx;
+}
+
+.homework-actions {
+  margin-top: 16rpx;
+}
+
+.detail-stem {
+  margin: 20rpx 0;
+  padding: 18rpx 20rpx;
+  border-left: 6rpx solid #f3c969;
+  background: #ffffff;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.detail-stem.small {
+  font-size: 26rpx;
+  font-weight: 400;
+}
+
+.detail-label {
+  color: #7a8a90;
+  font-size: 24rpx;
+  margin: 18rpx 0 8rpx;
+}
+
+.detail-text {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 28rpx;
+  line-height: 1.8;
+}
+
+.attempt-row {
+  padding: 16rpx 0;
+  border-bottom: 1rpx dashed #e8ddc5;
+  font-size: 26rpx;
+}
+
+.pass {
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.fail {
+  color: #c9503a;
+  font-weight: 700;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin-top: 16rpx;
+}
+
+.evidence-item {
+  background: #ffffff;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 12rpx;
+  padding: 16rpx;
+  text-align: center;
+}
+
+.evidence-value {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #0f766e;
+}
+
+.evidence-item .muted {
+  font-size: 22rpx;
+}
+
+.score-text {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #0f766e;
+}
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10rpx;
+  margin-top: 20rpx;
+}
+
+.paper-question {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 24rpx;
+  padding: 20rpx;
+  background: #ffffff;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 14rpx;
+}
+
+.paper-index {
+  font-weight: 800;
+}
+
+.paper-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-card {
+  margin-top: 16rpx;
+  padding: 18rpx;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 14rpx;
+  background: #ffffff;
+}
+
+.task-title {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.task-desc {
+  margin-top: 10rpx;
+}
+
+.task-picker {
+  margin-top: 16rpx;
+  height: 68rpx;
+  display: flex;
+  align-items: center;
+  color: #0f766e;
+}
+
+.error-tip {
+  background: #ffeae4;
+  color: #c9503a;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 18rpx;
+  font-size: 26rpx;
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}

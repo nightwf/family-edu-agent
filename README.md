@@ -14,6 +14,7 @@
 - WorkBuddy 录题、生成变式练习、同步作答与查询掌握度；
 - 学生错题本、严格掌握证据、针对性练习试卷和错题教学规划；
 - 明亮学堂 Web 管理端，支持桌面端和手机端。
+- 微信小程序家长端，支持微信一键登录和家庭专属 WorkBuddy 提示词。
 
 ## 本地启动
 
@@ -24,6 +25,21 @@ docker compose up -d --build
 ```
 
 打开 `http://localhost:4100/family-edu/`。正式环境不预置演示账号或假数据。
+
+## 微信小程序
+
+小程序源码位于 `miniprogram/`，导入微信开发者工具即可调试。详细说明见 [小程序接入文档](docs/miniprogram.md)。
+
+```text
+登录：邮箱密码 / 邀请码注册 / 微信一键登录
+首页：家庭概览、孩子、最近报告
+学生：新建、编辑、删除学生档案
+成长：成长记录、报告、成长轨迹
+学习：题库、错题本、教材、作业、知识库
+我的：账号、微信绑定、WorkBuddy 提示词、教育方式
+```
+
+微信登录需要后端配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`；小程序正式版还需要配置 HTTPS 请求合法域名。
 
 ## 常用命令
 
@@ -125,6 +141,7 @@ record_question_attempt(save_to_wrong_book=true)
 ```text
 apps/api/src/                 Fastify API、MCP 和领域服务
 apps/web/src/                 React 家长管理端
+miniprogram/                  微信小程序家长端
 prisma/schema.prisma          PostgreSQL 数据模型
 prisma/migrations/            增量数据库迁移
 skills/                       全局教育 Skill 库

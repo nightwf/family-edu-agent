@@ -24,6 +24,7 @@ import {
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
+import { exchangeWechatCode, WechatError } from "./wechat.js";
 
 async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   try {
@@ -31,6 +32,20 @@ async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
   } catch (_error) {
     return reply.code(401).send({ error: "未登录或登录已过期" });
   }
+}
+
+async function createSessionResponse(app: FastifyInstance, user: any) {
+  const refresh = createRefreshTokenHash();
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshTokenHash: refresh.hash,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  });
+  const family = await prisma.family.findUnique({ where: { id: user.familyId } });
+  const token = app.jwt.sign({ sub: user.id, familyId: user.familyId });
+  return { token, refreshToken: refresh.token, user, family };
 }
 
 function getAuth(request: FastifyRequest) {
@@ -95,6 +110,121 @@ export async function buildApp() {
     const family = await prisma.family.findUnique({ where: { id: user.familyId } });
     const token = app.jwt.sign({ sub: user.id, familyId: user.familyId });
     return { token, refreshToken: refresh.token, user, family };
+  });
+
+  app.post("/api/auth/wechat/login", async (request, reply) => {
+    try {
+      const { code } = request.body as any;
+      if (!code) return reply.code(400).send({ error: "缺少微信登录 code" });
+      const wechat = await exchangeWechatCode(String(code));
+      const user = await prisma.user.findUnique({ where: { wechatOpenId: wechat.openid } });
+      if (!user) {
+        const bindToken = app.jwt.sign(
+          { bind: "wechat", openid: wechat.openid, unionid: wechat.unionid || null },
+          { expiresIn: "10m" },
+        );
+        return { need_bind: true, bind_token: bindToken, has_wechat_login: true };
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastWechatLoginAt: new Date(),
+          wechatUnionId: wechat.unionid || user.wechatUnionId,
+        },
+      });
+      return createSessionResponse(app, user);
+    } catch (error) {
+      if (error instanceof WechatError) return reply.code(error.statusCode).send({ error: error.message });
+      throw error;
+    }
+  });
+
+  app.post("/api/auth/wechat/bind", async (request, reply) => {
+    try {
+      const { bind_token: bindToken, mode, email, password, inviteCode } = request.body as any;
+      if (!bindToken || !["existing", "register"].includes(mode)) {
+        return reply.code(400).send({ error: "缺少有效的微信绑定参数" });
+      }
+      let payload: any;
+      try {
+        payload = app.jwt.verify(String(bindToken)) as any;
+      } catch (_error) {
+        return reply.code(401).send({ error: "微信绑定凭证已过期，请重新登录" });
+      }
+      if (!payload?.openid) return reply.code(400).send({ error: "微信绑定凭证无效" });
+
+      if (mode === "existing") {
+        const normalizedEmail = String(email || "").trim().toLowerCase();
+        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (!user || !(await verifyPassword(String(password || ""), user.passwordHash))) {
+          return reply.code(401).send({ error: "邮箱或密码错误" });
+        }
+        if (user.wechatOpenId && user.wechatOpenId !== payload.openid) {
+          return reply.code(409).send({ error: "该账号已绑定其他微信" });
+        }
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            wechatOpenId: payload.openid,
+            wechatUnionId: payload.unionid || user.wechatUnionId,
+            lastWechatLoginAt: new Date(),
+          },
+        });
+        return createSessionResponse(app, user);
+      }
+
+      if (!env.INVITE_CODES.has(String(inviteCode || "").trim())) {
+        return reply.code(400).send({ error: "邀请码无效" });
+      }
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      if (!normalizedEmail || String(password || "").length < 6) {
+        return reply.code(400).send({ error: "请填写有效邮箱和至少 6 位密码" });
+      }
+      const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (existing) return reply.code(409).send({ error: "该邮箱已注册" });
+      const claimed = await prisma.user.findUnique({ where: { wechatOpenId: payload.openid } });
+      if (claimed) return reply.code(409).send({ error: "该微信已绑定其他账号" });
+
+      const family = await prisma.family.create({
+        data: { name: "我的家庭", inviteCode: String(inviteCode).trim() },
+      });
+      const user = await prisma.user.create({
+        data: {
+          familyId: family.id,
+          email: normalizedEmail,
+          passwordHash: await hashPassword(String(password)),
+          wechatOpenId: payload.openid,
+          wechatUnionId: payload.unionid || null,
+          lastWechatLoginAt: new Date(),
+        },
+      });
+      return createSessionResponse(app, user);
+    } catch (error) {
+      if (error instanceof WechatError) return reply.code(error.statusCode).send({ error: error.message });
+      throw error;
+    }
+  });
+
+  app.post("/api/auth/wechat/bind-current", { preHandler: requireAuth as any }, async (request, reply) => {
+    try {
+      const { code } = request.body as any;
+      if (!code) return reply.code(400).send({ error: "缺少微信登录 code" });
+      const auth = getAuth(request);
+      const wechat = await exchangeWechatCode(String(code));
+      const claimed = await prisma.user.findUnique({ where: { wechatOpenId: wechat.openid } });
+      if (claimed && claimed.id !== auth.id) return reply.code(409).send({ error: "该微信已绑定其他账号" });
+      return prisma.user.update({
+        where: { id: auth.id },
+        data: {
+          wechatOpenId: wechat.openid,
+          wechatUnionId: wechat.unionid || undefined,
+          lastWechatLoginAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (error instanceof WechatError) return reply.code(error.statusCode).send({ error: error.message });
+      throw error;
+    }
   });
 
   app.post("/api/auth/logout", { preHandler: requireAuth as any }, async (request) => {
@@ -278,8 +408,12 @@ export async function buildApp() {
     const body = request.body as any;
     const familyId = getAuth(request).familyId;
     if (!(await ownsResource(familyId, "homework", homeworkId))) return reply.code(404).send({ error: "作业不存在" });
-    if (body.childId && !(await ownsResource(familyId, "child", body.childId))) return reply.code(404).send({ error: "学生不存在" });
-    const { id: _id, familyId: _familyId, family: _family, child: _child, ...safeBody } = body;
+    const childId = body.childId || body.child_id;
+    if (childId && !(await ownsResource(familyId, "child", childId))) return reply.code(404).send({ error: "学生不存在" });
+    const { id: _id, familyId: _familyId, family: _family, child: _child, child_id: _childId, estimated_minutes, due_date, ...safeBody } = body;
+    if (childId) safeBody.childId = childId;
+    if (estimated_minutes !== undefined) safeBody.estimatedMinutes = Number(estimated_minutes || 0);
+    if (due_date !== undefined) safeBody.dueDate = due_date ? new Date(due_date) : null;
     return prisma.homework.update({ where: { id: homeworkId }, data: safeBody });
   });
 
@@ -347,8 +481,10 @@ export async function buildApp() {
     const body = request.body as any;
     const familyId = getAuth(request).familyId;
     if (!(await ownsResource(familyId, "textbook", textbookId))) return reply.code(404).send({ error: "教材不存在" });
-    if (body.childId && !(await ownsResource(familyId, "child", body.childId))) return reply.code(404).send({ error: "学生不存在" });
-    const { id: _id, familyId: _familyId, family: _family, child: _child, ...safeBody } = body;
+    const childId = body.childId || body.child_id;
+    if (childId && !(await ownsResource(familyId, "child", childId))) return reply.code(404).send({ error: "学生不存在" });
+    const { id: _id, familyId: _familyId, family: _family, child: _child, child_id: _childId, ...safeBody } = body;
+    if (childId) safeBody.childId = childId;
     return prisma.textbook.update({ where: { id: textbookId }, data: safeBody });
   });
 

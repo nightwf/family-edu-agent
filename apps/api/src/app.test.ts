@@ -30,4 +30,14 @@ describe("API integration", () => {
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: "邀请码无效" });
   });
+
+  it("reports unconfigured wechat login", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/auth/wechat/login",
+      payload: { code: "test-code" },
+    });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({ error: "微信登录未配置，请先设置 WECHAT_APP_ID 和 WECHAT_APP_SECRET" });
+  });
 });

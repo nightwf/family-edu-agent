@@ -1,0 +1,471 @@
+<view class="page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+
+  <view class="panel top-panel">
+    <scroll-view scroll-x class="module-tabs">
+      <view class="module-tab {{module === 'questions' ? 'active' : ''}}" data-module="questions" bindtap="switchModule">题库</view>
+      <view class="module-tab {{module === 'wrong' ? 'active' : ''}}" data-module="wrong" bindtap="switchModule">错题本</view>
+      <view class="module-tab {{module === 'textbooks' ? 'active' : ''}}" data-module="textbooks" bindtap="switchModule">教材</view>
+      <view class="module-tab {{module === 'homework' ? 'active' : ''}}" data-module="homework" bindtap="switchModule">作业</view>
+      <view class="module-tab {{module === 'knowledge' ? 'active' : ''}}" data-module="knowledge" bindtap="switchModule">知识库</view>
+    </scroll-view>
+    <view class="filter-grid">
+      <picker mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
+        <view class="filter-value">{{childNames[childIndex] || '全部孩子'}}</view>
+      </picker>
+      <picker mode="selector" range="{{subjectOptions}}" value="{{subjectIndex}}" bindchange="onSubjectChange">
+        <view class="filter-value">{{subjectOptions[subjectIndex]}}</view>
+      </picker>
+      <view class="search-row">
+        <input class="search-input" placeholder="搜索" value="{{query}}" bindinput="onQuery" confirm-type="search" bindconfirm="search" />
+        <view class="search-btn" bindtap="search">查询</view>
+      </view>
+    </view>
+  </view>
+
+  <block wx:if="{{module === 'questions'}}">
+    <view class="tabs">
+      <view class="tab {{qTab === 'questions' ? 'active' : ''}}" data-tab="questions" bindtap="switchQTab">题目</view>
+      <view class="tab {{qTab === 'types' ? 'active' : ''}}" data-tab="types" bindtap="switchQTab">题型</view>
+      <view class="tab {{qTab === 'mastery' ? 'active' : ''}}" data-tab="mastery" bindtap="switchQTab">掌握</view>
+    </view>
+
+    <block wx:if="{{qTab === 'questions'}}">
+      <view wx:if="{{questions.length}}">
+        <view wx:for="{{questions}}" wx:key="id" class="card">
+          <view class="between">
+            <view class="tag-group">
+              <view class="tag tag-teal">{{item.questionTypeName}}</view>
+              <view class="tag">{{item.difficultyLabel}}</view>
+            </view>
+            <view class="actions">
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openQuestion">查看</view>
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openQuestionEdit">编辑</view>
+              <view class="danger-btn" data-id="{{item.id}}" bindtap="removeQuestion">删除</view>
+            </view>
+          </view>
+          <view class="question-stem">{{item.stem}}</view>
+          <view class="muted question-meta">{{item.variationType || '原始题'}} · {{item.tagsText}}</view>
+        </view>
+      </view>
+      <view wx:else class="empty">题库暂无题目，WorkBuddy 通过 MCP 录入后会显示在这里</view>
+    </block>
+
+    <block wx:if="{{qTab === 'types'}}">
+      <view class="between module-header">
+        <view class="title">题型分类</view>
+        <button class="btn btn-primary add-btn" bindtap="openTypeCreate">新建题型</button>
+      </view>
+      <view wx:if="{{questionTypes.length}}">
+        <view wx:for="{{questionTypes}}" wx:key="id" class="card">
+          <view class="between">
+            <view>
+              <view class="type-name">{{item.subject}} · {{item.name}}</view>
+              <view class="muted question-meta">{{item.grade || '全年级'}} · 规则 v{{item.ruleVersion}}</view>
+            </view>
+            <view class="actions">
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openQuestionType">详情</view>
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openTypeEdit">编辑</view>
+              <view class="danger-btn" data-id="{{item.id}}" bindtap="removeType">删除</view>
+            </view>
+          </view>
+          <view class="question-stem small">{{item.description || '尚未填写题型说明'}}</view>
+          <view class="muted question-meta">{{item.knowledgeText}} · {{item.questionCount}} 题</view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无题型分类</view>
+    </block>
+
+    <block wx:if="{{qTab === 'mastery'}}">
+      <view wx:if="{{masteries.length}}">
+        <view wx:for="{{masteries}}" wx:key="id" class="card">
+          <view class="between">
+            <view>
+              <view class="type-name">{{item.childName}} · {{item.questionTypeName}}</view>
+              <view class="muted question-meta">{{item.questionType.subject}} · {{item.statusLabel}}</view>
+            </view>
+            <view class="icon-btn" data-id="{{item.id}}" bindtap="openMasteryEdit">调整</view>
+          </view>
+          <view class="progress mastery-progress"><view class="progress-fill" style="width: {{item.scorePercent}}%;"></view></view>
+          <view class="muted question-meta">{{item.masteryScore}} 分 · 练习 {{item.totalAttempts}} 次 · 变式 {{item.variationCount}} 种</view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无掌握证据</view>
+    </block>
+  </block>
+
+  <block wx:if="{{module === 'wrong'}}">
+    <view class="tabs">
+      <view class="tab {{wTab === 'wrong' ? 'active' : ''}}" data-tab="wrong" bindtap="switchWTab">错题</view>
+      <view class="tab {{wTab === 'papers' ? 'active' : ''}}" data-tab="papers" bindtap="switchWTab">试卷</view>
+      <view class="tab {{wTab === 'plans' ? 'active' : ''}}" data-tab="plans" bindtap="switchWTab">规划</view>
+    </view>
+
+    <block wx:if="{{wTab === 'wrong'}}">
+      <view wx:if="{{wrongQuestions.length}}">
+        <view wx:for="{{wrongQuestions}}" wx:key="id" class="card">
+          <view class="between">
+            <view class="tag-group">
+              <view class="tag tag-teal">{{item.subject}}</view>
+              <view class="tag {{item.statusTone}}">{{item.statusLabel}}</view>
+            </view>
+            <view class="actions">
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openWrong">详情</view>
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openWrongEdit">编辑</view>
+              <view class="danger-btn" data-id="{{item.id}}" bindtap="removeWrong">删除</view>
+            </view>
+          </view>
+          <view class="question-stem">{{item.question.stem}}</view>
+          <view class="muted question-meta">{{item.childName}} · {{item.knowledgeText}} · 最近 {{item.lastWrongAtText}}</view>
+          <view class="progress mastery-progress"><view class="progress-fill" style="width: {{item.scorePercent}}%;"></view></view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无错题，WorkBuddy 同步后会显示在这里</view>
+    </block>
+
+    <block wx:if="{{wTab === 'papers'}}">
+      <view wx:if="{{papers.length}}">
+        <view wx:for="{{papers}}" wx:key="id" class="card">
+          <view class="between">
+            <view>
+              <view class="type-name">{{item.title}}</view>
+              <view class="muted question-meta">{{item.childName}} · {{item.subject || '综合'}} · {{item.statusLabel}}</view>
+            </view>
+            <view class="actions">
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openPaper">查看</view>
+              <view class="danger-btn" data-id="{{item.id}}" bindtap="removePaper">删除</view>
+            </view>
+          </view>
+          <view class="muted question-meta">{{item.questionCount}} 道题 · {{item.estimatedMinutes || '-'}} 分钟 · {{item.totalScore || '-'}} 分</view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无针对性试卷</view>
+    </block>
+
+    <block wx:if="{{wTab === 'plans'}}">
+      <view wx:if="{{plans.length}}">
+        <view wx:for="{{plans}}" wx:key="id" class="card">
+          <view class="between">
+            <view>
+              <view class="type-name">{{item.title}}</view>
+              <view class="muted question-meta">{{item.childName}} · {{item.subject || '综合'}} · {{item.statusLabel}}</view>
+            </view>
+            <view class="actions">
+              <view class="icon-btn" data-id="{{item.id}}" bindtap="openPlan">查看</view>
+              <view class="danger-btn" data-id="{{item.id}}" bindtap="removePlan">删除</view>
+            </view>
+          </view>
+          <view class="muted question-meta">{{item.startText}} 至 {{item.endText}} · {{item.taskCount}} 个任务</view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无错题教学规划</view>
+    </block>
+  </block>
+
+  <block wx:if="{{module === 'textbooks'}}">
+    <view class="between module-header">
+      <view class="title">教材库</view>
+      <button class="btn btn-primary add-btn" bindtap="openTextbookCreate">导入教材</button>
+    </view>
+    <view wx:if="{{textbooks.length}}">
+      <view wx:for="{{textbooks}}" wx:key="id" class="card">
+        <view class="between">
+          <view>
+            <view class="type-name">{{item.title}}</view>
+            <view class="muted question-meta">{{item.childName}} · {{item.subject || '未设学科'}} · {{item.statusLabel}}</view>
+          </view>
+          <view class="actions">
+            <view class="icon-btn" data-id="{{item.id}}" bindtap="openTextbookEdit">编辑</view>
+            <view class="danger-btn" data-id="{{item.id}}" bindtap="removeTextbook">删除</view>
+          </view>
+        </view>
+        <view class="muted question-meta">{{item.publisher || '未设出版社'}} · {{item.version || '未设版本'}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无教材</view>
+  </block>
+
+  <block wx:if="{{module === 'homework'}}">
+    <view class="between module-header">
+      <view class="title">家庭作业</view>
+      <button class="btn btn-primary add-btn" bindtap="openHomeworkCreate">新增作业</button>
+    </view>
+    <view wx:if="{{homework.length}}">
+      <view wx:for="{{homework}}" wx:key="id" class="card">
+        <view class="between">
+          <view>
+            <view class="type-name">{{item.title}}</view>
+            <view class="muted question-meta">{{item.childName}} · {{item.subject || '未设学科'}} · {{item.dueText}}</view>
+          </view>
+          <view class="pill {{item.statusTone}}">{{item.statusLabel}}</view>
+        </view>
+        <view wx:if="{{item.description}}" class="question-stem small">{{item.description}}</view>
+        <view class="actions homework-actions">
+          <view wx:if="{{item.status !== 'done'}}" class="icon-btn" data-id="{{item.id}}" bindtap="completeHomework">完成</view>
+          <view class="icon-btn" data-id="{{item.id}}" bindtap="openHomeworkEdit">编辑</view>
+          <view class="danger-btn" data-id="{{item.id}}" bindtap="removeHomework">删除</view>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无家庭作业</view>
+  </block>
+
+  <block wx:if="{{module === 'knowledge'}}">
+    <view class="between module-header">
+      <view class="title">知识库</view>
+      <button class="btn btn-primary add-btn" bindtap="openKnowledgeCreate">新增内容</button>
+    </view>
+    <view wx:if="{{knowledge.length}}">
+      <view wx:for="{{knowledge}}" wx:key="id" class="card">
+        <view class="between">
+          <view>
+            <view class="type-name">{{item.title}}</view>
+            <view class="muted question-meta">{{item.childName}} · {{item.kind}} · {{item.dateText}}</view>
+          </view>
+          <view class="danger-btn" data-id="{{item.id}}" bindtap="removeKnowledge">删除</view>
+        </view>
+        <view class="question-stem small">{{item.content}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无知识库内容</view>
+  </block>
+
+  <view wx:if="{{question}}" class="modal-mask" catchtap="closeQuestion">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header">
+        <view class="modal-title">题目详情</view>
+        <view class="modal-close" bindtap="closeQuestion">×</view>
+      </view>
+      <view class="tag-group"><view class="tag tag-teal">{{question.questionTypeName}}</view><view class="tag">{{question.difficultyLabel}}</view></view>
+      <view class="detail-stem">{{question.stem}}</view>
+      <view class="detail-label">标准答案</view>
+      <text class="detail-text">{{question.answerText}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">解题过程</view>
+      <text class="detail-text">{{question.solutionText}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">作答记录</view>
+      <view wx:if="{{question.attempts.length}}">
+        <view wx:for="{{question.attempts}}" wx:key="id" class="attempt-row">
+          <view class="between"><text>{{item.childName}}</text><text class="{{item.isCorrect ? 'pass' : 'fail'}}">{{item.isCorrect ? '正确' : '待巩固'}}</text></view>
+          <view class="muted">{{item.dateText}} · {{item.evaluation || item.errorReason || '无补充评价'}}</view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无作答记录</view>
+    </view>
+  </view>
+
+  <view wx:if="{{questionEdit}}" class="modal-mask" catchtap="closeQuestionEdit">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">编辑题目</view><view class="modal-close" bindtap="closeQuestionEdit">×</view></view>
+      <view class="form-item"><view class="form-label">题干</view><textarea class="textarea" value="{{questionEditForm.stem}}" data-field="stem" bindinput="onQuestionEditField" /></view>
+      <view class="form-item"><view class="form-label">难度</view><picker mode="selector" range="{{difficultyOptions}}" bindchange="onQuestionEditDifficulty"><view class="input">{{questionEditForm.difficulty}}</view></picker></view>
+      <view class="form-item"><view class="form-label">答案</view><textarea class="textarea" value="{{questionEditForm.answer}}" data-field="answer" bindinput="onQuestionEditField" /></view>
+      <view class="form-item"><view class="form-label">解题过程</view><textarea class="textarea" value="{{questionEditForm.solution}}" data-field="solution" bindinput="onQuestionEditField" /></view>
+      <view class="form-item"><view class="form-label">变式类型</view><input class="input" value="{{questionEditForm.variation_type}}" data-field="variation_type" bindinput="onQuestionEditField" /></view>
+      <view class="form-item"><view class="form-label">标签</view><input class="input" value="{{questionEditForm.tags}}" data-field="tags" bindinput="onQuestionEditField" /></view>
+      <button class="btn btn-primary" bindtap="submitQuestionEdit">保存</button>
+    </view>
+  </view>
+
+  <view wx:if="{{questionType}}" class="modal-mask" catchtap="closeQuestionType">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">{{questionType.name}}</view><view class="modal-close" bindtap="closeQuestionType">×</view></view>
+      <view class="tag-group"><view class="tag tag-teal">{{questionType.subject}}</view><view class="tag">规则 v{{questionType.ruleVersion}}</view></view>
+      <view class="detail-stem small">{{questionType.description || '尚未填写题型说明'}}</view>
+      <view class="detail-label">核心能力</view><text class="detail-text">{{questionType.abilityGoal}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">解题方法</view><text class="detail-text">{{questionType.solutionMethod}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">知识点</view><text class="detail-text">{{questionType.knowledgeText}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">生成规则</view><text class="detail-text">{{questionType.generationRule}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">答案校验</view><text class="detail-text">{{questionType.answerValidation}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{typeFormVisible}}" class="modal-mask" catchtap="closeTypeForm">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">{{typeEditingId ? '编辑题型' : '新建题型'}}</view><view class="modal-close" bindtap="closeTypeForm">×</view></view>
+      <view class="form-item"><view class="form-label">学科</view><input class="input" value="{{typeForm.subject}}" data-field="subject" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">年级</view><input class="input" value="{{typeForm.grade}}" data-field="grade" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">题型名称</view><input class="input" value="{{typeForm.name}}" data-field="name" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">题型说明</view><textarea class="textarea" value="{{typeForm.description}}" data-field="description" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">知识点，多个用顿号分隔</view><input class="input" value="{{typeForm.knowledge_points}}" data-field="knowledge_points" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">标签</view><input class="input" value="{{typeForm.tags}}" data-field="tags" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">核心能力目标</view><textarea class="textarea" value="{{typeForm.ability_goal}}" data-field="ability_goal" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">核心解题方法</view><textarea class="textarea" value="{{typeForm.solution_method}}" data-field="solution_method" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">标准步骤，每行一条</view><textarea class="textarea" value="{{typeForm.standard_steps}}" data-field="standard_steps" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">常见错误，每行一条</view><textarea class="textarea" value="{{typeForm.common_errors}}" data-field="common_errors" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">题型不变量，每行一条</view><textarea class="textarea" value="{{typeForm.invariants}}" data-field="invariants" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">可变参数，每行一条</view><textarea class="textarea" value="{{typeForm.variable_parameters}}" data-field="variable_parameters" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">同题型生成规则</view><textarea class="textarea" value="{{typeForm.generation_rule}}" data-field="generation_rule" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">答案校验规则</view><textarea class="textarea" value="{{typeForm.answer_validation}}" data-field="answer_validation" bindinput="onTypeField" /></view>
+      <view class="form-item"><view class="form-label">规则版本</view><input class="input" value="{{typeForm.rule_version}}" data-field="rule_version" bindinput="onTypeField" /></view>
+      <view class="mini-grid">
+        <view class="form-item"><view class="form-label">最低掌握分</view><input class="input" type="number" value="{{typeForm.min_score}}" data-field="min_score" bindinput="onTypeField" /></view>
+        <view class="form-item"><view class="form-label">最少练习</view><input class="input" type="number" value="{{typeForm.min_attempts}}" data-field="min_attempts" bindinput="onTypeField" /></view>
+        <view class="form-item"><view class="form-label">最少变式</view><input class="input" type="number" value="{{typeForm.min_variations}}" data-field="min_variations" bindinput="onTypeField" /></view>
+      </view>
+      <button class="btn btn-primary" bindtap="submitType">保存题型</button>
+    </view>
+  </view>
+
+  <view wx:if="{{masteryEdit}}" class="modal-mask" catchtap="closeMasteryEdit">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">调整掌握状态</view><view class="modal-close" bindtap="closeMasteryEdit">×</view></view>
+      <view class="detail-text">{{masteryEdit.childName}} · {{masteryEdit.questionTypeName}}</view>
+      <view class="muted">系统计算：{{masteryEdit.statusLabel}} · {{masteryEdit.masteryScore}} 分</view>
+      <view class="form-item"><view class="form-label">状态</view><picker mode="selector" range="{{masteryStatuses}}" bindchange="onMasteryStatus"><view class="input">{{masteryStatusLabels[masteryEdit.status]}}</view></picker></view>
+      <view class="form-item"><view class="form-label">调整原因</view><textarea class="textarea" value="{{masteryEdit.manualReason}}" bindinput="onMasteryReason" /></view>
+      <button class="btn btn-primary" bindtap="submitMastery">保存调整</button>
+    </view>
+  </view>
+
+  <view wx:if="{{wrong}}" class="modal-mask" catchtap="closeWrong">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">错题详情</view><view class="modal-close" bindtap="closeWrong">×</view></view>
+      <view class="tag-group"><view class="tag tag-teal">{{wrong.subject}}</view><view class="tag {{wrong.statusTone}}">{{wrong.statusLabel}}</view></view>
+      <view class="detail-stem">{{wrong.question.stem}}</view>
+      <view class="detail-label">错误答案</view><text class="detail-text">{{wrong.wrongAnswerText}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">错误原因</view><text class="detail-text">{{wrong.errorReason || '待补充'}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">WorkBuddy 分析</view><text class="detail-text">{{wrong.workbuddyAnalysis || '待补充'}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">订正方法</view><text class="detail-text">{{wrong.correctionMethod || '待补充'}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">关键学习点</view><text class="detail-text">{{wrong.keyLearningPoint || '待补充'}}</text>
+      <view class="divider"></view>
+      <view class="between"><text class="detail-label">掌握分</text><text class="score-text">{{wrong.masteryScore}} 分</text></view>
+      <view class="progress mastery-progress"><view class="progress-fill" style="width: {{wrong.masteryScore}}%;"></view></view>
+      <view class="evidence-grid">
+        <view class="evidence-item"><text class="evidence-value">{{wrong.evidence.originalCorrectionPassed ? '通过' : '未通过'}}</text><text class="muted">原题订正</text></view>
+        <view class="evidence-item"><text class="evidence-value">{{wrong.evidence.independentCorrectVariants || 0}}/3</text><text class="muted">独立变式</text></view>
+        <view class="evidence-item"><text class="evidence-value">{{wrong.evidence.sessions || 0}}/2</text><text class="muted">练习会话</text></view>
+        <view class="evidence-item"><text class="evidence-value">{{wrong.evidence.transferPassed ? '通过' : '未通过'}}</text><text class="muted">迁移题</text></view>
+        <view class="evidence-item"><text class="evidence-value">{{wrong.evidence.delayedReviewPassed ? '通过' : '未通过'}}</text><text class="muted">延迟复测</text></view>
+      </view>
+      <view class="divider"></view>
+      <view class="detail-label">练习时间线</view>
+      <view wx:if="{{wrong.attempts.length}}">
+        <view wx:for="{{wrong.attempts}}" wx:key="id" class="attempt-row">
+          <view class="between"><text class="{{item.isCorrect ? 'pass' : 'fail'}}">{{item.resultLabel}}</text><text class="muted">{{item.variationText}} · {{item.dateText}}</text></view>
+          <view class="muted">{{item.evaluation || item.errorReason || '无补充评价'}}</view>
+        </view>
+      </view>
+      <view wx:else class="empty">暂无订正或变式练习记录</view>
+      <view class="detail-actions">
+        <view class="icon-btn" data-id="{{wrong.id}}" bindtap="openWrongEdit">编辑</view>
+        <view class="icon-btn" data-id="{{wrong.id}}" bindtap="openWrongStatus">调整状态</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{wrongEdit}}" class="modal-mask" catchtap="closeWrongEdit">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">编辑错题</view><view class="modal-close" bindtap="closeWrongEdit">×</view></view>
+      <view class="form-item"><view class="form-label">章节</view><input class="input" value="{{wrongEditForm.chapter}}" data-field="chapter" bindinput="onWrongEditField" /></view>
+      <view class="form-item"><view class="form-label">知识点</view><input class="input" value="{{wrongEditForm.knowledge_points}}" data-field="knowledge_points" bindinput="onWrongEditField" /></view>
+      <view class="form-item"><view class="form-label">错误分类</view><input class="input" value="{{wrongEditForm.error_category}}" data-field="error_category" bindinput="onWrongEditField" /></view>
+      <view class="form-item"><view class="form-label">错误原因</view><textarea class="textarea" value="{{wrongEditForm.error_reason}}" data-field="error_reason" bindinput="onWrongEditField" /></view>
+      <view class="form-item"><view class="form-label">WorkBuddy 分析</view><textarea class="textarea" value="{{wrongEditForm.workbuddy_analysis}}" data-field="workbuddy_analysis" bindinput="onWrongEditField" /></view>
+      <view class="form-item"><view class="form-label">订正方法</view><textarea class="textarea" value="{{wrongEditForm.correction_method}}" data-field="correction_method" bindinput="onWrongEditField" /></view>
+      <view class="form-item"><view class="form-label">关键学习点</view><textarea class="textarea" value="{{wrongEditForm.key_learning_point}}" data-field="key_learning_point" bindinput="onWrongEditField" /></view>
+      <button class="btn btn-primary" bindtap="submitWrongEdit">保存</button>
+    </view>
+  </view>
+
+  <view wx:if="{{wrongStatus}}" class="modal-mask" catchtap="closeWrongStatus">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">调整错题状态</view><view class="modal-close" bindtap="closeWrongStatus">×</view></view>
+      <view class="detail-text">系统判定：{{wrongStatusLabels[wrongStatus.calculatedStatus]}} · {{wrongStatus.masteryScore}} 分</view>
+      <view class="form-item"><view class="form-label">调整为</view><picker mode="selector" range="{{wrongStatuses}}" bindchange="onWrongStatusChange"><view class="input">{{wrongStatusLabels[wrongStatus.status]}}</view></picker></view>
+      <view class="form-item"><view class="form-label">调整原因</view><textarea class="textarea" value="{{wrongStatus.reason}}" bindinput="onWrongStatusReason" /></view>
+      <button class="btn btn-primary" bindtap="submitWrongStatus">保存调整</button>
+    </view>
+  </view>
+
+  <view wx:if="{{paper}}" class="modal-mask" catchtap="closePaper">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">{{paper.title}}</view><view class="modal-close" bindtap="closePaper">×</view></view>
+      <view class="muted">{{paper.childName}} · {{paper.subject || '综合'}} · {{paper.statusLabel}} · {{paper.estimatedMinutes || '-'}} 分钟</view>
+      <view wx:if="{{paper.objective}}" class="detail-stem small">{{paper.objective}}</view>
+      <view wx:for="{{paper.questions}}" wx:key="id" class="paper-question">
+        <view class="paper-index">{{index + 1}}.</view>
+        <view class="paper-body">
+          <view class="detail-text">{{item.question.stem}}</view>
+          <view class="divider"></view>
+          <view class="detail-label">答案与解析</view>
+          <text class="detail-text">{{item.answerText}}</text>
+          <text class="detail-text">{{item.solution}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{plan}}" class="modal-mask" catchtap="closePlan">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">{{plan.title}}</view><view class="modal-close" bindtap="closePlan">×</view></view>
+      <view class="muted">{{plan.childName}} · {{plan.subject || '综合'}} · {{plan.statusLabel}} · {{plan.startText}} 至 {{plan.endText}}</view>
+      <view class="detail-stem small">{{plan.diagnosisText}}</view>
+      <view class="detail-label">执行策略</view><text class="detail-text">{{plan.strategy}}</text>
+      <view class="divider"></view>
+      <view class="detail-label">教学任务</view>
+      <view wx:for="{{plan.tasks}}" wx:key="id" class="task-card">
+        <view class="between">
+          <view class="task-title">{{item.title}}</view>
+          <view class="pill">{{item.statusLabel}}</view>
+        </view>
+        <view class="muted">{{item.taskType}} · {{item.estimatedMinutes || '-'}} 分钟 · 截止 {{item.dueText}}</view>
+        <view wx:if="{{item.description}}" class="muted task-desc">{{item.description}}</view>
+        <picker mode="selector" range="{{taskStatuses}}" data-plan-id="{{plan.id}}" data-task-id="{{item.id}}" bindchange="onTaskStatusChange">
+          <view class="input task-picker">更新为：{{item.statusLabel}}</view>
+        </picker>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{textbookFormVisible}}" class="modal-mask" catchtap="closeTextbookForm">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">{{textbookEditingId ? '编辑教材' : '导入教材'}}</view><view class="modal-close" bindtap="closeTextbookForm">×</view></view>
+      <view class="form-item"><view class="form-label">孩子</view><picker mode="selector" range="{{childNames}}" bindchange="onTextbookChildChange"><view class="input">{{childNames[childIndex]}}</view></picker></view>
+      <view class="form-item"><view class="form-label">教材名称</view><input class="input" value="{{textbookForm.title}}" data-field="title" bindinput="onTextbookField" /></view>
+      <view class="form-item"><view class="form-label">学科</view><input class="input" value="{{textbookForm.subject}}" data-field="subject" bindinput="onTextbookField" /></view>
+      <view class="form-item"><view class="form-label">年级</view><input class="input" value="{{textbookForm.grade}}" data-field="grade" bindinput="onTextbookField" /></view>
+      <view class="form-item"><view class="form-label">出版社</view><input class="input" value="{{textbookForm.publisher}}" data-field="publisher" bindinput="onTextbookField" /></view>
+      <view class="form-item"><view class="form-label">版本</view><input class="input" value="{{textbookForm.version}}" data-field="version" bindinput="onTextbookField" /></view>
+      <view class="form-item">
+        <view class="form-label">教材文件（可选）</view>
+        <button class="btn btn-outline" bindtap="chooseTextbookFile">{{textbookFile ? '已选择文件' : '选择 PDF / 图片 / Word'}}</button>
+      </view>
+      <button class="btn btn-primary" bindtap="submitTextbook">保存</button>
+    </view>
+  </view>
+
+  <view wx:if="{{homeworkFormVisible}}" class="modal-mask" catchtap="closeHomeworkForm">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">{{homeworkEditingId ? '编辑作业' : '新增作业'}}</view><view class="modal-close" bindtap="closeHomeworkForm">×</view></view>
+      <view class="form-item"><view class="form-label">孩子</view><picker mode="selector" range="{{childNames}}" bindchange="onHomeworkChildChange"><view class="input">{{childNames[childIndex]}}</view></picker></view>
+      <view class="form-item"><view class="form-label">学科</view><input class="input" value="{{homeworkForm.subject}}" data-field="subject" bindinput="onHomeworkField" /></view>
+      <view class="form-item"><view class="form-label">作业名称</view><input class="input" value="{{homeworkForm.title}}" data-field="title" bindinput="onHomeworkField" /></view>
+      <view class="form-item"><view class="form-label">描述</view><textarea class="textarea" value="{{homeworkForm.description}}" data-field="description" bindinput="onHomeworkField" /></view>
+      <view class="form-item"><view class="form-label">预计分钟</view><input class="input" type="number" value="{{homeworkForm.estimated_minutes}}" data-field="estimated_minutes" bindinput="onHomeworkField" /></view>
+      <view class="form-item"><view class="form-label">截止日期</view><input class="input" value="{{homeworkForm.due_date}}" data-field="due_date" bindinput="onHomeworkField" placeholder="2026-08-30" /></view>
+      <view class="form-item"><view class="form-label">状态</view><picker mode="selector" range="{{homeworkStatusOptions}}" bindchange="onHomeworkStatusChange"><view class="input">{{homeworkForm.status}}</view></picker></view>
+      <button class="btn btn-primary" bindtap="submitHomework">保存</button>
+    </view>
+  </view>
+
+  <view wx:if="{{knowledgeFormVisible}}" class="modal-mask" catchtap="closeKnowledgeForm">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header"><view class="modal-title">新增知识库内容</view><view class="modal-close" bindtap="closeKnowledgeForm">×</view></view>
+      <view class="form-item"><view class="form-label">孩子</view><picker mode="selector" range="{{childNames}}" bindchange="onKnowledgeChildChange"><view class="input">{{childNames[childIndex]}}</view></picker></view>
+      <view class="form-item"><view class="form-label">类型</view><picker mode="selector" range="{{knowledgeKinds}}" bindchange="onKnowledgeKindChange"><view class="input">{{knowledgeKindLabels[knowledgeForm.kind]}}</view></picker></view>
+      <view class="form-item"><view class="form-label">标题</view><input class="input" value="{{knowledgeForm.title}}" data-field="title" bindinput="onKnowledgeField" /></view>
+      <view class="form-item"><view class="form-label">内容</view><textarea class="textarea" value="{{knowledgeForm.content}}" data-field="content" bindinput="onKnowledgeField" /></view>
+      <button class="btn btn-primary" bindtap="submitKnowledge">保存</button>
+    </view>
+  </view>
+</view>

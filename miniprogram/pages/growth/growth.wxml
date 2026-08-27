@@ -1,0 +1,88 @@
+<view class="page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+  <view class="panel picker-panel">
+    <view class="picker-label">选择孩子</view>
+    <picker mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
+      <view class="picker-value">{{childNames[childIndex] || '请先添加学生'}}</view>
+    </picker>
+  </view>
+
+  <view class="tabs">
+    <view class="tab {{tab === 'records' ? 'active' : ''}}" data-tab="records" bindtap="switchTab">成长记录</view>
+    <view class="tab {{tab === 'reports' ? 'active' : ''}}" data-tab="reports" bindtap="switchTab">报告</view>
+    <view class="tab {{tab === 'growth' ? 'active' : ''}}" data-tab="growth" bindtap="switchTab">成长轨迹</view>
+  </view>
+
+  <block wx:if="{{tab === 'records'}}">
+    <view wx:if="{{records.length}}">
+      <view wx:for="{{records}}" wx:key="id" class="card record-card" data-id="{{item.id}}" bindtap="openRecord">
+        <view class="between">
+          <view class="record-title">{{item.title}}</view>
+          <view class="pill">{{item.typeLabel}}</view>
+        </view>
+        <view class="muted record-meta">{{item.dateText}} · {{item.score !== undefined && item.score !== null ? item.score + ' 分' : '未评分'}}</view>
+        <view wx:if="{{item.content}}" class="record-preview">{{item.content}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无成长记录</view>
+  </block>
+
+  <block wx:if="{{tab === 'reports'}}">
+    <view wx:if="{{reports.length}}">
+      <view wx:for="{{reports}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="openReport">
+        <view class="between">
+          <view class="record-title">{{item.title}}</view>
+          <view class="pill">{{item.typeLabel}}</view>
+        </view>
+        <view class="muted record-meta">{{item.dateText}}</view>
+        <view wx:if="{{item.summary}}" class="record-preview">{{item.summary}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无报告</view>
+  </block>
+
+  <block wx:if="{{tab === 'growth'}}">
+    <view wx:if="{{growth.length}}">
+      <view wx:for="{{growth}}" wx:key="index" class="card">
+        <view class="between">
+          <view class="record-title">第 {{item.row}} 个成长节点</view>
+          <view class="pill">{{item.type}}</view>
+        </view>
+        <view class="muted record-meta">{{item.dateText}} · {{item.score !== undefined && item.score !== null ? item.score + ' 分' : '未评分'}}</view>
+        <view class="progress growth-progress">
+          <view class="progress-fill" style="width: {{item.scorePercent}}%;"></view>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无成长轨迹数据</view>
+  </block>
+
+  <view wx:if="{{detail}}" class="modal-mask" catchtap="closeDetail">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header">
+        <view class="modal-title">{{detail.title}}</view>
+        <view class="modal-close" bindtap="closeDetail">×</view>
+      </view>
+      <view class="detail-meta">
+        {{detail.dateText || detail.date || ''}} · {{detail.typeLabel || detail.type || ''}}
+      </view>
+      <view wx:if="{{detailType === 'record'}}" class="detail-block">
+        <view class="detail-label">内容</view>
+        <text class="detail-text">{{detail.content || '未填写内容'}}</text>
+        <view class="divider"></view>
+        <view class="detail-label">评分</view>
+        <text class="detail-text">{{detail.score !== undefined && detail.score !== null ? detail.score + ' 分' : '未评分'}}</text>
+        <view class="divider"></view>
+        <view class="detail-label">备注</view>
+        <text class="detail-text">{{detail.notes || '无备注'}}</text>
+      </view>
+      <view wx:if="{{detailType === 'report'}}" class="detail-block">
+        <view class="detail-label">摘要</view>
+        <text class="detail-text">{{detail.summary || '未填写摘要'}}</text>
+        <view class="divider"></view>
+        <view class="detail-label">完整内容</view>
+        <text class="detail-text">{{detail.content || '未填写完整内容'}}</text>
+      </view>
+    </view>
+  </view>
+</view>

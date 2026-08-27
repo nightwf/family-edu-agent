@@ -1,0 +1,57 @@
+<view class="page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+  <view class="between header">
+    <view class="title">学生档案</view>
+    <button class="btn btn-primary add-btn" bindtap="openCreate">新建孩子</button>
+  </view>
+
+  <view wx:if="{{children.length}}">
+    <view wx:for="{{children}}" wx:key="id" class="card">
+      <view class="between">
+        <view>
+          <view class="name">{{item.name}}</view>
+          <view class="muted">{{item.age}} 岁 · {{item.grade}}</view>
+          <view class="tag-group">
+            <view wx:for="{{item.subjects}}" wx:key="*this" wx:for-item="subject" class="tag tag-teal">{{subject}}</view>
+          </view>
+          <view class="muted version">教材版本：{{item.textbookVersion || '未设置'}}</view>
+        </view>
+        <view class="actions">
+          <view class="icon-btn" data-id="{{item.id}}" bindtap="openEdit">编辑</view>
+          <view class="danger-btn" data-id="{{item.id}}" bindtap="remove">删除</view>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view wx:else class="empty">还没有学生档案，点击右上角新建孩子</view>
+
+  <view wx:if="{{formVisible}}" class="modal-mask" catchtap="closeForm">
+    <view class="modal" catchtap="noop">
+      <view class="modal-header">
+        <view class="modal-title">{{editingId ? '编辑孩子档案' : '新建孩子'}}</view>
+        <view class="modal-close" bindtap="closeForm">×</view>
+      </view>
+      <view class="form-item">
+        <view class="form-label">姓名</view>
+        <input class="input" value="{{form.name}}" data-field="name" bindinput="onField" placeholder="孩子姓名" />
+      </view>
+      <view class="form-item">
+        <view class="form-label">年龄</view>
+        <input class="input" type="number" value="{{form.age}}" data-field="age" bindinput="onField" placeholder="孩子年龄" />
+      </view>
+      <view class="form-item">
+        <view class="form-label">年级</view>
+        <input class="input" value="{{form.grade}}" data-field="grade" bindinput="onField" placeholder="例如：四年级" />
+      </view>
+      <view class="form-item">
+        <view class="form-label">学科，多个用顿号分隔</view>
+        <input class="input" value="{{form.subjects}}" data-field="subjects" bindinput="onField" placeholder="数学、语文、英语" />
+      </view>
+      <view class="form-item">
+        <view class="form-label">教材版本</view>
+        <input class="input" value="{{form.textbook_version}}" data-field="textbook_version" bindinput="onField" placeholder="例如：人教版" />
+      </view>
+      <button class="btn btn-primary" bindtap="submit">保存</button>
+    </view>
+  </view>
+</view>
