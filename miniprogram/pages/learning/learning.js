@@ -63,7 +63,6 @@ Page({
     textbookFormVisible: false,
     textbookEditingId: "",
     textbookForm: {},
-    textbookFile: "",
     homeworkFormVisible: false,
     homeworkEditingId: "",
     homeworkForm: {},
@@ -956,15 +955,6 @@ Page({
     });
   },
 
-  openTextbookCreate() {
-    this.setData({
-      textbookFormVisible: true,
-      textbookEditingId: "",
-      textbookForm: { child_id: this.data.childId, title: "", subject: "", grade: "", publisher: "", version: "" },
-      textbookFile: ""
-    });
-  },
-
   openTextbookActions(event) {
     const id = event.currentTarget.dataset.id;
     wx.showActionSheet({
@@ -990,8 +980,7 @@ Page({
         grade: item.grade || "",
         publisher: item.publisher || "",
         version: item.version || ""
-      },
-      textbookFile: ""
+      }
     });
   },
 
@@ -1009,36 +998,18 @@ Page({
     this.setData({ "textbookForm.child_id": child ? child.id : "" });
   },
 
-  chooseTextbookFile() {
-    wx.chooseMessageFile({
-      count: 1,
-      type: "file",
-      extension: ["pdf", "png", "jpg", "jpeg", "webp", "gif", "doc", "docx"],
-      success: (res) => {
-        if (res.tempFiles && res.tempFiles.length) {
-          this.setData({ textbookFile: res.tempFiles[0].path });
-        }
-      }
-    });
-  },
-
   async submitTextbook() {
-    const { textbookEditingId, textbookForm, textbookFile } = this.data;
+    const { textbookEditingId, textbookForm } = this.data;
+    if (!textbookEditingId) {
+      wx.showToast({ title: "教材请通过 WorkBuddy 导入", icon: "none" });
+      return;
+    }
     if (!textbookForm.child_id || !textbookForm.title) {
       wx.showToast({ title: "请选择孩子并填写教材名", icon: "none" });
       return;
     }
     try {
-      if (textbookFile) {
-        await api.uploadTextbook({
-          filePath: textbookFile,
-          formData: textbookForm
-        });
-      } else if (textbookEditingId) {
-        await api.updateTextbook(textbookEditingId, textbookForm);
-      } else {
-        await api.createTextbook(textbookForm);
-      }
+      await api.updateTextbook(textbookEditingId, textbookForm);
       wx.showToast({ title: "已保存", icon: "success" });
       this.closeTextbookForm();
       await this.loadTextbooks();

@@ -132,13 +132,13 @@
   </block>
 
   <block wx:if="{{module === 'textbooks'}}">
-    <view class="module-header"><view><view class="module-title">教材库</view><view class="module-subtitle">查看识别状态和教材版本</view></view><button class="add-btn" bindtap="openTextbookCreate">＋ 导入</button></view>
+    <view class="module-header"><view><view class="module-title">教材库</view><view class="module-subtitle">WorkBuddy 导入后在这里查看和修正版本信息</view></view></view>
     <view wx:if="{{textbooks.length}}">
       <view wx:for="{{textbooks}}" wx:key="id" class="learning-card folder-card resource-card">
         <view class="resource-cover">书</view><view class="resource-content"><view class="card-head"><view class="type-name">{{item.title}}</view><view class="pill">{{item.statusLabel}}</view><view class="more-button" data-id="{{item.id}}" catchtap="openTextbookActions" aria-label="更多操作"></view></view><view class="question-meta">{{item.childName}} · {{item.subject || '未设学科'}}</view><view class="resource-version">{{item.publisher || '未设出版社'}} · {{item.version || '未设版本'}}</view></view>
       </view>
     </view>
-    <view wx:else class="empty">暂无教材</view>
+    <view wx:else class="empty">暂无教材，去 WorkBuddy 上传教材后会同步到这里</view>
   </block>
 
   <block wx:if="{{module === 'homework'}}">
@@ -368,18 +368,15 @@
 
   <view wx:if="{{textbookFormVisible}}" class="modal-mask" catchtap="closeTextbookForm">
     <view class="modal" catchtap="noop">
-      <view class="modal-header"><view class="modal-title">{{textbookEditingId ? '编辑教材' : '导入教材'}}</view><view class="modal-close" bindtap="closeTextbookForm">×</view></view>
+      <view class="modal-header"><view class="modal-title">编辑教材</view><view class="modal-close" bindtap="closeTextbookForm">×</view></view>
       <view class="form-item"><view class="form-label">孩子</view><picker mode="selector" range="{{childNames}}" bindchange="onTextbookChildChange"><view class="input">{{childNames[childIndex]}}</view></picker></view>
       <view class="form-item"><view class="form-label">教材名称</view><input class="input" value="{{textbookForm.title}}" data-field="title" bindinput="onTextbookField" /></view>
       <view class="form-item"><view class="form-label">学科</view><input class="input" value="{{textbookForm.subject}}" data-field="subject" bindinput="onTextbookField" /></view>
       <view class="form-item"><view class="form-label">年级</view><input class="input" value="{{textbookForm.grade}}" data-field="grade" bindinput="onTextbookField" /></view>
       <view class="form-item"><view class="form-label">出版社</view><input class="input" value="{{textbookForm.publisher}}" data-field="publisher" bindinput="onTextbookField" /></view>
       <view class="form-item"><view class="form-label">版本</view><input class="input" value="{{textbookForm.version}}" data-field="version" bindinput="onTextbookField" /></view>
-      <view class="form-item">
-        <view class="form-label">教材文件（可选）</view>
-        <button class="btn btn-outline" bindtap="chooseTextbookFile">{{textbookFile ? '已选择文件' : '选择 PDF / 图片 / Word'}}</button>
-      </view>
-      <button class="btn btn-primary" bindtap="submitTextbook">保存</button>
+      <view class="form-note">教材文件和章节识别由 WorkBuddy 导入流程完成，这里只修正孩子、学科、年级和版本信息。</view>
+      <button class="btn btn-primary" bindtap="submitTextbook">保存修改</button>
     </view>
   </view>
 
