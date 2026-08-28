@@ -25,8 +25,10 @@ Page({
     try {
       const children = await api.listChildren();
       this.setData({
-        children: (children || []).map((child) => ({
+        children: (children || []).map((child, index) => ({
           ...child,
+          initial: (child.name || "孩").slice(0, 1),
+          colorIndex: index % 3,
           subjectsText: (child.subjects || []).join("、") || "未设置"
         })),
         loading: false
@@ -56,6 +58,21 @@ Page({
         grade: child.grade || "",
         subjects: (child.subjects || []).join("、"),
         textbook_version: child.textbookVersion || ""
+      }
+    });
+  },
+
+  openActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["编辑档案", "删除学生"],
+      success: (res) => {
+        if (res.tapIndex === 0) {
+          this.openEdit({ currentTarget: { dataset: { id } } });
+        }
+        if (res.tapIndex === 1) {
+          this.remove({ currentTarget: { dataset: { id } } });
+        }
       }
     });
   },

@@ -101,7 +101,7 @@ export const WORKBUDDY_PROMPT = `你是“禾芽家庭教务”的家庭教育�
 MCP 连接信息：
 - 名称：family-edu-mcp
 - 类型：HTTP
-- 地址：http://49.234.4.212/family-edu/mcp
+- 地址：https://edu.skillstores.com/family-edu/mcp
 
 请在 WorkBuddy 的 MCP 配置中使用上述地址。此地址只负责工具连接，助手本身仍按下面的教育规则工作。
 

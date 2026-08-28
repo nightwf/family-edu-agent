@@ -1,17 +1,37 @@
 <view class="login-page">
-  <view class="hero">
-    <view class="brand-mark">禾</view>
-    <view class="brand-name">禾芽家庭教务</view>
-    <view class="brand-sub">孩子的成长，值得被看见</view>
+  <view class="brand">
+    <view class="brand-mark"><view class="seed-dot"></view>禾</view>
+    <view class="brand-copy">
+      <view class="brand-name">禾芽家庭教务</view>
+      <view class="brand-sub">孩子的成长，值得被看见</view>
+    </view>
   </view>
 
-  <view class="login-card">
-    <view class="mode-tabs">
-      <view class="mode-tab {{mode === 'login' ? 'active' : ''}}" data-mode="login" bindtap="switchMode">账号登录</view>
-      <view class="mode-tab {{mode === 'register' ? 'active' : ''}}" data-mode="register" bindtap="switchMode">邀请码注册</view>
-    </view>
+  <view class="login-hero">
+    <view class="hero-line">成长记录、题库错题、作业报告</view>
+    <view class="hero-title">把孩子的学习变化放进同一个家庭档案</view>
+  </view>
 
+  <view class="login-sheet">
     <block wx:if="{{!bindStep}}">
+      <view class="sheet-title">欢迎回来</view>
+      <view class="sheet-subtitle">登录后查看家庭成长档案</view>
+
+      <button class="wechat-btn" loading="{{wechatLoading}}" bindtap="wechatLogin">
+        <view class="wechat-mark">微</view>
+        <text>微信一键登录</text>
+      </button>
+
+      <view class="or-line">
+        <view class="line"></view>
+        <text>使用邮箱账号</text>
+        <view class="line"></view>
+      </view>
+
+      <view class="mode-tabs">
+        <view class="mode-tab {{mode === 'login' ? 'active' : ''}}" data-mode="login" bindtap="switchMode">邮箱登录</view>
+        <view class="mode-tab {{mode === 'register' ? 'active' : ''}}" data-mode="register" bindtap="switchMode">邀请码注册</view>
+      </view>
       <view class="form-item">
         <view class="form-label">邮箱</view>
         <input class="input" type="text" placeholder="请输入邮箱" value="{{email}}" data-field="email" bindinput="onField" />
@@ -24,21 +44,14 @@
         <view class="form-label">邀请码</view>
         <input class="input" placeholder="请输入邀请码" value="{{inviteCode}}" data-field="inviteCode" bindinput="onField" />
       </view>
-      <button class="btn btn-primary" loading="{{loading}}" bindtap="submit">
+      <button class="btn btn-primary submit-button" loading="{{loading}}" bindtap="submit">
         {{mode === 'login' ? '登录' : '注册并登录'}}
-      </button>
-      <view class="or-line">
-        <view class="line"></view>
-        <text>或</text>
-        <view class="line"></view>
-      </view>
-      <button class="btn wechat-btn" loading="{{wechatLoading}}" bindtap="wechatLogin">
-        微信一键登录
       </button>
     </block>
 
     <block wx:else>
-      <view class="bind-tip">微信登录已识别，请绑定一个家庭账号</view>
+      <view class="sheet-title">关联家庭账号</view>
+      <view class="sheet-subtitle">微信登录已识别，请选择绑定方式</view>
       <view class="bind-modes">
         <view class="bind-mode {{bindMode === 'existing' ? 'active' : ''}}" data-mode="existing" bindtap="chooseBindMode">绑定已有账号</view>
         <view class="bind-mode {{bindMode === 'register' ? 'active' : ''}}" data-mode="register" bindtap="chooseBindMode">注册新账号</view>
@@ -55,9 +68,11 @@
         <view class="form-label">邀请码</view>
         <input class="input" placeholder="请输入邀请码" value="{{inviteCode}}" data-field="inviteCode" bindinput="onField" />
       </view>
-      <button class="btn btn-primary" loading="{{loading}}" bindtap="submitBind">完成绑定</button>
+      <button class="btn btn-primary submit-button" loading="{{loading}}" bindtap="submitBind">完成绑定</button>
     </block>
 
     <view wx:if="{{error}}" class="error">{{error}}</view>
   </view>
+
+  <view class="login-footer">家庭数据仅当前账号可见</view>
 </view>

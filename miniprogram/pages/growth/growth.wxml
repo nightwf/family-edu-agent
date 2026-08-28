@@ -1,87 +1,116 @@
+<page-meta page-style="{{detail ? 'overflow: hidden;' : ''}}" />
+
 <view class="page">
   <view wx:if="{{error}}" class="error-tip">{{error}}</view>
-  <view class="panel picker-panel">
-    <view class="picker-label">选择孩子</view>
-    <picker mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
-      <view class="picker-value">{{childNames[childIndex] || '请先添加学生'}}</view>
-    </picker>
+
+  <view class="page-heading">
+    <view class="page-eyebrow">持续记录，看见变化</view>
+    <view class="title">成长中心</view>
   </view>
 
-  <view class="tabs">
+  <picker class="child-picker" mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
+    <view class="child-picker-inner">
+      <view class="picker-avatar">{{childNames.length ? '学' : '?'}}</view>
+      <view class="picker-content">
+        <view class="picker-label">正在查看</view>
+        <view class="picker-value">{{childNames[childIndex] || '请先添加学生档案'}}</view>
+      </view>
+      <view class="picker-arrow">⌄</view>
+    </view>
+  </picker>
+
+  <view class="tabs growth-tabs">
     <view class="tab {{tab === 'records' ? 'active' : ''}}" data-tab="records" bindtap="switchTab">成长记录</view>
-    <view class="tab {{tab === 'reports' ? 'active' : ''}}" data-tab="reports" bindtap="switchTab">报告</view>
+    <view class="tab {{tab === 'reports' ? 'active' : ''}}" data-tab="reports" bindtap="switchTab">阶段报告</view>
     <view class="tab {{tab === 'growth' ? 'active' : ''}}" data-tab="growth" bindtap="switchTab">成长轨迹</view>
   </view>
 
   <block wx:if="{{tab === 'records'}}">
-    <view wx:if="{{records.length}}">
-      <view wx:for="{{records}}" wx:key="id" class="card record-card" data-id="{{item.id}}" bindtap="openRecord">
-        <view class="between">
-          <view class="record-title">{{item.title}}</view>
-          <view class="pill">{{item.typeLabel}}</view>
+    <view wx:if="{{records.length}}" class="timeline">
+      <view wx:for="{{records}}" wx:key="id" class="timeline-item" data-id="{{item.id}}" bindtap="openRecord">
+        <view class="timeline-rail"><view class="timeline-dot"></view></view>
+        <view class="timeline-card folder-card">
+          <view class="timeline-date">{{item.dateText}}</view>
+          <view class="between timeline-title-row">
+            <view class="record-title">{{item.title}}</view>
+            <view class="pill">{{item.typeLabel}}</view>
+          </view>
+          <view wx:if="{{item.content}}" class="record-preview">{{item.content}}</view>
+          <view class="record-footer">
+            <view>{{item.score !== undefined && item.score !== null ? item.score + ' 分' : '未评分'}}</view>
+            <view class="read-more">查看详情 ›</view>
+          </view>
         </view>
-        <view class="muted record-meta">{{item.dateText}} · {{item.score !== undefined && item.score !== null ? item.score + ' 分' : '未评分'}}</view>
-        <view wx:if="{{item.content}}" class="record-preview">{{item.content}}</view>
       </view>
     </view>
-    <view wx:else class="empty">暂无成长记录</view>
+    <view wx:else class="empty">还没有成长记录，WorkBuddy 同步后会出现在这里</view>
   </block>
 
   <block wx:if="{{tab === 'reports'}}">
     <view wx:if="{{reports.length}}">
-      <view wx:for="{{reports}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="openReport">
-        <view class="between">
-          <view class="record-title">{{item.title}}</view>
-          <view class="pill">{{item.typeLabel}}</view>
+      <view wx:for="{{reports}}" wx:key="id" class="report-card folder-card" data-id="{{item.id}}" bindtap="openReport">
+        <view class="report-head">
+          <view class="report-badge">{{item.typeLabel}}</view>
+          <view class="report-date">{{item.dateText}}</view>
         </view>
-        <view class="muted record-meta">{{item.dateText}}</view>
-        <view wx:if="{{item.summary}}" class="record-preview">{{item.summary}}</view>
+        <view class="report-title">{{item.title}}</view>
+        <view wx:if="{{item.summary}}" class="record-preview report-preview">{{item.summary}}</view>
+        <view class="read-more report-link">阅读全文 ›</view>
       </view>
     </view>
-    <view wx:else class="empty">暂无报告</view>
+    <view wx:else class="empty">暂无阶段报告</view>
   </block>
 
   <block wx:if="{{tab === 'growth'}}">
-    <view wx:if="{{growth.length}}">
-      <view wx:for="{{growth}}" wx:key="index" class="card">
-        <view class="between">
-          <view class="record-title">第 {{item.row}} 个成长节点</view>
-          <view class="pill">{{item.type}}</view>
+    <view wx:if="{{growth.length}}" class="trajectory-panel folder-card">
+      <view class="trajectory-intro">
+        <view class="trajectory-title">能力变化</view>
+        <view class="muted">按记录时间由新到旧排列</view>
+      </view>
+      <view wx:for="{{growth}}" wx:key="index" class="growth-row">
+        <view class="growth-info">
+          <view class="growth-name">{{item.type || '成长记录'}}</view>
+          <view class="growth-date">{{item.dateText}}</view>
         </view>
-        <view class="muted record-meta">{{item.dateText}} · {{item.score !== undefined && item.score !== null ? item.score + ' 分' : '未评分'}}</view>
-        <view class="progress growth-progress">
-          <view class="progress-fill" style="width: {{item.scorePercent}}%;"></view>
+        <view class="growth-meter">
+          <view class="progress"><view class="progress-fill" style="width: {{item.scorePercent}}%;"></view></view>
+          <view class="growth-score">{{item.score !== undefined && item.score !== null ? item.score : '-'}}</view>
         </view>
       </view>
     </view>
-    <view wx:else class="empty">暂无成长轨迹数据</view>
+    <view wx:else class="empty">积累两次以上记录后，可以在这里查看变化</view>
   </block>
 
   <view wx:if="{{detail}}" class="modal-mask" catchtap="closeDetail">
-    <view class="modal" catchtap="noop">
+    <view class="modal detail-modal" catchtap="noop">
       <view class="modal-header">
-        <view class="modal-title">{{detail.title}}</view>
+        <view>
+          <view class="detail-kicker">{{detail.typeLabel || detail.type || '成长记录'}}</view>
+          <view class="modal-title">{{detail.title}}</view>
+        </view>
         <view class="modal-close" bindtap="closeDetail">×</view>
       </view>
-      <view class="detail-meta">
-        {{detail.dateText || detail.date || ''}} · {{detail.typeLabel || detail.type || ''}}
+      <view class="detail-meta">{{detail.dateText || detail.date || ''}}</view>
+      <view wx:if="{{detailType === 'record'}}">
+        <view class="detail-score-card">
+          <view class="detail-score-label">本次评分</view>
+          <view class="detail-score">{{detail.score !== undefined && detail.score !== null ? detail.score : '-' }}<text>分</text></view>
+        </view>
+        <view class="article-section paper-block">
+          <view class="detail-label">记录内容</view>
+          <text class="detail-text paper-text">{{detail.content || '未填写内容'}}</text>
+        </view>
+        <view class="article-section paper-block note-block">
+          <view class="detail-label">补充备注</view>
+          <text class="detail-text paper-text">{{detail.notes || '无备注'}}</text>
+        </view>
       </view>
-      <view wx:if="{{detailType === 'record'}}" class="detail-block">
-        <view class="detail-label">内容</view>
-        <text class="detail-text">{{detail.content || '未填写内容'}}</text>
-        <view class="divider"></view>
-        <view class="detail-label">评分</view>
-        <text class="detail-text">{{detail.score !== undefined && detail.score !== null ? detail.score + ' 分' : '未评分'}}</text>
-        <view class="divider"></view>
-        <view class="detail-label">备注</view>
-        <text class="detail-text">{{detail.notes || '无备注'}}</text>
-      </view>
-      <view wx:if="{{detailType === 'report'}}" class="detail-block">
-        <view class="detail-label">摘要</view>
-        <text class="detail-text">{{detail.summary || '未填写摘要'}}</text>
-        <view class="divider"></view>
-        <view class="detail-label">完整内容</view>
-        <text class="detail-text">{{detail.content || '未填写完整内容'}}</text>
+      <view wx:if="{{detailType === 'report'}}">
+        <view class="article-lead">{{detail.summary || '未填写摘要'}}</view>
+        <view class="article-section paper-block report-body-block">
+          <view class="detail-label">报告正文</view>
+          <text class="detail-text paper-text">{{detail.content || '未填写完整内容'}}</text>
+        </view>
       </view>
     </view>
   </view>

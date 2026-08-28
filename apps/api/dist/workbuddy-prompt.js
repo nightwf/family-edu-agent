@@ -4,7 +4,7 @@ export function buildWorkbuddyPrompt(mcpToken) {
 MCP 连接信息：
 - 名称：family-edu-mcp
 - 类型：HTTP
-- 地址：http://49.234.4.212/family-edu/mcp
+- 地址：https://edu.skillstores.com/family-edu/mcp
 - 请求头：X-MCP-Token: ${mcpToken}
 
 工作流程：

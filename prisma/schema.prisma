@@ -19,6 +19,9 @@ model Family {
   createdAt           DateTime                     @default(now())
   updatedAt           DateTime                     @updatedAt
   users               User[]
+  members             FamilyMember[]
+  invites             FamilyInvite[]
+  mcpTokens           McpToken[]
   children            Child[]
   records             Record[]
   reports             Report[]
@@ -50,6 +53,49 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   sessions          Session[]
+  familyMembers     FamilyMember[]
+  mcpTokens         McpToken[]
+  sentInvites       FamilyInvite[] @relation("FamilyInviteInviter")
+  acceptedInvites   FamilyInvite[] @relation("FamilyInviteAcceptor")
+}
+
+model FamilyMember {
+  id        String    @id @default(cuid())
+  familyId  String
+  family    Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String    @default("admin")
+  status    String    @default("active")
+  joinedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  mcpTokens McpToken[]
+
+  @@unique([familyId, userId])
+  @@index([userId, status])
+  @@index([familyId, role, status])
+}
+
+model FamilyInvite {
+  id               String    @id @default(cuid())
+  familyId         String
+  family           Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  invitedByUserId  String
+  invitedBy        User      @relation("FamilyInviteInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  inviteCode       String    @unique
+  inviteEmail      String?
+  role             String    @default("admin")
+  status           String    @default("pending")
+  expiresAt        DateTime
+  acceptedByUserId String?
+  acceptedBy       User?     @relation("FamilyInviteAcceptor", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  acceptedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([familyId, status])
+  @@index([inviteCode, status])
 }
 
 model Child {
@@ -234,14 +280,23 @@ model PolicyChange {
 }
 
 model McpToken {
-  id          String    @id @default(cuid())
-  familyId    String
-  tokenHash   String    @unique
-  tokenCipher String?
-  name        String?
-  status      String    @default("active")
-  createdAt   DateTime  @default(now())
-  revokedAt   DateTime?
+  id             String        @id @default(cuid())
+  familyId       String
+  family         Family        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyMemberId String?
+  familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
+  tokenHash      String        @unique
+  tokenCipher    String?
+  name           String?
+  status         String        @default("active")
+  lastUsedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  revokedAt      DateTime?
+
+  @@index([familyId, userId, status])
+  @@index([familyMemberId])
 }
 
 model QuestionType {

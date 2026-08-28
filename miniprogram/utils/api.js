@@ -17,6 +17,11 @@ const api = {
   me: () => request({ url: "/api/auth/me" }),
   home: () => request({ url: "/api/home" }),
   settings: () => request({ url: "/api/settings" }),
+  familyMembers: () => request({ url: "/api/family/members" }),
+  createFamilyInvite: (data) => request({ url: "/api/family/invites", method: "POST", data }),
+  acceptFamilyInvite: (data) => request({ url: "/api/family/invites/accept", method: "POST", data }),
+  cancelFamilyInvite: (id) => request({ url: `/api/family/invites/${id}`, method: "DELETE" }),
+  removeFamilyMember: (id) => request({ url: `/api/family/members/${id}`, method: "DELETE" }),
 
   listChildren: () => request({ url: "/api/children" }),
   createChild: (data) => request({ url: "/api/children", method: "POST", data }),

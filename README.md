@@ -108,7 +108,7 @@ PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
 3. 在 WorkBuddy 配置同一个 `family-edu-mcp`；
 4. 首次使用时让 WorkBuddy 调用 `get_sync_spec` 读取最新版规范。
 
-远程 MCP 地址：`http://49.234.4.212/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
+远程 MCP 地址：`https://edu.skillstores.com/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
 
 题库工作流：
 

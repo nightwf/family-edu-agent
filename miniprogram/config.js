@@ -1,5 +1,5 @@
 module.exports = {
-  baseUrl: "http://49.234.4.212/family-edu",
+  baseUrl: "https://edu.skillstores.com/family-edu",
   devMode: true,
   defaultInviteCode: "HE-2026"
 };

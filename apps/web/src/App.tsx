@@ -26,6 +26,16 @@ type Homework = { id: string; childId: string; subject?: string; title: string; 
 type Knowledge = { id: string; childId: string; kind: string; title: string; content: string; createdAt: string };
 type Textbook = { id: string; childId: string; title: string; subject?: string; publisher?: string; version?: string; status: string };
 type HomeData = { children: Child[]; reports: any[]; textbooks: Textbook[]; knowledge: Knowledge[]; homework: Homework[]; stats: any };
+type SettingsData = {
+  workbuddy_prompt?: string;
+  mcp_token?: string;
+  user?: any;
+  family?: any;
+  member?: any;
+  members?: any[];
+  invites?: any[];
+  child_count?: number;
+};
 
 const PAGES = [
   { id: "home", label: "首页", icon: LayoutDashboard },
@@ -65,7 +75,7 @@ function App() {
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [textbookDialog, setTextbookDialog] = useState(false);
   const [reportData, setReportData] = useState<{ records: any[]; reports: any[]; growth: any[] } | null>(null);
-  const [settings, setSettings] = useState<{ workbuddy_prompt?: string; mcp_token?: string; user?: any; family?: any; child_count?: number } | null>(null);
+  const [settings, setSettings] = useState<SettingsData | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [policies, setPolicies] = useState<any[]>([]);
@@ -255,6 +265,41 @@ function App() {
       method: "POST",
       body: JSON.stringify({ action }),
     }, token);
+    await load();
+  }
+
+  async function createFamilyInvite(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const invite = await request("/api/family/invites", {
+      method: "POST",
+      body: JSON.stringify({ email: form.get("email") }),
+    }, token);
+    await navigator.clipboard?.writeText(invite.inviteCode).catch(() => {});
+    (event.currentTarget as HTMLFormElement).reset();
+    await load();
+  }
+
+  async function cancelFamilyInvite(inviteId: string) {
+    if (!window.confirm("确定取消这个家庭邀请吗？")) return;
+    await request(`/api/family/invites/${inviteId}`, { method: "DELETE" }, token);
+    await load();
+  }
+
+  async function removeFamilyMember(member: any) {
+    if (!window.confirm(`确定移除“${member.user?.email || "这个管理者"}”吗？`)) return;
+    await request(`/api/family/members/${member.id}`, { method: "DELETE" }, token);
+    await load();
+  }
+
+  async function acceptFamilyInvite(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const data = await request("/api/family/invites/accept", {
+      method: "POST",
+      body: JSON.stringify({ inviteCode: form.get("inviteCode") }),
+    }, token);
+    saveToken(data.token);
     await load();
   }
 
@@ -456,8 +501,59 @@ function App() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between"><span className="text-stone-500">登录邮箱</span><span>{settings?.user?.email || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-stone-500">家庭编号</span><span>{settings?.family?.id || "-"}</span></div>
-                <div className="flex justify-between"><span className="text-stone-500">账号类型</span><span>邀请码注册</span></div>
+                <div className="flex justify-between"><span className="text-stone-500">家庭角色</span><span>{settings?.member?.role === "owner" ? "创建者" : "管理者"}</span></div>
                 <div className="flex justify-between"><span className="text-stone-500">孩子数量</span><span>{settings?.child_count || 0} 个</span></div>
+              </div>
+              <div className="mt-6 rounded-lg border border-stone-200 bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">家庭管理者</h3>
+                    <p className="mt-1 text-sm text-stone-500">多个账号可以共同查看和管理同一个家庭数据。</p>
+                  </div>
+                  <span className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">{settings?.members?.length || 0} 人</span>
+                </div>
+                <div className="mt-4 divide-y divide-stone-100">
+                  {(settings?.members || []).map((member) => (
+                    <div key={member.id} className="flex items-center justify-between gap-4 py-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{member.user?.wechatNickname || member.user?.email || "未命名账号"}</div>
+                        <div className="mt-1 text-xs text-stone-500">{member.role === "owner" ? "创建者" : "管理者"} · {member.joinedAt ? member.joinedAt.slice(0, 10) : "待同步"}</div>
+                      </div>
+                      {settings?.member?.role === "owner" && member.role !== "owner" ? (
+                        <button onClick={() => removeFamilyMember(member)} className="shrink-0 rounded-lg border border-accent px-3 py-1 text-sm text-accent">移除</button>
+                      ) : (
+                        <span className="shrink-0 rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-500">{member.role === "owner" ? "创建者" : "管理者"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {settings?.member?.role === "owner" && (
+                  <form onSubmit={createFamilyInvite} className="mt-4 grid gap-2 border-t border-stone-100 pt-4 md:grid-cols-[1fr_auto]">
+                    <input name="email" className="rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="对方邮箱，可不填" />
+                    <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm text-white"><Plus size={16} />生成家庭邀请码</button>
+                  </form>
+                )}
+                {(settings?.invites || []).length > 0 && (
+                  <div className="mt-4 space-y-2 border-t border-stone-100 pt-4">
+                    <div className="text-sm font-semibold text-stone-500">待接受邀请</div>
+                    {(settings?.invites || []).map((invite) => (
+                      <div key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                        <div>
+                          <code className="font-semibold">{invite.inviteCode}</code>
+                          <div className="mt-1 text-xs text-stone-500">{invite.inviteEmail || "未限定邮箱"} · {invite.expiresAt?.slice(0, 10)} 到期</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => navigator.clipboard?.writeText(invite.inviteCode)} className="rounded-lg border border-stone-200 px-3 py-1">复制</button>
+                          {settings?.member?.role === "owner" && <button type="button" onClick={() => cancelFamilyInvite(invite.id)} className="rounded-lg border border-accent px-3 py-1 text-accent">取消</button>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={acceptFamilyInvite} className="mt-4 grid gap-2 border-t border-stone-100 pt-4 md:grid-cols-[1fr_auto]">
+                  <input name="inviteCode" className="rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="输入别人发来的家庭邀请码" />
+                  <button className="rounded-lg border border-teal px-4 py-2 text-sm text-teal">加入对方家庭</button>
+                </form>
               </div>
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">

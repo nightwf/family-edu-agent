@@ -1,76 +1,72 @@
-<view class="page">
+<page-meta page-style="{{question || questionEdit || questionType || typeFormVisible || masteryEdit || wrong || wrongEdit || wrongStatus || paper || plan || textbookFormVisible || homeworkFormVisible || knowledgeFormVisible ? 'overflow: hidden;' : ''}}" />
+
+<view class="page learning-page">
   <view wx:if="{{error}}" class="error-tip">{{error}}</view>
 
-  <view class="panel top-panel">
-    <scroll-view scroll-x class="module-tabs">
-      <view class="module-tab {{module === 'questions' ? 'active' : ''}}" data-module="questions" bindtap="switchModule">题库</view>
-      <view class="module-tab {{module === 'wrong' ? 'active' : ''}}" data-module="wrong" bindtap="switchModule">错题本</view>
-      <view class="module-tab {{module === 'textbooks' ? 'active' : ''}}" data-module="textbooks" bindtap="switchModule">教材</view>
-      <view class="module-tab {{module === 'homework' ? 'active' : ''}}" data-module="homework" bindtap="switchModule">作业</view>
-      <view class="module-tab {{module === 'knowledge' ? 'active' : ''}}" data-module="knowledge" bindtap="switchModule">知识库</view>
-    </scroll-view>
-    <view class="filter-grid">
+  <view class="page-heading">
+    <view class="page-eyebrow">家庭学习资料</view>
+    <view class="title">学习中心</view>
+    <view class="page-subtitle">题目、错题、教材和作业集中查看</view>
+  </view>
+
+  <scroll-view scroll-x class="module-scroll" enhanced show-scrollbar="{{false}}">
+    <view class="module-tabs">
+      <view class="module-tab {{module === 'questions' ? 'active' : ''}}" data-module="questions" bindtap="switchModule"><view class="module-icon">题</view><text>题库</text><view class="module-caption">题型规则</view></view>
+      <view class="module-tab {{module === 'wrong' ? 'active' : ''}}" data-module="wrong" bindtap="switchModule"><view class="module-icon coral">错</view><text>错题本</text><view class="module-caption">专项突破</view></view>
+      <view class="module-tab {{module === 'textbooks' ? 'active' : ''}}" data-module="textbooks" bindtap="switchModule"><view class="module-icon gold">书</view><text>教材</text><view class="module-caption">章节知识</view></view>
+      <view class="module-tab {{module === 'homework' ? 'active' : ''}}" data-module="homework" bindtap="switchModule"><view class="module-icon">作</view><text>作业</text><view class="module-caption">日常记录</view></view>
+      <view class="module-tab {{module === 'knowledge' ? 'active' : ''}}" data-module="knowledge" bindtap="switchModule"><view class="module-icon gold">知</view><text>知识库</text><view class="module-caption">家庭经验</view></view>
+    </view>
+  </scroll-view>
+
+  <view class="filter-panel">
+    <view class="filter-selects">
       <picker mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
-        <view class="filter-value">{{childNames[childIndex] || '全部孩子'}}</view>
+        <view class="filter-value"><text>{{childNames[childIndex] || '全部孩子'}}</text><text class="filter-arrow">⌄</text></view>
       </picker>
       <picker mode="selector" range="{{subjectOptions}}" value="{{subjectIndex}}" bindchange="onSubjectChange">
-        <view class="filter-value">{{subjectOptions[subjectIndex]}}</view>
+        <view class="filter-value"><text>{{subjectOptions[subjectIndex]}}</text><text class="filter-arrow">⌄</text></view>
       </picker>
-      <view class="search-row">
-        <input class="search-input" placeholder="搜索" value="{{query}}" bindinput="onQuery" confirm-type="search" bindconfirm="search" />
-        <view class="search-btn" bindtap="search">查询</view>
-      </view>
+    </view>
+    <view class="search-row">
+      <view class="search-mark">⌕</view>
+      <input class="search-input" placeholder="搜索当前模块" value="{{query}}" bindinput="onQuery" confirm-type="search" bindconfirm="search" />
+      <view class="search-btn" bindtap="search">搜索</view>
     </view>
   </view>
 
   <block wx:if="{{module === 'questions'}}">
     <view class="tabs">
       <view class="tab {{qTab === 'questions' ? 'active' : ''}}" data-tab="questions" bindtap="switchQTab">题目</view>
-      <view class="tab {{qTab === 'types' ? 'active' : ''}}" data-tab="types" bindtap="switchQTab">题型</view>
-      <view class="tab {{qTab === 'mastery' ? 'active' : ''}}" data-tab="mastery" bindtap="switchQTab">掌握</view>
+      <view class="tab {{qTab === 'types' ? 'active' : ''}}" data-tab="types" bindtap="switchQTab">题型分类</view>
+      <view class="tab {{qTab === 'mastery' ? 'active' : ''}}" data-tab="mastery" bindtap="switchQTab">学生掌握</view>
     </view>
 
     <block wx:if="{{qTab === 'questions'}}">
       <view wx:if="{{questions.length}}">
-        <view wx:for="{{questions}}" wx:key="id" class="card">
-          <view class="between">
-            <view class="tag-group">
-              <view class="tag tag-teal">{{item.questionTypeName}}</view>
-              <view class="tag">{{item.difficultyLabel}}</view>
-            </view>
-            <view class="actions">
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openQuestion">查看</view>
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openQuestionEdit">编辑</view>
-              <view class="danger-btn" data-id="{{item.id}}" bindtap="removeQuestion">删除</view>
-            </view>
+        <view wx:for="{{questions}}" wx:key="id" class="learning-card folder-card tappable" data-id="{{item.id}}" bindtap="openQuestion">
+          <view class="card-head">
+            <view class="tag-group"><view class="tag tag-teal">{{item.questionTypeName}}</view><view class="tag">{{item.difficultyLabel}}</view></view>
+            <view class="more-button" data-id="{{item.id}}" catchtap="openQuestionActions" aria-label="更多操作"></view>
           </view>
           <view class="question-stem">{{item.stem}}</view>
-          <view class="muted question-meta">{{item.variationType || '原始题'}} · {{item.tagsText}}</view>
+          <view class="question-meta">{{item.variationType || '原始题'}} · {{item.tagsText}}</view>
         </view>
       </view>
       <view wx:else class="empty">题库暂无题目，WorkBuddy 通过 MCP 录入后会显示在这里</view>
     </block>
 
     <block wx:if="{{qTab === 'types'}}">
-      <view class="between module-header">
-        <view class="title">题型分类</view>
-        <button class="btn btn-primary add-btn" bindtap="openTypeCreate">新建题型</button>
-      </view>
+      <view class="module-header"><view><view class="module-title">题型分类</view><view class="module-subtitle">管理解题方法和同题型生成规则</view></view><button class="add-btn" bindtap="openTypeCreate">＋ 新建</button></view>
       <view wx:if="{{questionTypes.length}}">
-        <view wx:for="{{questionTypes}}" wx:key="id" class="card">
-          <view class="between">
-            <view>
-              <view class="type-name">{{item.subject}} · {{item.name}}</view>
-              <view class="muted question-meta">{{item.grade || '全年级'}} · 规则 v{{item.ruleVersion}}</view>
-            </view>
-            <view class="actions">
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openQuestionType">详情</view>
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openTypeEdit">编辑</view>
-              <view class="danger-btn" data-id="{{item.id}}" bindtap="removeType">删除</view>
-            </view>
+        <view wx:for="{{questionTypes}}" wx:key="id" class="learning-card folder-card tappable" data-id="{{item.id}}" bindtap="openQuestionType">
+          <view class="card-head">
+            <view class="type-name">{{item.name}}</view>
+            <view class="subject-badge">{{item.subject}}</view>
+            <view class="more-button" data-id="{{item.id}}" catchtap="openTypeActions" aria-label="更多操作"></view>
           </view>
-          <view class="question-stem small">{{item.description || '尚未填写题型说明'}}</view>
-          <view class="muted question-meta">{{item.knowledgeText}} · {{item.questionCount}} 题</view>
+          <view class="question-meta">{{item.grade || '全年级'}} · 规则 v{{item.ruleVersion}} · {{item.questionCount}} 题</view>
+          <view class="question-copy">{{item.description || '尚未填写题型说明'}}</view>
         </view>
       </view>
       <view wx:else class="empty">暂无题型分类</view>
@@ -78,16 +74,14 @@
 
     <block wx:if="{{qTab === 'mastery'}}">
       <view wx:if="{{masteries.length}}">
-        <view wx:for="{{masteries}}" wx:key="id" class="card">
-          <view class="between">
-            <view>
-              <view class="type-name">{{item.childName}} · {{item.questionTypeName}}</view>
-              <view class="muted question-meta">{{item.questionType.subject}} · {{item.statusLabel}}</view>
-            </view>
-            <view class="icon-btn" data-id="{{item.id}}" bindtap="openMasteryEdit">调整</view>
+        <view wx:for="{{masteries}}" wx:key="id" class="learning-card folder-card">
+          <view class="card-head">
+            <view class="mastery-main"><view class="type-name">{{item.questionTypeName}}</view><view class="question-meta">{{item.childName}} · {{item.questionType.subject}}</view></view>
+            <view class="mastery-score">{{item.masteryScore}}</view>
+            <view class="more-button" data-id="{{item.id}}" catchtap="openMasteryActions" aria-label="更多操作"></view>
           </view>
+          <view class="mastery-status"><text>{{item.statusLabel}}</text><text>练习 {{item.totalAttempts}} 次 · 变式 {{item.variationCount}} 种</text></view>
           <view class="progress mastery-progress"><view class="progress-fill" style="width: {{item.scorePercent}}%;"></view></view>
-          <view class="muted question-meta">{{item.masteryScore}} 分 · 练习 {{item.totalAttempts}} 次 · 变式 {{item.variationCount}} 种</view>
         </view>
       </view>
       <view wx:else class="empty">暂无掌握证据</view>
@@ -97,65 +91,40 @@
   <block wx:if="{{module === 'wrong'}}">
     <view class="tabs">
       <view class="tab {{wTab === 'wrong' ? 'active' : ''}}" data-tab="wrong" bindtap="switchWTab">错题</view>
-      <view class="tab {{wTab === 'papers' ? 'active' : ''}}" data-tab="papers" bindtap="switchWTab">试卷</view>
-      <view class="tab {{wTab === 'plans' ? 'active' : ''}}" data-tab="plans" bindtap="switchWTab">规划</view>
+      <view class="tab {{wTab === 'papers' ? 'active' : ''}}" data-tab="papers" bindtap="switchWTab">练习试卷</view>
+      <view class="tab {{wTab === 'plans' ? 'active' : ''}}" data-tab="plans" bindtap="switchWTab">教学规划</view>
     </view>
-
     <block wx:if="{{wTab === 'wrong'}}">
       <view wx:if="{{wrongQuestions.length}}">
-        <view wx:for="{{wrongQuestions}}" wx:key="id" class="card">
-          <view class="between">
-            <view class="tag-group">
-              <view class="tag tag-teal">{{item.subject}}</view>
-              <view class="tag {{item.statusTone}}">{{item.statusLabel}}</view>
-            </view>
-            <view class="actions">
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openWrong">详情</view>
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openWrongEdit">编辑</view>
-              <view class="danger-btn" data-id="{{item.id}}" bindtap="removeWrong">删除</view>
-            </view>
+        <view wx:for="{{wrongQuestions}}" wx:key="id" class="learning-card folder-card tappable wrong-card" data-id="{{item.id}}" bindtap="openWrong">
+          <view class="card-head">
+            <view class="tag-group"><view class="tag tag-teal">{{item.subject}}</view><view class="tag {{item.statusTone}}">{{item.statusLabel}}</view></view>
+            <view class="mastery-score small">{{item.masteryScore}}</view>
+            <view class="more-button" data-id="{{item.id}}" catchtap="openWrongActions" aria-label="更多操作"></view>
           </view>
           <view class="question-stem">{{item.question.stem}}</view>
-          <view class="muted question-meta">{{item.childName}} · {{item.knowledgeText}} · 最近 {{item.lastWrongAtText}}</view>
+          <view class="question-meta">{{item.childName}} · {{item.knowledgeText}} · {{item.lastWrongAtText}}</view>
           <view class="progress mastery-progress"><view class="progress-fill" style="width: {{item.scorePercent}}%;"></view></view>
         </view>
       </view>
       <view wx:else class="empty">暂无错题，WorkBuddy 同步后会显示在这里</view>
     </block>
-
     <block wx:if="{{wTab === 'papers'}}">
       <view wx:if="{{papers.length}}">
-        <view wx:for="{{papers}}" wx:key="id" class="card">
-          <view class="between">
-            <view>
-              <view class="type-name">{{item.title}}</view>
-              <view class="muted question-meta">{{item.childName}} · {{item.subject || '综合'}} · {{item.statusLabel}}</view>
-            </view>
-            <view class="actions">
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openPaper">查看</view>
-              <view class="danger-btn" data-id="{{item.id}}" bindtap="removePaper">删除</view>
-            </view>
-          </view>
-          <view class="muted question-meta">{{item.questionCount}} 道题 · {{item.estimatedMinutes || '-'}} 分钟 · {{item.totalScore || '-'}} 分</view>
+        <view wx:for="{{papers}}" wx:key="id" class="learning-card folder-card tappable" data-id="{{item.id}}" bindtap="openPaper">
+          <view class="card-head"><view class="type-name">{{item.title}}</view><view class="pill">{{item.statusLabel}}</view><view class="more-button" data-id="{{item.id}}" catchtap="openPaperActions" aria-label="更多操作"></view></view>
+          <view class="question-meta">{{item.childName}} · {{item.subject || '综合'}}</view>
+          <view class="paper-stats"><view><text>{{item.questionCount}}</text> 道题</view><view><text>{{item.estimatedMinutes || '-'}}</text> 分钟</view><view><text>{{item.totalScore || '-'}}</text> 分</view></view>
         </view>
       </view>
       <view wx:else class="empty">暂无针对性试卷</view>
     </block>
-
     <block wx:if="{{wTab === 'plans'}}">
       <view wx:if="{{plans.length}}">
-        <view wx:for="{{plans}}" wx:key="id" class="card">
-          <view class="between">
-            <view>
-              <view class="type-name">{{item.title}}</view>
-              <view class="muted question-meta">{{item.childName}} · {{item.subject || '综合'}} · {{item.statusLabel}}</view>
-            </view>
-            <view class="actions">
-              <view class="icon-btn" data-id="{{item.id}}" bindtap="openPlan">查看</view>
-              <view class="danger-btn" data-id="{{item.id}}" bindtap="removePlan">删除</view>
-            </view>
-          </view>
-          <view class="muted question-meta">{{item.startText}} 至 {{item.endText}} · {{item.taskCount}} 个任务</view>
+        <view wx:for="{{plans}}" wx:key="id" class="learning-card folder-card tappable" data-id="{{item.id}}" bindtap="openPlan">
+          <view class="card-head"><view class="type-name">{{item.title}}</view><view class="pill">{{item.statusLabel}}</view><view class="more-button" data-id="{{item.id}}" catchtap="openPlanActions" aria-label="更多操作"></view></view>
+          <view class="question-meta">{{item.childName}} · {{item.subject || '综合'}}</view>
+          <view class="plan-period">{{item.startText}} 至 {{item.endText}}<text>{{item.taskCount}} 个任务</text></view>
         </view>
       </view>
       <view wx:else class="empty">暂无错题教学规划</view>
@@ -163,68 +132,34 @@
   </block>
 
   <block wx:if="{{module === 'textbooks'}}">
-    <view class="between module-header">
-      <view class="title">教材库</view>
-      <button class="btn btn-primary add-btn" bindtap="openTextbookCreate">导入教材</button>
-    </view>
+    <view class="module-header"><view><view class="module-title">教材库</view><view class="module-subtitle">查看识别状态和教材版本</view></view><button class="add-btn" bindtap="openTextbookCreate">＋ 导入</button></view>
     <view wx:if="{{textbooks.length}}">
-      <view wx:for="{{textbooks}}" wx:key="id" class="card">
-        <view class="between">
-          <view>
-            <view class="type-name">{{item.title}}</view>
-            <view class="muted question-meta">{{item.childName}} · {{item.subject || '未设学科'}} · {{item.statusLabel}}</view>
-          </view>
-          <view class="actions">
-            <view class="icon-btn" data-id="{{item.id}}" bindtap="openTextbookEdit">编辑</view>
-            <view class="danger-btn" data-id="{{item.id}}" bindtap="removeTextbook">删除</view>
-          </view>
-        </view>
-        <view class="muted question-meta">{{item.publisher || '未设出版社'}} · {{item.version || '未设版本'}}</view>
+      <view wx:for="{{textbooks}}" wx:key="id" class="learning-card folder-card resource-card">
+        <view class="resource-cover">书</view><view class="resource-content"><view class="card-head"><view class="type-name">{{item.title}}</view><view class="pill">{{item.statusLabel}}</view><view class="more-button" data-id="{{item.id}}" catchtap="openTextbookActions" aria-label="更多操作"></view></view><view class="question-meta">{{item.childName}} · {{item.subject || '未设学科'}}</view><view class="resource-version">{{item.publisher || '未设出版社'}} · {{item.version || '未设版本'}}</view></view>
       </view>
     </view>
     <view wx:else class="empty">暂无教材</view>
   </block>
 
   <block wx:if="{{module === 'homework'}}">
-    <view class="between module-header">
-      <view class="title">家庭作业</view>
-      <button class="btn btn-primary add-btn" bindtap="openHomeworkCreate">新增作业</button>
-    </view>
+    <view class="module-header"><view><view class="module-title">家庭作业</view><view class="module-subtitle">按孩子记录日常完成情况</view></view><button class="add-btn" bindtap="openHomeworkCreate">＋ 新增</button></view>
     <view wx:if="{{homework.length}}">
-      <view wx:for="{{homework}}" wx:key="id" class="card">
-        <view class="between">
-          <view>
-            <view class="type-name">{{item.title}}</view>
-            <view class="muted question-meta">{{item.childName}} · {{item.subject || '未设学科'}} · {{item.dueText}}</view>
-          </view>
-          <view class="pill {{item.statusTone}}">{{item.statusLabel}}</view>
-        </view>
-        <view wx:if="{{item.description}}" class="question-stem small">{{item.description}}</view>
-        <view class="actions homework-actions">
-          <view wx:if="{{item.status !== 'done'}}" class="icon-btn" data-id="{{item.id}}" bindtap="completeHomework">完成</view>
-          <view class="icon-btn" data-id="{{item.id}}" bindtap="openHomeworkEdit">编辑</view>
-          <view class="danger-btn" data-id="{{item.id}}" bindtap="removeHomework">删除</view>
-        </view>
+      <view wx:for="{{homework}}" wx:key="id" class="learning-card folder-card">
+        <view class="card-head"><view class="type-name">{{item.title}}</view><view class="pill {{item.statusTone}}">{{item.statusLabel}}</view><view class="more-button" data-id="{{item.id}}" catchtap="openHomeworkActions" aria-label="更多操作"></view></view>
+        <view class="question-meta">{{item.childName}} · {{item.subject || '未设学科'}} · 截止 {{item.dueText}}</view>
+        <view wx:if="{{item.description}}" class="question-copy">{{item.description}}</view>
       </view>
     </view>
     <view wx:else class="empty">暂无家庭作业</view>
   </block>
 
   <block wx:if="{{module === 'knowledge'}}">
-    <view class="between module-header">
-      <view class="title">知识库</view>
-      <button class="btn btn-primary add-btn" bindtap="openKnowledgeCreate">新增内容</button>
-    </view>
+    <view class="module-header"><view><view class="module-title">家庭知识库</view><view class="module-subtitle">沉淀总结、报告和教育建议</view></view><button class="add-btn" bindtap="openKnowledgeCreate">＋ 新增</button></view>
     <view wx:if="{{knowledge.length}}">
-      <view wx:for="{{knowledge}}" wx:key="id" class="card">
-        <view class="between">
-          <view>
-            <view class="type-name">{{item.title}}</view>
-            <view class="muted question-meta">{{item.childName}} · {{item.kind}} · {{item.dateText}}</view>
-          </view>
-          <view class="danger-btn" data-id="{{item.id}}" bindtap="removeKnowledge">删除</view>
-        </view>
-        <view class="question-stem small">{{item.content}}</view>
+      <view wx:for="{{knowledge}}" wx:key="id" class="learning-card folder-card">
+        <view class="card-head"><view class="type-name">{{item.title}}</view><view class="subject-badge">{{item.kind}}</view><view class="more-button" data-id="{{item.id}}" catchtap="openKnowledgeActions" aria-label="更多操作"></view></view>
+        <view class="question-meta">{{item.childName}} · {{item.dateText}}</view>
+        <view class="question-copy knowledge-copy">{{item.content}}</view>
       </view>
     </view>
     <view wx:else class="empty">暂无知识库内容</view>
@@ -237,12 +172,16 @@
         <view class="modal-close" bindtap="closeQuestion">×</view>
       </view>
       <view class="tag-group"><view class="tag tag-teal">{{question.questionTypeName}}</view><view class="tag">{{question.difficultyLabel}}</view></view>
-      <view class="detail-stem">{{question.stem}}</view>
-      <view class="detail-label">标准答案</view>
-      <text class="detail-text">{{question.answerText}}</text>
+      <view class="detail-stem paper-question-stem">{{question.stem}}</view>
+      <view class="paper-block answer-block">
+        <view class="detail-label">标准答案</view>
+        <text class="detail-text paper-text">{{question.answerText}}</text>
+      </view>
       <view class="divider"></view>
-      <view class="detail-label">解题过程</view>
-      <text class="detail-text">{{question.solutionText}}</text>
+      <view class="paper-block">
+        <view class="detail-label">解题过程</view>
+        <text class="detail-text paper-text">{{question.solutionText}}</text>
+      </view>
       <view class="divider"></view>
       <view class="detail-label">作答记录</view>
       <view wx:if="{{question.attempts.length}}">
@@ -327,16 +266,16 @@
     <view class="modal" catchtap="noop">
       <view class="modal-header"><view class="modal-title">错题详情</view><view class="modal-close" bindtap="closeWrong">×</view></view>
       <view class="tag-group"><view class="tag tag-teal">{{wrong.subject}}</view><view class="tag {{wrong.statusTone}}">{{wrong.statusLabel}}</view></view>
-      <view class="detail-stem">{{wrong.question.stem}}</view>
-      <view class="detail-label">错误答案</view><text class="detail-text">{{wrong.wrongAnswerText}}</text>
+      <view class="detail-stem paper-question-stem">{{wrong.question.stem}}</view>
+      <view class="paper-block wrong-answer-block"><view class="detail-label">错误答案</view><text class="detail-text paper-text">{{wrong.wrongAnswerText}}</text></view>
       <view class="divider"></view>
-      <view class="detail-label">错误原因</view><text class="detail-text">{{wrong.errorReason || '待补充'}}</text>
+      <view class="paper-block"><view class="detail-label">错误原因</view><text class="detail-text paper-text">{{wrong.errorReason || '待补充'}}</text></view>
       <view class="divider"></view>
-      <view class="detail-label">WorkBuddy 分析</view><text class="detail-text">{{wrong.workbuddyAnalysis || '待补充'}}</text>
+      <view class="paper-block"><view class="detail-label">WorkBuddy 分析</view><text class="detail-text paper-text">{{wrong.workbuddyAnalysis || '待补充'}}</text></view>
       <view class="divider"></view>
-      <view class="detail-label">订正方法</view><text class="detail-text">{{wrong.correctionMethod || '待补充'}}</text>
+      <view class="paper-block"><view class="detail-label">订正方法</view><text class="detail-text paper-text">{{wrong.correctionMethod || '待补充'}}</text></view>
       <view class="divider"></view>
-      <view class="detail-label">关键学习点</view><text class="detail-text">{{wrong.keyLearningPoint || '待补充'}}</text>
+      <view class="paper-block"><view class="detail-label">关键学习点</view><text class="detail-text paper-text">{{wrong.keyLearningPoint || '待补充'}}</text></view>
       <view class="divider"></view>
       <view class="between"><text class="detail-label">掌握分</text><text class="score-text">{{wrong.masteryScore}} 分</text></view>
       <view class="progress mastery-progress"><view class="progress-fill" style="width: {{wrong.masteryScore}}%;"></view></view>

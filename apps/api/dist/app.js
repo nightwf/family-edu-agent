@@ -17,15 +17,30 @@ import { recommendEducationMethods, EDUCATION_METHODS } from "./education-method
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
+import { createInviteCode, ensureFamilyMember, getActiveFamilyMember, listFamilyMembers, listPendingInvites, normalizeEmail, requireOwner, } from "./family-members.js";
 async function requireAuth(request, reply) {
     try {
         await request.jwtVerify();
+        const payload = request.user;
+        if (!payload?.sub || !payload?.familyId) {
+            return reply.code(401).send({ error: "未登录或登录已过期" });
+        }
+        const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { familyId: true } });
+        if (!user || user.familyId !== payload.familyId) {
+            return reply.code(403).send({ error: "当前账号已切换家庭，请重新登录" });
+        }
+        const member = await getActiveFamilyMember(payload.familyId, payload.sub);
+        if (!member) {
+            await ensureFamilyMember(payload.familyId, payload.sub, "owner");
+            return;
+        }
     }
     catch (_error) {
         return reply.code(401).send({ error: "未登录或登录已过期" });
     }
 }
 async function createSessionResponse(app, user) {
+    await ensureFamilyMember(user.familyId, user.id, "owner");
     const refresh = createRefreshTokenHash();
     await prisma.session.create({
         data: {
@@ -36,11 +51,37 @@ async function createSessionResponse(app, user) {
     });
     const family = await prisma.family.findUnique({ where: { id: user.familyId } });
     const token = app.jwt.sign({ sub: user.id, familyId: user.familyId });
-    return { token, refreshToken: refresh.token, user, family };
+    const member = await getActiveFamilyMember(user.familyId, user.id);
+    return { token, refreshToken: refresh.token, user, family, member };
 }
 function getAuth(request) {
     const payload = request.user;
     return { id: payload.sub, familyId: payload.familyId };
+}
+async function getValidFamilyInvite(code) {
+    if (!code)
+        return null;
+    if (!code.startsWith("HEYAFAM-"))
+        return null;
+    const invite = await prisma.familyInvite.findUnique({ where: { inviteCode: code } });
+    if (!invite || invite.status !== "pending" || invite.expiresAt.getTime() < Date.now())
+        return null;
+    return invite;
+}
+async function acceptFamilyInvite(inviteId, userId) {
+    const invite = await prisma.familyInvite.findUnique({ where: { id: inviteId } });
+    if (!invite)
+        return null;
+    await ensureFamilyMember(invite.familyId, userId, invite.role === "owner" ? "owner" : "admin");
+    await prisma.familyInvite.update({
+        where: { id: invite.id },
+        data: {
+            status: "accepted",
+            acceptedByUserId: userId,
+            acceptedAt: new Date(),
+        },
+    });
+    return invite;
 }
 export async function buildApp() {
     const app = Fastify({ logger: true });
@@ -55,19 +96,23 @@ export async function buildApp() {
     app.get("/api/health", async () => ({ ok: true, service: "family-edu-agent" }));
     app.post("/api/auth/register", async (request, reply) => {
         const { inviteCode, email, password } = request.body;
-        if (!env.INVITE_CODES.has(String(inviteCode || "").trim())) {
+        const code = String(inviteCode || "").trim();
+        const familyInvite = await getValidFamilyInvite(code);
+        if (!familyInvite && !env.INVITE_CODES.has(code))
             return reply.code(400).send({ error: "邀请码无效" });
-        }
-        const normalizedEmail = String(email || "").trim().toLowerCase();
+        const normalizedEmail = normalizeEmail(email);
         if (!normalizedEmail || String(password || "").length < 6) {
             return reply.code(400).send({ error: "请填写有效邮箱和至少 6 位密码" });
+        }
+        if (familyInvite?.inviteEmail && familyInvite.inviteEmail !== normalizedEmail) {
+            return reply.code(403).send({ error: "当前邮箱与家庭邀请对象不一致" });
         }
         const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (existing)
             return reply.code(409).send({ error: "该邮箱已注册" });
-        const family = await prisma.family.create({
-            data: { name: "我的家庭", inviteCode: String(inviteCode).trim() },
-        });
+        const family = familyInvite
+            ? await prisma.family.findUniqueOrThrow({ where: { id: familyInvite.familyId } })
+            : await prisma.family.create({ data: { name: "我的家庭", inviteCode: code } });
         const user = await prisma.user.create({
             data: {
                 familyId: family.id,
@@ -75,26 +120,21 @@ export async function buildApp() {
                 passwordHash: await hashPassword(String(password)),
             },
         });
-        const token = app.jwt.sign({ sub: user.id, familyId: user.familyId });
-        return reply.code(201).send({ token, user, family });
+        if (familyInvite) {
+            await acceptFamilyInvite(familyInvite.id, user.id);
+        }
+        else {
+            await ensureFamilyMember(family.id, user.id, "owner");
+        }
+        return reply.code(201).send(await createSessionResponse(app, user));
     });
     app.post("/api/auth/login", async (request, reply) => {
         const { email, password } = request.body;
-        const user = await prisma.user.findUnique({ where: { email: String(email || "").trim().toLowerCase() } });
+        const user = await prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
         if (!user || !(await verifyPassword(String(password || ""), user.passwordHash))) {
             return reply.code(401).send({ error: "邮箱或密码错误" });
         }
-        const refresh = createRefreshTokenHash();
-        await prisma.session.create({
-            data: {
-                userId: user.id,
-                refreshTokenHash: refresh.hash,
-                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            },
-        });
-        const family = await prisma.family.findUnique({ where: { id: user.familyId } });
-        const token = app.jwt.sign({ sub: user.id, familyId: user.familyId });
-        return { token, refreshToken: refresh.token, user, family };
+        return createSessionResponse(app, user);
     });
     app.post("/api/auth/wechat/login", async (request, reply) => {
         try {
@@ -138,7 +178,7 @@ export async function buildApp() {
             if (!payload?.openid)
                 return reply.code(400).send({ error: "微信绑定凭证无效" });
             if (mode === "existing") {
-                const normalizedEmail = String(email || "").trim().toLowerCase();
+                const normalizedEmail = normalizeEmail(email);
                 const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
                 if (!user || !(await verifyPassword(String(password || ""), user.passwordHash))) {
                     return reply.code(401).send({ error: "邮箱或密码错误" });
@@ -156,12 +196,16 @@ export async function buildApp() {
                 });
                 return createSessionResponse(app, user);
             }
-            if (!env.INVITE_CODES.has(String(inviteCode || "").trim())) {
+            const code = String(inviteCode || "").trim();
+            const familyInvite = await getValidFamilyInvite(code);
+            if (!familyInvite && !env.INVITE_CODES.has(code))
                 return reply.code(400).send({ error: "邀请码无效" });
-            }
-            const normalizedEmail = String(email || "").trim().toLowerCase();
+            const normalizedEmail = normalizeEmail(email);
             if (!normalizedEmail || String(password || "").length < 6) {
                 return reply.code(400).send({ error: "请填写有效邮箱和至少 6 位密码" });
+            }
+            if (familyInvite?.inviteEmail && familyInvite.inviteEmail !== normalizedEmail) {
+                return reply.code(403).send({ error: "当前邮箱与家庭邀请对象不一致" });
             }
             const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
             if (existing)
@@ -169,9 +213,9 @@ export async function buildApp() {
             const claimed = await prisma.user.findUnique({ where: { wechatOpenId: payload.openid } });
             if (claimed)
                 return reply.code(409).send({ error: "该微信已绑定其他账号" });
-            const family = await prisma.family.create({
-                data: { name: "我的家庭", inviteCode: String(inviteCode).trim() },
-            });
+            const family = familyInvite
+                ? await prisma.family.findUniqueOrThrow({ where: { id: familyInvite.familyId } })
+                : await prisma.family.create({ data: { name: "我的家庭", inviteCode: code } });
             const user = await prisma.user.create({
                 data: {
                     familyId: family.id,
@@ -182,6 +226,12 @@ export async function buildApp() {
                     lastWechatLoginAt: new Date(),
                 },
             });
+            if (familyInvite) {
+                await acceptFamilyInvite(familyInvite.id, user.id);
+            }
+            else {
+                await ensureFamilyMember(family.id, user.id, "owner");
+            }
             return createSessionResponse(app, user);
         }
         catch (error) {
@@ -236,6 +286,7 @@ export async function buildApp() {
         });
         if (!session)
             return reply.code(401).send({ error: "refreshToken 无效或已过期" });
+        await ensureFamilyMember(session.user.familyId, session.user.id, "owner");
         const token = app.jwt.sign({ sub: session.user.id, familyId: session.user.familyId });
         return { token };
     });
@@ -245,7 +296,105 @@ export async function buildApp() {
             prisma.user.findUnique({ where: { id: auth.id } }),
             prisma.family.findUnique({ where: { id: auth.familyId } }),
         ]);
-        return { user, family };
+        const member = await getActiveFamilyMember(auth.familyId, auth.id);
+        return { user, family, member };
+    });
+    app.get("/api/family/members", { preHandler: requireAuth }, async (request) => {
+        const auth = getAuth(request);
+        const [members, invites, currentMember] = await Promise.all([
+            listFamilyMembers(auth.familyId),
+            listPendingInvites(auth.familyId),
+            getActiveFamilyMember(auth.familyId, auth.id),
+        ]);
+        return { members, invites, current_member: currentMember };
+    });
+    app.post("/api/family/invites", { preHandler: requireAuth }, async (request, reply) => {
+        const auth = getAuth(request);
+        if (!(await requireOwner(auth.familyId, auth.id))) {
+            return reply.code(403).send({ error: "只有家庭创建者可以邀请管理者" });
+        }
+        const body = request.body;
+        const inviteEmail = normalizeEmail(body.email);
+        const role = body.role === "owner" ? "admin" : "admin";
+        const invite = await prisma.familyInvite.create({
+            data: {
+                familyId: auth.familyId,
+                invitedByUserId: auth.id,
+                inviteCode: createInviteCode(),
+                inviteEmail: inviteEmail || null,
+                role,
+                status: "pending",
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+        });
+        return reply.code(201).send({
+            ...invite,
+            accept_path: `/pages/login/login?family_invite=${invite.inviteCode}`,
+            accept_url: `/family-edu/?family_invite=${invite.inviteCode}`,
+        });
+    });
+    app.post("/api/family/invites/accept", { preHandler: requireAuth }, async (request, reply) => {
+        const auth = getAuth(request);
+        const code = String(request.body?.inviteCode || request.body?.invite_code || "").trim();
+        if (!code)
+            return reply.code(400).send({ error: "缺少家庭邀请 code" });
+        const invite = await prisma.familyInvite.findUnique({ where: { inviteCode: code } });
+        if (!invite || invite.status !== "pending" || invite.expiresAt.getTime() < Date.now()) {
+            return reply.code(400).send({ error: "家庭邀请无效或已过期" });
+        }
+        const user = await prisma.user.findUnique({ where: { id: auth.id } });
+        if (!user)
+            return reply.code(401).send({ error: "未登录或登录已过期" });
+        if (invite.inviteEmail && invite.inviteEmail !== normalizeEmail(user.email)) {
+            return reply.code(403).send({ error: "当前账号邮箱与邀请对象不一致" });
+        }
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: { familyId: invite.familyId },
+        });
+        await ensureFamilyMember(invite.familyId, user.id, invite.role === "owner" ? "owner" : "admin");
+        await prisma.familyInvite.update({
+            where: { id: invite.id },
+            data: {
+                status: "accepted",
+                acceptedByUserId: user.id,
+                acceptedAt: new Date(),
+            },
+        });
+        return createSessionResponse(app, updatedUser);
+    });
+    app.delete("/api/family/members/:memberId", { preHandler: requireAuth }, async (request, reply) => {
+        const auth = getAuth(request);
+        if (!(await requireOwner(auth.familyId, auth.id))) {
+            return reply.code(403).send({ error: "只有家庭创建者可以移除管理者" });
+        }
+        const { memberId } = request.params;
+        const member = await prisma.familyMember.findFirst({ where: { id: memberId, familyId: auth.familyId } });
+        if (!member)
+            return reply.code(404).send({ error: "家庭管理者不存在" });
+        if (member.role === "owner")
+            return reply.code(400).send({ error: "不能移除家庭创建者" });
+        await prisma.$transaction([
+            prisma.familyMember.update({ where: { id: member.id }, data: { status: "removed" } }),
+            prisma.mcpToken.updateMany({
+                where: { familyId: auth.familyId, userId: member.userId, status: "active" },
+                data: { status: "revoked", revokedAt: new Date() },
+            }),
+            prisma.session.updateMany({ where: { userId: member.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+        ]);
+        return { ok: true };
+    });
+    app.delete("/api/family/invites/:inviteId", { preHandler: requireAuth }, async (request, reply) => {
+        const auth = getAuth(request);
+        if (!(await requireOwner(auth.familyId, auth.id))) {
+            return reply.code(403).send({ error: "只有家庭创建者可以取消邀请" });
+        }
+        const { inviteId } = request.params;
+        const invite = await prisma.familyInvite.findFirst({ where: { id: inviteId, familyId: auth.familyId } });
+        if (!invite)
+            return reply.code(404).send({ error: "家庭邀请不存在" });
+        await prisma.familyInvite.update({ where: { id: invite.id }, data: { status: "cancelled" } });
+        return { ok: true };
     });
     app.get("/api/home", { preHandler: requireAuth }, async (request) => {
         const familyId = getAuth(request).familyId;
@@ -482,15 +631,21 @@ export async function buildApp() {
     });
     app.get("/api/settings", { preHandler: requireAuth }, async (request) => {
         const auth = getAuth(request);
-        const [user, family, childCount, mcpToken] = await Promise.all([
+        const [user, family, childCount, mcpToken, member, members, invites] = await Promise.all([
             prisma.user.findUnique({ where: { id: auth.id } }),
             prisma.family.findUnique({ where: { id: auth.familyId } }),
             prisma.child.count({ where: { familyId: auth.familyId } }),
-            getOrCreateFamilyMcpToken(auth.familyId),
+            getOrCreateFamilyMcpToken(auth.familyId, auth.id),
+            getActiveFamilyMember(auth.familyId, auth.id),
+            listFamilyMembers(auth.familyId),
+            listPendingInvites(auth.familyId),
         ]);
         return {
             user,
             family,
+            member,
+            members,
+            invites,
             child_count: childCount,
             mcp_token: mcpToken,
             workbuddy_prompt: mcpToken ? buildWorkbuddyPrompt(mcpToken) : "",

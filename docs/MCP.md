@@ -1,6 +1,6 @@
 # Family Education MCP 工具说明
 
-MCP 地址为 `http://49.234.4.212/family-edu/mcp`。每个家庭使用独立 `X-MCP-Token`，服务端只从 Token 获取 `familyId`，所有资源 ID 还会再次校验家庭归属。
+MCP 地址为 `https://edu.skillstores.com/family-edu/mcp`。每个家庭使用独立 `X-MCP-Token`，服务端只从 Token 获取 `familyId`，所有资源 ID 还会再次校验家庭归属。
 
 ## 错题工具
 

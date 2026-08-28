@@ -18,6 +18,10 @@ function textValue(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function actionEvent(id) {
+  return { currentTarget: { dataset: { id } } };
+}
+
 Page({
   data: {
     loading: false,
@@ -93,6 +97,11 @@ Page({
   },
 
   async onShow() {
+    const requestedModule = wx.getStorageSync("familyEduLearningModule");
+    if (["questions", "wrong", "textbooks", "homework", "knowledge"].includes(requestedModule)) {
+      this.setData({ module: requestedModule });
+      wx.removeStorageSync("familyEduLearningModule");
+    }
     await this.loadChildren();
   },
 
@@ -142,7 +151,8 @@ Page({
   },
 
   switchModule(event) {
-    this.setData({ module: event.currentTarget.dataset.module, error: "" });
+    const module = event.currentTarget.dataset.module;
+    this.setData({ module, error: "" });
     this.loadModule();
   },
 
@@ -402,6 +412,17 @@ Page({
     this.setData({ question: null });
   },
 
+  openQuestionActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["编辑题目", "删除题目"],
+      success: (res) => {
+        if (res.tapIndex === 0) this.openQuestionEdit(actionEvent(id));
+        if (res.tapIndex === 1) this.removeQuestion(actionEvent(id));
+      }
+    });
+  },
+
   openQuestionEdit(event) {
     const id = event.currentTarget.dataset.id;
     const item = this.data.questions.find((question) => question.id === id);
@@ -486,6 +507,17 @@ Page({
 
   closeQuestionType() {
     this.setData({ questionType: null });
+  },
+
+  openTypeActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["编辑题型", "删除题型"],
+      success: (res) => {
+        if (res.tapIndex === 0) this.openTypeEdit(actionEvent(id));
+        if (res.tapIndex === 1) this.removeType(actionEvent(id));
+      }
+    });
   },
 
   openTypeCreate() {
@@ -623,6 +655,14 @@ Page({
     this.setData({ masteryEdit: item });
   },
 
+  openMasteryActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["调整掌握度"],
+      success: () => this.openMasteryEdit(actionEvent(id))
+    });
+  },
+
   closeMasteryEdit() {
     this.setData({ masteryEdit: null });
   },
@@ -683,6 +723,17 @@ Page({
 
   closeWrong() {
     this.setData({ wrong: null });
+  },
+
+  openWrongActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["编辑错题", "删除错题"],
+      success: (res) => {
+        if (res.tapIndex === 0) this.openWrongEdit(actionEvent(id));
+        if (res.tapIndex === 1) this.removeWrong(actionEvent(id));
+      }
+    });
   },
 
   openWrongEdit(event) {
@@ -811,6 +862,14 @@ Page({
     this.setData({ paper: null });
   },
 
+  openPaperActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["删除试卷"],
+      success: () => this.removePaper(actionEvent(id))
+    });
+  },
+
   removePaper(event) {
     const id = event.currentTarget.dataset.id;
     wx.showModal({
@@ -857,6 +916,14 @@ Page({
     this.setData({ plan: null });
   },
 
+  openPlanActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["删除教学规划"],
+      success: () => this.removePlan(actionEvent(id))
+    });
+  },
+
   onTaskStatusChange(event) {
     const planId = event.currentTarget.dataset.planId;
     const taskId = event.currentTarget.dataset.taskId;
@@ -895,6 +962,17 @@ Page({
       textbookEditingId: "",
       textbookForm: { child_id: this.data.childId, title: "", subject: "", grade: "", publisher: "", version: "" },
       textbookFile: ""
+    });
+  },
+
+  openTextbookActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["编辑教材", "删除教材"],
+      success: (res) => {
+        if (res.tapIndex === 0) this.openTextbookEdit(actionEvent(id));
+        if (res.tapIndex === 1) this.removeTextbook(actionEvent(id));
+      }
     });
   },
 
@@ -992,6 +1070,21 @@ Page({
       homeworkFormVisible: true,
       homeworkEditingId: "",
       homeworkForm: { child_id: this.data.childId, subject: "", title: "", description: "", estimated_minutes: "", priority: "medium", due_date: "", status: "pending" }
+    });
+  },
+
+  openHomeworkActions(event) {
+    const id = event.currentTarget.dataset.id;
+    const item = this.data.homework.find((homework) => homework.id === id);
+    const itemList = item && item.status !== "done" ? ["标记完成", "编辑作业", "删除作业"] : ["编辑作业", "删除作业"];
+    wx.showActionSheet({
+      itemList,
+      success: (res) => {
+        const offset = itemList.length === 3 ? 0 : 1;
+        if (res.tapIndex === 0 && offset === 0) this.completeHomework(actionEvent(id));
+        if (res.tapIndex === 1 - offset) this.openHomeworkEdit(actionEvent(id));
+        if (res.tapIndex === 2 - offset) this.removeHomework(actionEvent(id));
+      }
     });
   },
 
@@ -1093,6 +1186,14 @@ Page({
 
   closeKnowledgeForm() {
     this.setData({ knowledgeFormVisible: false });
+  },
+
+  openKnowledgeActions(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showActionSheet({
+      itemList: ["删除内容"],
+      success: () => this.removeKnowledge(actionEvent(id))
+    });
   },
 
   onKnowledgeField(event) {

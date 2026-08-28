@@ -8,36 +8,46 @@
     "pages/settings/settings"
   ],
   "window": {
-    "navigationBarBackgroundColor": "#23353b",
+    "navigationBarBackgroundColor": "#0f766e",
     "navigationBarTextStyle": "white",
     "navigationBarTitleText": "禾芽家庭教务",
-    "backgroundColor": "#f6f0dc",
+    "backgroundColor": "#f7f1df",
     "backgroundTextStyle": "light"
   },
   "tabBar": {
-    "color": "#7a8a90",
+    "color": "#809095",
     "selectedColor": "#0f766e",
-    "backgroundColor": "#fffaf0",
-    "borderStyle": "white",
+    "backgroundColor": "#fffdf7",
+    "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/home/home",
+        "iconPath": "assets/tabbar/home-idle.png",
+        "selectedIconPath": "assets/tabbar/home-active.png",
         "text": "首页"
       },
       {
         "pagePath": "pages/students/students",
+        "iconPath": "assets/tabbar/students-idle.png",
+        "selectedIconPath": "assets/tabbar/students-active.png",
         "text": "学生"
       },
       {
         "pagePath": "pages/growth/growth",
+        "iconPath": "assets/tabbar/growth-idle.png",
+        "selectedIconPath": "assets/tabbar/growth-active.png",
         "text": "成长"
       },
       {
         "pagePath": "pages/learning/learning",
+        "iconPath": "assets/tabbar/learning-idle.png",
+        "selectedIconPath": "assets/tabbar/learning-active.png",
         "text": "学习"
       },
       {
         "pagePath": "pages/settings/settings",
+        "iconPath": "assets/tabbar/settings-idle.png",
+        "selectedIconPath": "assets/tabbar/settings-active.png",
         "text": "我的"
       }
     ]

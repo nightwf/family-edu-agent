@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>禾芽小程序首页效果稿</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #d9d0bd;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: #203238;
+    }
+    .phone {
+      width: 390px;
+      height: 844px;
+      overflow: hidden;
+      position: relative;
+      border-radius: 36px;
+      background: #f8f1df;
+      box-shadow: 0 24px 80px rgba(32, 50, 56, 0.28);
+    }
+    .status {
+      height: 46px;
+      padding: 12px 18px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      color: #fff;
+      background: #0f766e;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .capsule {
+      width: 74px;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border: 1px solid rgba(255,255,255,.45);
+      border-radius: 999px;
+      background: rgba(0,0,0,.08);
+    }
+    .dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; }
+    .ring { width: 14px; height: 14px; border: 3px solid #fff; border-radius: 50%; margin-left: 8px; }
+    .nav {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      background: #0f766e;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .content {
+      height: 686px;
+      overflow: hidden;
+      padding: 16px 16px 88px;
+      background:
+        radial-gradient(circle at 16% 4%, rgba(255,255,255,.84), rgba(255,255,255,0) 26%),
+        linear-gradient(180deg, #f8f1df 0%, #fffaf0 100%);
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .hello {
+      min-width: 0;
+    }
+    .hello small {
+      display: block;
+      color: #7d8b8f;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .hello strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+    .child-switch {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px 0 8px;
+      border: 1px solid #dbeee9;
+      border-radius: 999px;
+      background: rgba(255,255,255,.76);
+      color: #0f766e;
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: 0 8px 18px rgba(24, 92, 86, .07);
+    }
+    .avatar {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: #dff2ed;
+      color: #0f766e;
+      font-size: 12px;
+    }
+    .state-card {
+      position: relative;
+      overflow: hidden;
+      padding: 18px;
+      border-radius: 24px;
+      background: #0f766e;
+      color: #fff;
+      box-shadow: 0 18px 42px rgba(15, 118, 110, .22);
+    }
+    .state-card::after {
+      content: "";
+      position: absolute;
+      right: -26px;
+      top: -22px;
+      width: 128px;
+      height: 128px;
+      border-radius: 40px;
+      background: rgba(243, 201, 105, .18);
+      transform: rotate(20deg);
+    }
+    .state-head {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .state-label { color: #cfe4df; font-size: 12px; }
+    .state-date { color: #cfe4df; font-size: 12px; }
+    .state-title {
+      position: relative;
+      z-index: 1;
+      margin-top: 7px;
+      font-size: 24px;
+      line-height: 1.22;
+      font-weight: 900;
+    }
+    .state-summary {
+      position: relative;
+      z-index: 1;
+      margin-top: 10px;
+      width: 252px;
+      color: #e2f0ed;
+      font-size: 13px;
+      line-height: 1.62;
+    }
+    .state-row {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .mini-stat {
+      padding: 10px 8px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+    .mini-stat b { display: block; font-size: 18px; line-height: 1.1; }
+    .mini-stat span { display: block; margin-top: 4px; color: #cfe4df; font-size: 10px; }
+    .section {
+      margin-top: 18px;
+    }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 9px;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 17px;
+      font-weight: 900;
+    }
+    .section-title::before {
+      content: "";
+      width: 7px;
+      height: 18px;
+      border-radius: 999px;
+      background: #f3c969;
+    }
+    .section-link {
+      color: #0f766e;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .task-stack {
+      display: grid;
+      gap: 9px;
+    }
+    .task-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.86);
+      border: 1px solid #e8ddc5;
+      box-shadow: 0 10px 24px rgba(39, 54, 57, .05);
+    }
+    .task-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      border-radius: 15px;
+      background: #fff4cf;
+      color: #7b5b12;
+      font-size: 18px;
+      font-weight: 900;
+    }
+    .task-icon.coral { background: #ffe8df; color: #c9503a; }
+    .task-icon.mint { background: #e4f3ef; color: #0f766e; }
+    .task-main { flex: 1; min-width: 0; }
+    .task-name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .task-meta {
+      margin-top: 4px;
+      color: #7b898d;
+      font-size: 11px;
+    }
+    .task-status {
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: #f8f1df;
+      color: #7b898d;
+      font-size: 10px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .timeline {
+      position: relative;
+      padding-left: 11px;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      border-radius: 99px;
+      background: #e4d7bc;
+    }
+    .event {
+      position: relative;
+      margin-bottom: 10px;
+      padding: 12px 13px;
+      border: 1px solid #e8ddc5;
+      border-radius: 18px;
+      background: rgba(255,255,255,.82);
+      box-shadow: 0 8px 18px rgba(39, 54, 57, .04);
+    }
+    .event::before {
+      content: "";
+      position: absolute;
+      left: -13px;
+      top: 18px;
+      width: 8px;
+      height: 8px;
+      border: 2px solid #f8f1df;
+      border-radius: 50%;
+      background: #0f766e;
+    }
+    .event-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #7b898d;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .event-title {
+      margin-top: 5px;
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+    .event-text {
+      margin-top: 6px;
+      color: #52636a;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .bottom-tab {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 82px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      align-items: center;
+      padding: 7px 10px 18px;
+      border-top: 1px solid #e1d4bb;
+      background: rgba(255,253,247,.96);
+    }
+    .tab {
+      display: grid;
+      place-items: center;
+      gap: 4px;
+      color: #809095;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tab i {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      background: #edf3ed;
+      color: #6d9690;
+      font-style: normal;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .tab.active { color: #0f766e; }
+    .tab.active i { background: #dff2ed; color: #0f766e; }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <div class="status">
+      <span>09:41</span>
+      <div class="capsule"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="ring"></span></div>
+    </div>
+    <div class="nav">首页</div>
+
+    <section class="content">
+      <div class="topbar">
+        <div class="hello">
+          <small>今天重点看 JOJO 的学习变化</small>
+          <strong>禾芽家庭教务</strong>
+        </div>
+        <div class="child-switch"><span class="avatar">J</span>JOJO ▾</div>
+      </div>
+
+      <article class="state-card">
+        <div class="state-head">
+          <span class="state-label">当前状态总结</span>
+          <span class="state-date">8月28日</span>
+        </div>
+        <div class="state-title">语文稳定，数学错题需要回看</div>
+        <div class="state-summary">最近阅读复述更完整，病句修改仍容易漏标点。数学应用题开始能说出思路，但第二步列式不够稳。</div>
+        <div class="state-row">
+          <div class="mini-stat"><b>3</b><span>条新成长</span></div>
+          <div class="mini-stat"><b>2</b><span>项待完成</span></div>
+          <div class="mini-stat"><b>76</b><span>掌握分</span></div>
+        </div>
+      </article>
+
+      <section class="section">
+        <div class="section-head">
+          <div class="section-title">未完成任务</div>
+          <div class="section-link">全部任务</div>
+        </div>
+        <div class="task-stack">
+          <div class="task-card">
+            <div class="task-icon">语</div>
+            <div class="task-main">
+              <div class="task-name">病句修改练习 8 题</div>
+              <div class="task-meta">今晚前 · 来自 WorkBuddy</div>
+            </div>
+            <div class="task-status">待完成</div>
+          </div>
+          <div class="task-card">
+            <div class="task-icon coral">错</div>
+            <div class="task-main">
+              <div class="task-name">数学错题变式复测</div>
+              <div class="task-meta">明天复习 · 应用题两步列式</div>
+            </div>
+            <div class="task-status">需复习</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div class="section-title">最新成长动态</div>
+          <div class="section-link">成长页</div>
+        </div>
+        <div class="timeline">
+          <div class="event">
+            <div class="event-top"><span>阅读</span><span>今天 19:20</span></div>
+            <div class="event-title">复述《夏洛的网》第 3 章</div>
+            <div class="event-text">能说清主线，但人物动机还需要追问，建议下次用“为什么这么做”继续引导。</div>
+          </div>
+          <div class="event">
+            <div class="event-top"><span>错题</span><span>昨天 20:35</span></div>
+            <div class="event-title">两步应用题订正完成</div>
+            <div class="event-text">原题已订正，变式题 2/3 正确，暂不标记已掌握，等待延迟复测。</div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <nav class="bottom-tab">
+      <div class="tab active"><i>首</i><span>首页</span></div>
+      <div class="tab"><i>生</i><span>学生</span></div>
+      <div class="tab"><i>长</i><span>成长</span></div>
+      <div class="tab"><i>学</i><span>学习</span></div>
+      <div class="tab"><i>我</i><span>我的</span></div>
+    </nav>
+  </main>
+</body>
+</html>

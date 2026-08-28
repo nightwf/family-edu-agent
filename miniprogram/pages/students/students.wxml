@@ -1,57 +1,87 @@
+<page-meta page-style="{{formVisible ? 'overflow: hidden;' : ''}}" />
+
 <view class="page">
   <view wx:if="{{error}}" class="error-tip">{{error}}</view>
-  <view class="between header">
-    <view class="title">学生档案</view>
-    <button class="btn btn-primary add-btn" bindtap="openCreate">新建孩子</button>
+
+  <view class="page-heading between">
+    <view>
+      <view class="page-eyebrow">家庭成员</view>
+      <view class="title">学生档案</view>
+      <view class="page-subtitle">每个孩子拥有独立的成长和学习记录</view>
+    </view>
+    <button class="create-button" bindtap="openCreate"><text>＋</text> 添加</button>
   </view>
 
-  <view wx:if="{{children.length}}">
-    <view wx:for="{{children}}" wx:key="id" class="card">
-      <view class="between">
-        <view>
-          <view class="name">{{item.name}}</view>
-          <view class="muted">{{item.age}} 岁 · {{item.grade}}</view>
-          <view class="tag-group">
-            <view wx:for="{{item.subjects}}" wx:key="*this" wx:for-item="subject" class="tag tag-teal">{{subject}}</view>
+  <view wx:if="{{children.length}}" class="student-list">
+    <view wx:for="{{children}}" wx:key="id" class="student-card folder-card">
+      <view class="student-head">
+        <view class="student-avatar tone-{{item.colorIndex}}">{{item.initial}}</view>
+        <view class="student-main">
+          <view class="student-name-row">
+            <view class="name">{{item.name}}</view>
+            <view class="student-head-actions">
+              <view class="pill">已建档</view>
+              <view class="more-button" data-id="{{item.id}}" catchtap="openActions" aria-label="更多操作"></view>
+            </view>
           </view>
-          <view class="muted version">教材版本：{{item.textbookVersion || '未设置'}}</view>
+          <view class="student-meta">{{item.age || '-'}} 岁 · {{item.grade || '未设置年级'}}</view>
         </view>
-        <view class="actions">
-          <view class="icon-btn" data-id="{{item.id}}" bindtap="openEdit">编辑</view>
-          <view class="danger-btn" data-id="{{item.id}}" bindtap="remove">删除</view>
+      </view>
+      <view class="profile-block">
+        <view class="profile-label">关注学科</view>
+        <view wx:if="{{item.subjects.length}}" class="tag-group">
+          <view wx:for="{{item.subjects}}" wx:key="*this" wx:for-item="subject" class="tag tag-teal">{{subject}}</view>
         </view>
+        <view wx:else class="profile-value muted">未设置</view>
+      </view>
+      <view class="profile-row">
+        <view>
+          <view class="profile-label">教材版本</view>
+          <view class="profile-value">{{item.textbookVersion || '未设置'}}</view>
+        </view>
+        <view class="profile-book">书</view>
       </view>
     </view>
   </view>
-  <view wx:else class="empty">还没有学生档案，点击右上角新建孩子</view>
+  <view wx:else class="empty">
+    还没有学生档案。添加孩子后，WorkBuddy 才能把学习记录准确同步到对应档案。
+  </view>
 
   <view wx:if="{{formVisible}}" class="modal-mask" catchtap="closeForm">
     <view class="modal" catchtap="noop">
       <view class="modal-header">
-        <view class="modal-title">{{editingId ? '编辑孩子档案' : '新建孩子'}}</view>
+        <view>
+          <view class="modal-title">{{editingId ? '编辑学生档案' : '添加学生档案'}}</view>
+          <view class="modal-subtitle">用于匹配教材、作业和成长记录</view>
+        </view>
         <view class="modal-close" bindtap="closeForm">×</view>
       </view>
-      <view class="form-item">
-        <view class="form-label">姓名</view>
-        <input class="input" value="{{form.name}}" data-field="name" bindinput="onField" placeholder="孩子姓名" />
+      <view class="form-grid">
+        <view class="form-item">
+          <view class="form-label">姓名</view>
+          <input class="input" value="{{form.name}}" data-field="name" bindinput="onField" placeholder="孩子姓名" />
+        </view>
+        <view class="form-row">
+          <view class="form-item half">
+            <view class="form-label">年龄</view>
+            <input class="input" type="number" value="{{form.age}}" data-field="age" bindinput="onField" placeholder="年龄" />
+          </view>
+          <view class="form-item half">
+            <view class="form-label">年级</view>
+            <input class="input" value="{{form.grade}}" data-field="grade" bindinput="onField" placeholder="如四年级" />
+          </view>
+        </view>
+        <view class="form-item">
+          <view class="form-label">关注学科</view>
+          <input class="input" value="{{form.subjects}}" data-field="subjects" bindinput="onField" placeholder="数学、语文、英语" />
+          <view class="form-hint">多个学科用顿号分隔</view>
+        </view>
+        <view class="form-item">
+          <view class="form-label">教材版本</view>
+          <input class="input" value="{{form.textbook_version}}" data-field="textbook_version" bindinput="onField" placeholder="例如：人教版" />
+        </view>
       </view>
-      <view class="form-item">
-        <view class="form-label">年龄</view>
-        <input class="input" type="number" value="{{form.age}}" data-field="age" bindinput="onField" placeholder="孩子年龄" />
-      </view>
-      <view class="form-item">
-        <view class="form-label">年级</view>
-        <input class="input" value="{{form.grade}}" data-field="grade" bindinput="onField" placeholder="例如：四年级" />
-      </view>
-      <view class="form-item">
-        <view class="form-label">学科，多个用顿号分隔</view>
-        <input class="input" value="{{form.subjects}}" data-field="subjects" bindinput="onField" placeholder="数学、语文、英语" />
-      </view>
-      <view class="form-item">
-        <view class="form-label">教材版本</view>
-        <input class="input" value="{{form.textbook_version}}" data-field="textbook_version" bindinput="onField" placeholder="例如：人教版" />
-      </view>
-      <button class="btn btn-primary" bindtap="submit">保存</button>
+      <button class="btn btn-primary save-button" bindtap="submit">保存档案</button>
     </view>
   </view>
 </view>

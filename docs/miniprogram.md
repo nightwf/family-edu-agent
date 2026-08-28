@@ -25,7 +25,7 @@
 1. 打开微信开发者工具，选择“导入项目”；
 2. 目录选择仓库根目录 `/Users/nightwf/Desktop/儿童AI教育/family-edu-agent`，AppID 可先使用测试号或 `touristappid`；
 3. 开发者工具中打开“详情 - 本地设置 - 不校验合法域名”；
-4. 修改 [config.js](/Users/nightwf/Desktop/儿童AI教育/family-edu-agent/miniprogram/config.js) 中的 `baseUrl`，默认指向 `http://49.234.4.212/family-edu`；
+4. 修改 [config.js](/Users/nightwf/Desktop/儿童AI教育/family-edu-agent/miniprogram/config.js) 中的 `baseUrl`，默认指向 `https://edu.skillstores.com/family-edu`；
 5. 点击编译即可使用邮箱密码登录，或使用微信一键登录。
 
 正式发布前必须：

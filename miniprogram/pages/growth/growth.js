@@ -31,12 +31,15 @@ Page({
   async loadChildren() {
     try {
       const children = await api.listChildren();
-      const childId = children.length ? children[0].id : "";
+      const savedChildId = wx.getStorageSync("familyEduSelectedChildId");
+      const savedIndex = children.findIndex((child) => child.id === savedChildId);
+      const childIndex = savedIndex >= 0 ? savedIndex : 0;
+      const childId = children.length ? children[childIndex].id : "";
       this.setData({
         children,
         childNames: children.map((child) => `${child.name} · ${child.grade}`),
         childId,
-        childIndex: 0
+        childIndex
       });
       await this.loadData();
     } catch (error) {
@@ -48,6 +51,7 @@ Page({
     const index = Number(event.detail.value);
     const child = this.data.children[index];
     this.setData({ childIndex: index, childId: child ? child.id : "" });
+    if (child) wx.setStorageSync("familyEduSelectedChildId", child.id);
     this.loadData();
   },
 

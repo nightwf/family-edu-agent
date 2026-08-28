@@ -1,82 +1,167 @@
-<view class="page">
+<view class="page settings-page">
   <view wx:if="{{error}}" class="error-tip">{{error}}</view>
 
-  <view class="panel">
-    <view class="section-title">账号信息</view>
-    <view class="info-row"><text class="info-label">登录邮箱</text><text>{{user.email || '-'}}</text></view>
-    <view class="info-row"><text class="info-label">家庭编号</text><text>{{family.id || '-'}}</text></view>
-    <view class="info-row"><text class="info-label">账号类型</text><text>{{isWechatBound ? '微信 + 邮箱' : '邮箱密码'}}</text></view>
-    <view class="info-row"><text class="info-label">孩子数量</text><text>{{childCount}} 个</text></view>
+  <view class="profile-card">
+    <view class="profile-avatar">{{userInitial}}</view>
+    <view class="profile-main">
+      <view class="profile-name">{{family && family.name ? family.name : '我的家庭'}}</view>
+      <view class="profile-email">{{user.email || '-'}}</view>
+    </view>
+    <view class="profile-count"><text>{{childCount}}</text> 个孩子</view>
   </view>
 
-  <view class="panel wechat-panel">
-    <view class="between">
-      <view>
-        <view class="wechat-title">微信登录</view>
-        <view class="muted">{{isWechatBound ? '当前微信已绑定该账号' : '绑定后可直接微信一键登录'}}</view>
+  <view class="setting-section">
+    <view class="group-title">账号与连接</view>
+    <view class="setting-group">
+      <view class="setting-row">
+        <view class="setting-icon wechat">微</view>
+        <view class="setting-content">
+          <view class="setting-title">微信登录</view>
+          <view class="setting-desc">{{isWechatBound ? '已绑定当前微信' : '绑定后可一键登录'}}</view>
+        </view>
+        <button wx:if="{{!isWechatBound}}" class="row-action" bindtap="bindWechat">去绑定</button>
+        <view wx:else class="status-ok">已绑定</view>
       </view>
-      <button wx:if="{{!isWechatBound}}" class="btn bind-btn" bindtap="bindWechat">绑定微信</button>
-      <view wx:else class="pill">已绑定</view>
+      <view class="setting-divider"></view>
+      <view class="setting-row">
+        <view class="setting-icon account">邮</view>
+        <view class="setting-content">
+          <view class="setting-title">家庭账号</view>
+          <view class="setting-desc">{{user.email || '-'}}</view>
+        </view>
+      </view>
     </view>
   </view>
 
-  <view class="panel">
-    <view class="between prompt-header">
-      <view class="section-title">WorkBuddy 连接提示词</view>
-      <view class="copy-btn" bindtap="copyPrompt">{{copyText}}</view>
+  <view class="setting-section">
+    <view class="group-title">家庭管理者</view>
+    <view class="family-card">
+      <view class="family-card-head">
+        <view>
+          <view class="family-card-title">共同管理这个家庭</view>
+          <view class="setting-desc">{{isOwner ? '你可以邀请或移除其他管理者' : '你是这个家庭的管理者'}}</view>
+        </view>
+        <view class="role-badge">{{memberRole === 'owner' ? '创建者' : '管理者'}}</view>
+      </view>
+
+      <view class="member-list">
+        <view wx:for="{{members}}" wx:key="id" class="member-row">
+          <view class="member-avatar">{{item.initial}}</view>
+          <view class="member-main">
+            <view class="member-name">{{item.nameText}}</view>
+            <view class="member-meta">{{item.roleText}} · {{item.joinedText}}</view>
+          </view>
+          <view wx:if="{{item.canRemove}}" class="danger-link" data-id="{{item.id}}" bindtap="removeMember">移除</view>
+          <view wx:else class="member-status">{{item.roleText}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{isOwner}}" class="invite-panel">
+        <view class="form-label">邀请其他管理者</view>
+        <input class="input" value="{{inviteEmail}}" bindinput="onInviteEmail" placeholder="对方邮箱，可不填" />
+        <button class="btn btn-primary invite-btn" loading="{{inviteLoading}}" bindtap="createInvite">生成家庭邀请码</button>
+      </view>
+
+      <view wx:if="{{pendingInvites.length}}" class="pending-panel">
+        <view class="pending-title">待接受邀请</view>
+        <view wx:for="{{pendingInvites}}" wx:key="id" class="invite-row">
+          <view class="invite-main">
+            <view class="invite-code">{{item.inviteCode}}</view>
+            <view class="invite-meta">{{item.targetText}} · {{item.expiresText}} 到期</view>
+          </view>
+          <view class="invite-actions">
+            <view class="copy-mini" data-code="{{item.inviteCode}}" bindtap="copyInvite">复制</view>
+            <view wx:if="{{isOwner}}" class="danger-mini" data-id="{{item.id}}" bindtap="cancelInvite">取消</view>
+          </view>
+        </view>
+      </view>
+
+      <view class="join-panel">
+        <view class="form-label">接受家庭邀请</view>
+        <input class="input" value="{{joinInviteCode}}" bindinput="onJoinInviteCode" placeholder="输入别人发来的家庭邀请码" />
+        <button class="btn btn-outline join-btn" loading="{{joinLoading}}" bindtap="acceptInvite">加入对方家庭</button>
+      </view>
     </view>
-    <view wx:if="{{mcpToken}}" class="token-box">
-      <view class="info-label">家庭专属 MCP Token</view>
-      <text class="token-text">{{mcpToken}}</text>
-    </view>
-    <textarea class="textarea prompt-area" value="{{workbuddyPrompt}}" disabled />
   </view>
 
-  <view class="panel">
-    <view class="section-title">家庭教育方式</view>
-    <view class="form-item">
-      <view class="form-label">教育理念</view>
-      <picker mode="selector" range="{{philosophies}}" value="{{philosophyIndex}}" bindchange="onPhilosophyChange">
-        <view class="input picker-input">{{philosophy}}</view>
-      </picker>
-    </view>
-    <view class="form-item">
-      <view class="form-label">沟通风格</view>
-      <picker mode="selector" range="{{communicationStyles}}" value="{{communicationIndex}}" bindchange="onCommunicationChange">
-        <view class="input picker-input">{{communicationStyle}}</view>
-      </picker>
-    </view>
-    <view class="form-item">
-      <view class="form-label">要求程度</view>
-      <picker mode="selector" range="{{strictnessOptions}}" value="{{strictnessIndex}}" bindchange="onStrictnessChange">
-        <view class="input picker-input">{{strictness}}</view>
-      </picker>
-    </view>
-    <view class="form-item">
-      <view class="form-label">家长目标，多个用顿号分隔</view>
-      <input class="input" value="{{parentGoals}}" bindinput="onParentGoals" placeholder="培养自主性、阅读习惯" />
-    </view>
-    <button class="btn btn-primary" bindtap="saveEducation">保存教育方式</button>
-  </view>
-
-  <view wx:if="{{recommendedMethods.length}}" class="panel">
-    <view class="section-title">系统将重点使用</view>
-    <view class="tag-group">
-      <view wx:for="{{recommendedMethods}}" wx:key="*this" class="tag tag-teal">{{item}}</view>
+  <view class="setting-section">
+    <view class="group-title">WorkBuddy</view>
+    <view class="connection-card">
+      <view class="connection-head">
+        <view>
+          <view class="connection-title">家庭专属连接</view>
+          <view class="connection-status"><view class="status-dot"></view>连接资料已生成</view>
+        </view>
+        <view class="copy-button" bindtap="copyPrompt">{{copyText}}</view>
+      </view>
+      <view class="connection-note">复制后发给 WorkBuddy，它会按当前家庭身份调用教育数据。</view>
+      <view wx:if="{{mcpToken}}" class="token-box">
+        <view class="token-label">专属 Token</view>
+        <text class="token-text">{{mcpToken}}</text>
+      </view>
+      <view class="prompt-box {{promptExpanded ? 'expanded' : ''}}">
+        <text class="prompt-text">{{workbuddyPrompt || '连接提示词尚未生成'}}</text>
+      </view>
+      <view class="prompt-toggle" bindtap="togglePrompt">{{promptExpanded ? '收起提示词' : '展开完整提示词'}} {{promptExpanded ? '⌃' : '⌄'}}</view>
     </view>
   </view>
 
-  <view wx:if="{{policyChanges.length}}" class="panel">
-    <view class="section-title">优化建议</view>
+  <view class="setting-section">
+    <view class="group-title">家庭教育方式</view>
+    <view class="education-card">
+      <view class="education-intro">
+        <view class="education-title">家庭偏好</view>
+        <view class="setting-desc">用于辅助 WorkBuddy 调整沟通和教学策略</view>
+      </view>
+      <view class="form-item">
+        <view class="form-label">教育理念</view>
+        <picker mode="selector" range="{{philosophies}}" value="{{philosophyIndex}}" bindchange="onPhilosophyChange">
+          <view class="select-row"><text>{{philosophy}}</text><text class="select-arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="form-item">
+        <view class="form-label">沟通风格</view>
+        <picker mode="selector" range="{{communicationStyles}}" value="{{communicationIndex}}" bindchange="onCommunicationChange">
+          <view class="select-row"><text>{{communicationStyle}}</text><text class="select-arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="form-item">
+        <view class="form-label">要求程度</view>
+        <picker mode="selector" range="{{strictnessOptions}}" value="{{strictnessIndex}}" bindchange="onStrictnessChange">
+          <view class="select-row"><text>{{strictness}}</text><text class="select-arrow">›</text></view>
+        </picker>
+      </view>
+      <view class="form-item goals-item">
+        <view class="form-label">家长目标</view>
+        <input class="input" value="{{parentGoals}}" bindinput="onParentGoals" placeholder="培养自主性、阅读习惯" />
+        <view class="form-hint">多个目标用顿号分隔</view>
+      </view>
+      <button class="btn btn-primary save-education" bindtap="saveEducation">保存家庭偏好</button>
+    </view>
+  </view>
+
+  <view wx:if="{{recommendedMethods.length}}" class="setting-section">
+    <view class="group-title">当前教学方法</view>
+    <view class="method-card">
+      <view class="tag-group">
+        <view wx:for="{{recommendedMethods}}" wx:key="*this" class="method-tag">{{item}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{policyChanges.length}}" class="setting-section">
+    <view class="group-title">待确认的优化建议</view>
     <view wx:for="{{policyChanges}}" wx:key="id" class="policy-card">
       <view class="policy-title">{{item.summary || item.type}}</view>
-      <view class="muted policy-desc">{{item.reason || '暂无补充说明'}} · {{item.createdText}}</view>
+      <view class="policy-desc">{{item.reason || '暂无补充说明'}}</view>
+      <view class="policy-date">{{item.createdText}}</view>
       <view class="policy-actions">
         <view class="approve-btn" data-id="{{item.id}}" data-action="approved" bindtap="reviewPolicy">采纳</view>
-        <view class="ignore-btn" data-id="{{item.id}}" data-action="ignored" bindtap="reviewPolicy">忽略</view>
+        <view class="ignore-btn" data-id="{{item.id}}" data-action="ignored" bindtap="reviewPolicy">暂不采用</view>
       </view>
     </view>
   </view>
 
-  <button class="btn btn-danger logout-btn" bindtap="logout">退出登录</button>
+  <button class="logout-row" bindtap="logout">退出当前账号</button>
+  <view class="family-id">家庭编号 {{family && family.id ? family.id : '-'}}</view>
 </view>
