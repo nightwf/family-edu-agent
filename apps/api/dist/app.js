@@ -9,7 +9,7 @@ import { prisma } from "./prisma.js";
 import { env } from "./env.js";
 import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
-import { buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
+import { buildDoubaoPrompt, buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
 import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
@@ -649,6 +649,7 @@ export async function buildApp() {
             child_count: childCount,
             mcp_token: mcpToken,
             workbuddy_prompt: mcpToken ? buildWorkbuddyPrompt(mcpToken) : "",
+            doubao_prompt: mcpToken ? buildDoubaoPrompt(mcpToken) : "",
         };
     });
     app.get("/api/policies", { preHandler: requireAuth }, async (request) => {

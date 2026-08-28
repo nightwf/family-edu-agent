@@ -28,6 +28,7 @@ type Textbook = { id: string; childId: string; title: string; subject?: string; 
 type HomeData = { children: Child[]; reports: any[]; textbooks: Textbook[]; knowledge: Knowledge[]; homework: Homework[]; stats: any };
 type SettingsData = {
   workbuddy_prompt?: string;
+  doubao_prompt?: string;
   mcp_token?: string;
   user?: any;
   family?: any;
@@ -158,9 +159,9 @@ function App() {
     setToken("");
   }
 
-  async function copyWorkbuddyPrompt() {
-    if (!settings?.workbuddy_prompt) return;
-    let text = settings.workbuddy_prompt;
+  async function copyAgentPrompt(prompt?: string, source = "workbuddy") {
+    if (!prompt) return;
+    let text = prompt;
     if (settings.mcp_token && !text.includes(settings.mcp_token)) {
       text += `\n\nX-MCP-Token: ${settings.mcp_token}`;
     }
@@ -177,7 +178,7 @@ function App() {
         document.execCommand("copy");
         document.body.removeChild(textarea);
       }
-      setCopyStatus("已复制");
+      setCopyStatus(source);
     } catch (_error) {
       const textarea = document.createElement("textarea");
       textarea.value = text;
@@ -187,7 +188,7 @@ function App() {
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
-      setCopyStatus("已复制");
+      setCopyStatus(source);
     }
     setTimeout(() => setCopyStatus(""), 1500);
   }
@@ -558,7 +559,7 @@ function App() {
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="font-semibold">WorkBuddy 连接提示词</h3>
-                  <button onClick={copyWorkbuddyPrompt} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus || "复制"}</button>
+                  <button onClick={() => copyAgentPrompt(settings?.workbuddy_prompt, "workbuddy")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "workbuddy" ? "已复制" : "复制"}</button>
                 </div>
                 {settings?.mcp_token && (
                   <div className="mb-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
@@ -567,6 +568,14 @@ function App() {
                   </div>
                 )}
                 <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
+              </div>
+              <div className="mt-5">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="font-semibold">豆包工作连接提示词</h3>
+                  <button onClick={() => copyAgentPrompt(settings?.doubao_prompt, "doubao")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "doubao" ? "已复制" : "复制"}</button>
+                </div>
+                <p className="mb-3 text-sm leading-6 text-stone-500">用于在豆包工作里复用同一套家庭教育规则和家庭专属 MCP Token。</p>
+                <textarea readOnly value={settings?.doubao_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
               </div>
               <div className="mt-6">
                 <h3 className="font-semibold">家庭教育方式</h3>

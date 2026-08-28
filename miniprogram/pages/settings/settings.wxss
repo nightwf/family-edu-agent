@@ -102,6 +102,7 @@
 .copy-mini { background: #e4f3ef; color: #0f766e; }
 .danger-mini { background: #fff0eb; color: #c9503a; }
 .connection-card { padding: 24rpx; }
+.connection-card + .connection-card { margin-top: 18rpx; }
 .connection-head { display: flex; align-items: flex-start; justify-content: space-between; }
 .connection-title { font-size: 30rpx; font-weight: 800; }
 .connection-status { display: flex; align-items: center; margin-top: 5rpx; color: #0f766e; font-size: 22rpx; }

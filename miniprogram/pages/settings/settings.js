@@ -15,9 +15,12 @@ Page({
     childCount: 0,
     mcpToken: "",
     workbuddyPrompt: "",
+    doubaoPrompt: "",
     isWechatBound: false,
     copyText: "复制提示词",
+    doubaoCopyText: "复制提示词",
     promptExpanded: false,
+    doubaoPromptExpanded: false,
     philosophies: PHILOSOPHIES,
     communicationStyles: COMMUNICATION_STYLES,
     strictnessOptions: STRICTNESS,
@@ -64,6 +67,7 @@ Page({
         childCount: settings.child_count || 0,
         mcpToken: settings.mcp_token || "",
         workbuddyPrompt: settings.workbuddy_prompt || "",
+        doubaoPrompt: settings.doubao_prompt || "",
         isWechatBound: Boolean(settings.user && settings.user.wechatOpenId),
         philosophy,
         philosophyIndex: Math.max(0, PHILOSOPHIES.indexOf(philosophy)),
@@ -127,18 +131,30 @@ Page({
   },
 
   copyPrompt() {
-    if (!this.data.workbuddyPrompt) return;
+    this.copyAgentPrompt("workbuddyPrompt", "copyText");
+  },
+
+  copyDoubaoPrompt() {
+    this.copyAgentPrompt("doubaoPrompt", "doubaoCopyText");
+  },
+
+  copyAgentPrompt(promptKey, copyKey) {
+    if (!this.data[promptKey]) return;
     wx.setClipboardData({
-      data: this.data.workbuddyPrompt,
+      data: this.data[promptKey],
       success: () => {
-        this.setData({ copyText: "已复制" });
-        setTimeout(() => this.setData({ copyText: "复制提示词" }), 1500);
+        this.setData({ [copyKey]: "已复制" });
+        setTimeout(() => this.setData({ [copyKey]: "复制提示词" }), 1500);
       }
     });
   },
 
   togglePrompt() {
     this.setData({ promptExpanded: !this.data.promptExpanded });
+  },
+
+  toggleDoubaoPrompt() {
+    this.setData({ doubaoPromptExpanded: !this.data.doubaoPromptExpanded });
   },
 
   bindWechat() {

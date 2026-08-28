@@ -1,6 +1,6 @@
 # 禾芽家庭 AI 教育
 
-禾芽以 WorkBuddy 作为 Agent 对话与执行入口，项目本身提供家庭教育知识、题库规则、学生长期数据、家庭专属 MCP 和家长 Web 管理端。
+禾芽以 WorkBuddy / 豆包工作作为 Agent 对话与执行入口，项目本身提供家庭教育知识、题库规则、学生长期数据、家庭专属 MCP 和家长 Web 管理端。
 
 生产架构：TypeScript + Fastify + Prisma + PostgreSQL 16 + React/Vite + Tailwind CSS + 腾讯云 COS。
 
@@ -11,10 +11,10 @@
 - 成长记录、报告、教材、作业和知识库；
 - 家庭级教育理念、沟通方式和教育方法推荐；
 - 家庭题库、题型生成规则、学生作答证据和题型掌握度；
-- WorkBuddy 录题、生成变式练习、同步作答与查询掌握度；
+- WorkBuddy / 豆包工作录题、生成变式练习、同步作答与查询掌握度；
 - 学生错题本、严格掌握证据、针对性练习试卷和错题教学规划；
 - 明亮学堂 Web 管理端，支持桌面端和手机端。
-- 微信小程序家长端，支持微信一键登录和家庭专属 WorkBuddy 提示词。
+- 微信小程序家长端，支持微信一键登录和家庭专属 WorkBuddy / 豆包工作提示词。
 
 ## 本地启动
 
@@ -36,7 +36,7 @@ docker compose up -d --build
 学生：新建、编辑、删除学生档案
 成长：成长记录、报告、成长轨迹
 学习：题库、错题本、教材、作业、知识库
-我的：账号、微信绑定、WorkBuddy 提示词、教育方式
+我的：账号、微信绑定、WorkBuddy / 豆包工作提示词、教育方式
 ```
 
 微信登录需要后端配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`；小程序正式版还需要配置 HTTPS 请求合法域名。
@@ -101,12 +101,12 @@ POST   /api/remediation-plans
 PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
 ```
 
-## WorkBuddy 接入
+## WorkBuddy / 豆包工作接入
 
 1. 登录管理端并进入“设置”；
-2. 复制完整 WorkBuddy 连接提示词，其中包含家庭专属 Token；
-3. 在 WorkBuddy 配置同一个 `family-edu-mcp`；
-4. 首次使用时让 WorkBuddy 调用 `get_sync_spec` 读取最新版规范。
+2. 按使用的平台复制完整连接提示词，其中包含家庭专属 Token；
+3. 在 WorkBuddy 或豆包工作配置同一个 `family-edu-mcp`；
+4. 首次使用时让 Agent 调用 `get_sync_spec` 读取最新版规范。
 
 远程 MCP 地址：`https://edu.skillstores.com/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
 

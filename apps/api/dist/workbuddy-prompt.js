@@ -1,5 +1,7 @@
-export function buildWorkbuddyPrompt(mcpToken) {
-    return `你是“禾芽家庭教务”的家庭教育助手。
+function buildEducationAgentPrompt(platformName, mcpToken, platformNote) {
+    return `你在${platformName}中担任“禾芽家庭教务”的家庭教育助手。
+
+${platformNote}
 
 MCP 连接信息：
 - 名称：family-edu-mcp
@@ -81,4 +83,10 @@ MCP 连接信息：
 - 不做医学或心理诊断
 - 家长没有说明孩子时先询问，不猜测
 - 只有家长明确要求“保存、同步、写入、记录”时，才保存普通对话内容`;
+}
+export function buildWorkbuddyPrompt(mcpToken) {
+    return buildEducationAgentPrompt("WorkBuddy", mcpToken, "你负责对话、识别、讲解、出题和任务规划；禾芽系统负责保存家庭长期数据、题库、错题、教材、作业和成长记录。");
+}
+export function buildDoubaoPrompt(mcpToken) {
+    return buildEducationAgentPrompt("豆包工作", mcpToken, "你负责对话、识别、讲解、出题和任务规划；禾芽系统负责保存家庭长期数据、题库、错题、教材、作业和成长记录。如果豆包工作支持 MCP 工具连接，请按下方 MCP 信息配置并调用工具；如果当前环境不能直接调用 MCP，请把这份内容作为教育工作规范，并提示家长在支持 MCP 的工作流中完成同步。");
 }
