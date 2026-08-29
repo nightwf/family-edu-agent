@@ -31,8 +31,7 @@ function request(options) {
     const token = wx.getStorageSync("familyEduToken");
     const url = `${config.baseUrl}${options.url}`;
     const header = {
-      "Content-Type": "application/json",
-      "Connection": "close"
+      "Content-Type": "application/json"
     };
     if (options.auth !== false && token) {
       header.Authorization = `Bearer ${token}`;
@@ -85,7 +84,7 @@ function uploadFile(options) {
       filePath: options.filePath,
       name: options.name || "file",
       formData: options.formData || {},
-      header: token ? { Authorization: `Bearer ${token}`, Connection: "close" } : { Connection: "close" },
+      header: token ? { Authorization: `Bearer ${token}` } : {},
       timeout: 15000,
       success(res) {
         let data = {};
