@@ -10,6 +10,18 @@ function clearSession() {
   }
 }
 
+function buildNetworkError(prefix, detail) {
+  let hint = "";
+  if (/ERR_CONNECTION_CLOSED/i.test(detail)) {
+    hint = "。连接被中途关闭，请先关闭手机 VPN/代理/加速器，切换普通 Wi-Fi 或蜂窝网络后重试";
+  } else if (/domain|url not in domain|合法域名/i.test(detail)) {
+    hint = "。请确认微信公众平台 request 合法域名已配置 https://edu.skillstores.com，并在开发者工具刷新域名";
+  } else if (/timeout/i.test(detail)) {
+    hint = "。请求超时，请切换网络后重试";
+  }
+  return `${prefix}：${detail}${hint}`;
+}
+
 function request(options) {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync("familyEduToken");
@@ -45,7 +57,7 @@ function request(options) {
       fail(error) {
         const detail = error && error.errMsg ? error.errMsg : "unknown request error";
         console.error("[family-edu request failed]", { url, detail });
-        reject(new Error(`网络连接失败：${detail}`));
+        reject(new Error(buildNetworkError("网络连接失败", detail)));
       }
     });
   });
@@ -78,7 +90,7 @@ function uploadFile(options) {
       fail(error) {
         const detail = error && error.errMsg ? error.errMsg : "unknown upload error";
         console.error("[family-edu upload failed]", { url, detail });
-        reject(new Error(`文件上传失败：${detail}`));
+        reject(new Error(buildNetworkError("文件上传失败", detail)));
       }
     });
   });
