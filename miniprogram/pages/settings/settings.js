@@ -134,7 +134,8 @@ Page({
   testNetwork() {
     if (this.data.networkTesting) return;
     const url = `${config.baseUrl}/api/health`;
-    this.setData({ networkTesting: true, networkTestResult: "正在测试网络..." });
+    const startedAt = format.formatDate(new Date().toISOString());
+    this.setData({ networkTesting: true, networkTestResult: `正在测试网络... ${startedAt}` });
     wx.request({
       url,
       method: "GET",
@@ -142,17 +143,20 @@ Page({
       enableHttp2: false,
       enableQuic: false,
       success: (res) => {
+        const finishedAt = format.formatDate(new Date().toISOString());
         this.setData({
+          error: "",
           networkTesting: false,
-          networkTestResult: `健康检查成功：HTTP ${res.statusCode}`
+          networkTestResult: `健康检查成功：HTTP ${res.statusCode} · ${finishedAt}`
         });
       },
       fail: (error) => {
         const detail = error && error.errMsg ? error.errMsg : JSON.stringify(error || {});
+        const finishedAt = format.formatDate(new Date().toISOString());
         console.error("[family-edu health check failed]", { url, error });
         this.setData({
           networkTesting: false,
-          networkTestResult: `健康检查失败：${detail}\n${url}`
+          networkTestResult: `健康检查失败：${detail} · ${finishedAt}\n${url}`
         });
       }
     });

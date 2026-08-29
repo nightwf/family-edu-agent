@@ -1,6 +1,6 @@
 <view class="page settings-page">
   <view wx:if="{{error}}" class="error-tip">{{error}}</view>
-  <view wx:if="{{error}}" class="network-debug">
+  <view wx:if="{{error || networkTestResult}}" class="network-debug">
     <button class="debug-button" loading="{{networkTesting}}" bindtap="testNetwork">测试服务器连接</button>
     <text wx:if="{{networkTestResult}}" class="debug-result">{{networkTestResult}}</text>
   </view>
