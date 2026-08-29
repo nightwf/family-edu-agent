@@ -631,7 +631,7 @@ export async function buildApp() {
     });
     app.get("/api/settings", { preHandler: requireAuth }, async (request) => {
         const auth = getAuth(request);
-        const [user, family, childCount, mcpToken, member, members, invites] = await Promise.all([
+        const [user, family, childCount, mcpToken, member, members, invites, educationSettings, policyChanges] = await Promise.all([
             prisma.user.findUnique({ where: { id: auth.id } }),
             prisma.family.findUnique({ where: { id: auth.familyId } }),
             prisma.child.count({ where: { familyId: auth.familyId } }),
@@ -639,13 +639,26 @@ export async function buildApp() {
             getActiveFamilyMember(auth.familyId, auth.id),
             listFamilyMembers(auth.familyId),
             listPendingInvites(auth.familyId),
+            getFamilyEducationSettings(auth.familyId),
+            getPolicyHistory(auth.familyId),
         ]);
+        const educationMethods = {
+            available: EDUCATION_METHODS,
+            recommended: recommendEducationMethods({
+                educationPhilosophy: educationSettings?.educationPhilosophy,
+                strictness: educationSettings?.strictness,
+                communicationStyle: educationSettings?.communicationStyle,
+            }),
+        };
         return {
             user,
             family,
             member,
             members,
             invites,
+            education_settings: educationSettings,
+            education_methods: educationMethods,
+            policy_changes: policyChanges,
             child_count: childCount,
             mcp_token: mcpToken,
             workbuddy_prompt: mcpToken ? buildWorkbuddyPrompt(mcpToken) : "",

@@ -54,18 +54,9 @@ Page({
     this.setData({ loading: true, error: "" });
     try {
       const settings = await api.settings();
-      const [educationResult, methodsResult, changesResult] = await Promise.allSettled([
-        api.getEducationSettings(),
-        api.educationMethods(),
-        api.policyChanges()
-      ]);
-      const educationData = educationResult.status === "fulfilled" ? educationResult.value : {};
-      const methods = methodsResult.status === "fulfilled" ? methodsResult.value : { recommended: [] };
-      const changes = changesResult.status === "fulfilled" ? changesResult.value : [];
-      const partialErrors = [educationResult, methodsResult, changesResult]
-        .filter((item) => item.status === "rejected")
-        .map((item) => item.reason && item.reason.message ? item.reason.message : "部分设置加载失败");
-      const education = educationData || {};
+      const education = settings.education_settings || {};
+      const methods = settings.education_methods || { recommended: [] };
+      const changes = settings.policy_changes || [];
       const philosophy = education.educationPhilosophy || this.data.philosophy;
       const communicationStyle = education.communicationStyle || this.data.communicationStyle;
       const strictness = education.strictness || this.data.strictness;
@@ -106,7 +97,7 @@ Page({
           targetText: item.inviteEmail || "未限定邮箱"
         })),
         loading: false,
-        error: partialErrors.length ? `部分资料加载失败：${partialErrors[0]}` : ""
+        error: ""
       });
     } catch (error) {
       this.setData({ error: error.message, loading: false });
