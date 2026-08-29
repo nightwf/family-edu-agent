@@ -13,6 +13,7 @@ function clearSession() {
 function request(options) {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync("familyEduToken");
+    const url = `${config.baseUrl}${options.url}`;
     const header = {
       "Content-Type": "application/json"
     };
@@ -20,7 +21,7 @@ function request(options) {
       header.Authorization = `Bearer ${token}`;
     }
     wx.request({
-      url: `${config.baseUrl}${options.url}`,
+      url,
       method: options.method || "GET",
       data: options.data || {},
       header,
@@ -38,8 +39,10 @@ function request(options) {
         }
         resolve(res.data);
       },
-      fail() {
-        reject(new Error("网络连接失败，请检查小程序合法域名设置"));
+      fail(error) {
+        const detail = error && error.errMsg ? error.errMsg : "unknown request error";
+        console.error("[family-edu request failed]", { url, detail });
+        reject(new Error(`网络连接失败：${detail}`));
       }
     });
   });
@@ -48,8 +51,9 @@ function request(options) {
 function uploadFile(options) {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync("familyEduToken");
+    const url = `${config.baseUrl}${options.url}`;
     wx.uploadFile({
-      url: `${config.baseUrl}${options.url}`,
+      url,
       filePath: options.filePath,
       name: options.name || "file",
       formData: options.formData || {},
@@ -67,8 +71,10 @@ function uploadFile(options) {
         }
         resolve(data);
       },
-      fail() {
-        reject(new Error("文件上传失败"));
+      fail(error) {
+        const detail = error && error.errMsg ? error.errMsg : "unknown upload error";
+        console.error("[family-edu upload failed]", { url, detail });
+        reject(new Error(`文件上传失败：${detail}`));
       }
     });
   });
