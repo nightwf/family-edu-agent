@@ -22,6 +22,10 @@ function buildNetworkError(prefix, detail) {
   return `${prefix}：${detail}${hint}`;
 }
 
+function isTransientNetworkError(detail) {
+  return /ERR_SOCKET_NOT_CONNECTED|ERR_CONNECTION_CLOSED|socket|connection/i.test(detail || "");
+}
+
 function request(options) {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync("familyEduToken");
@@ -32,34 +36,42 @@ function request(options) {
     if (options.auth !== false && token) {
       header.Authorization = `Bearer ${token}`;
     }
-    wx.request({
-      url,
-      method: options.method || "GET",
-      data: options.data || {},
-      header,
-      timeout: 15000,
-      enableHttp2: false,
-      enableQuic: false,
-      success(res) {
-        if (res.statusCode === 401 && options.auth !== false) {
-          clearSession();
-          wx.reLaunch({ url: "/pages/login/login" });
-          reject(new Error("登录已过期，请重新登录"));
-          return;
+    const maxRetry = options.retry === undefined ? 1 : Number(options.retry || 0);
+    const send = (attempt) => {
+      wx.request({
+        url,
+        method: options.method || "GET",
+        data: options.data || {},
+        header,
+        timeout: 15000,
+        enableHttp2: false,
+        enableQuic: false,
+        success(res) {
+          if (res.statusCode === 401 && options.auth !== false) {
+            clearSession();
+            wx.reLaunch({ url: "/pages/login/login" });
+            reject(new Error("登录已过期，请重新登录"));
+            return;
+          }
+          if (res.statusCode >= 400) {
+            const message = (res.data && res.data.error) || "请求失败";
+            reject(new Error(message));
+            return;
+          }
+          resolve(res.data);
+        },
+        fail(error) {
+          const detail = error && error.errMsg ? error.errMsg : "unknown request error";
+          console.error("[family-edu request failed]", { url, detail, attempt });
+          if (attempt < maxRetry && isTransientNetworkError(detail)) {
+            setTimeout(() => send(attempt + 1), 600);
+            return;
+          }
+          reject(new Error(buildNetworkError("网络连接失败", detail)));
         }
-        if (res.statusCode >= 400) {
-          const message = (res.data && res.data.error) || "请求失败";
-          reject(new Error(message));
-          return;
-        }
-        resolve(res.data);
-      },
-      fail(error) {
-        const detail = error && error.errMsg ? error.errMsg : "unknown request error";
-        console.error("[family-edu request failed]", { url, detail });
-        reject(new Error(buildNetworkError("网络连接失败", detail)));
-      }
-    });
+      });
+    };
+    send(0);
   });
 }
 

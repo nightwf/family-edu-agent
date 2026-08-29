@@ -25,6 +25,7 @@ Page({
   },
 
   async submit() {
+    if (this.data.loading) return;
     const { mode, email, password, inviteCode } = this.data;
     if (!email || !password) {
       this.setData({ error: "请填写邮箱和密码" });
@@ -78,6 +79,7 @@ Page({
   },
 
   async submitBind() {
+    if (this.data.loading) return;
     const { bindToken, bindMode, email, password, inviteCode } = this.data;
     if (!email || !password || (bindMode === "register" && !inviteCode)) {
       this.setData({ error: "请填写完整绑定信息" });
@@ -101,6 +103,7 @@ Page({
   },
 
   saveSession(data) {
+    this.setData({ error: "", loading: false, wechatLoading: false });
     wx.setStorageSync("familyEduToken", data.token);
     wx.setStorageSync("familyEduUser", data.user || {});
     wx.setStorageSync("familyEduFamily", data.family || {});
