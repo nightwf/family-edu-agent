@@ -31,12 +31,13 @@ function request(options) {
     const token = wx.getStorageSync("familyEduToken");
     const url = `${config.baseUrl}${options.url}`;
     const header = {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "Connection": "close"
     };
     if (options.auth !== false && token) {
       header.Authorization = `Bearer ${token}`;
     }
-    const maxRetry = options.retry === undefined ? 1 : Number(options.retry || 0);
+    const maxRetry = options.retry === undefined ? 2 : Number(options.retry || 0);
     const send = (attempt) => {
       wx.request({
         url,
@@ -64,7 +65,7 @@ function request(options) {
           const detail = error && error.errMsg ? error.errMsg : "unknown request error";
           console.error("[family-edu request failed]", { url, detail, attempt });
           if (attempt < maxRetry && isTransientNetworkError(detail)) {
-            setTimeout(() => send(attempt + 1), 600);
+            setTimeout(() => send(attempt + 1), 700 + attempt * 800);
             return;
           }
           reject(new Error(buildNetworkError("网络连接失败", detail)));
@@ -84,7 +85,7 @@ function uploadFile(options) {
       filePath: options.filePath,
       name: options.name || "file",
       formData: options.formData || {},
-      header: token ? { Authorization: `Bearer ${token}` } : {},
+      header: token ? { Authorization: `Bearer ${token}`, Connection: "close" } : { Connection: "close" },
       timeout: 15000,
       success(res) {
         let data = {};
