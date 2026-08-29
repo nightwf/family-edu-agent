@@ -1,4 +1,5 @@
 const api = require("../../utils/api");
+const config = require("../../config");
 const format = require("../../utils/format");
 
 const PHILOSOPHIES = ["以引导和鼓励为主", "兴趣优先", "习惯优先", "成绩与能力并重", "自主探索"];
@@ -40,7 +41,9 @@ Page({
     inviteEmail: "",
     joinInviteCode: "",
     inviteLoading: false,
-    joinLoading: false
+    joinLoading: false,
+    networkTesting: false,
+    networkTestResult: ""
   },
 
   async onShow() {
@@ -128,6 +131,33 @@ Page({
 
   onJoinInviteCode(event) {
     this.setData({ joinInviteCode: event.detail.value });
+  },
+
+  testNetwork() {
+    if (this.data.networkTesting) return;
+    const url = `${config.baseUrl}/api/health`;
+    this.setData({ networkTesting: true, networkTestResult: "正在测试网络..." });
+    wx.request({
+      url,
+      method: "GET",
+      timeout: 15000,
+      enableHttp2: false,
+      enableQuic: false,
+      success: (res) => {
+        this.setData({
+          networkTesting: false,
+          networkTestResult: `健康检查成功：HTTP ${res.statusCode}`
+        });
+      },
+      fail: (error) => {
+        const detail = error && error.errMsg ? error.errMsg : JSON.stringify(error || {});
+        console.error("[family-edu health check failed]", { url, error });
+        this.setData({
+          networkTesting: false,
+          networkTestResult: `健康检查失败：${detail}\n${url}`
+        });
+      }
+    });
   },
 
   copyPrompt() {

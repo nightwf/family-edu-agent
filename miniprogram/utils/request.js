@@ -25,6 +25,9 @@ function request(options) {
       method: options.method || "GET",
       data: options.data || {},
       header,
+      timeout: 15000,
+      enableHttp2: false,
+      enableQuic: false,
       success(res) {
         if (res.statusCode === 401 && options.auth !== false) {
           clearSession();
@@ -58,6 +61,7 @@ function uploadFile(options) {
       name: options.name || "file",
       formData: options.formData || {},
       header: token ? { Authorization: `Bearer ${token}` } : {},
+      timeout: 15000,
       success(res) {
         let data = {};
         try {
