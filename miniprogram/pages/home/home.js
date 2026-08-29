@@ -97,18 +97,18 @@ Page({
   async load() {
     this.setData({ loading: true, error: "" });
     try {
-      const [home, me] = await Promise.all([api.home(), api.me()]);
+      const storedChildId = wx.getStorageSync("familyEduSelectedChildId");
+      const home = await api.mobileHome({ child_id: storedChildId });
       const children = (home.children || []).map((child) => ({
         ...child,
         initial: (child.name || "孩").slice(0, 1),
         subjectsText: (child.subjects || []).join("、") || "未设置"
       }));
-      const storedChildId = wx.getStorageSync("familyEduSelectedChildId");
-      const childIndex = Math.max(0, children.findIndex((child) => child.id === storedChildId));
+      const activeChildId = home.active_child ? home.active_child.id : storedChildId;
+      const childIndex = Math.max(0, children.findIndex((child) => child.id === activeChildId));
       const activeChild = children[childIndex] || children[0] || null;
-      const [records, reports] = activeChild
-        ? await Promise.all([api.childRecords(activeChild.id), api.childReports(activeChild.id)])
-        : [[], []];
+      const records = home.records || [];
+      const reports = home.reports || [];
       const pendingTasks = (home.homework || [])
         .filter((item) => (!activeChild || item.childId === activeChild.id) && !["done", "cancelled"].includes(item.status || "pending"))
         .slice(0, 3)
@@ -148,8 +148,8 @@ Page({
         .sort((a, b) => b.sortTime - a.sortTime)
         .slice(0, 3);
       this.setData({
-        user: me.user,
-        family: me.family,
+        user: home.user,
+        family: home.family,
         children,
         childNames: children.map((child) => `${child.name} · ${child.grade || "未设置年级"}`),
         childIndex,

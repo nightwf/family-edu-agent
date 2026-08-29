@@ -14,6 +14,8 @@ import { saveFile } from "./storage.js";
 import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
+import { listQuestions, listQuestionTypes, listStudentMastery } from "./question-bank.js";
+import { listPracticePapers, listRemediationPlans, listWrongQuestions } from "./wrong-book.js";
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
@@ -419,6 +421,97 @@ export async function buildApp() {
                 homework: Math.round(records.filter((item) => item.type === "homework").reduce((sum, item) => sum + (item.score || 0), 0) / Math.max(1, records.filter((item) => item.type === "homework").length)),
             },
         };
+    });
+    app.get("/api/mobile/home", { preHandler: requireAuth }, async (request) => {
+        const auth = getAuth(request);
+        const query = request.query;
+        const [user, family, children, reports, homework, records] = await Promise.all([
+            prisma.user.findUnique({ where: { id: auth.id } }),
+            prisma.family.findUnique({ where: { id: auth.familyId } }),
+            prisma.child.findMany({ where: { familyId: auth.familyId, status: "active" }, orderBy: { createdAt: "asc" } }),
+            prisma.report.findMany({ where: { familyId: auth.familyId }, orderBy: { createdAt: "desc" }, take: 8 }),
+            prisma.homework.findMany({ where: { familyId: auth.familyId }, orderBy: { dueDate: "asc" }, take: 30 }),
+            prisma.record.findMany({ where: { familyId: auth.familyId }, orderBy: { date: "desc" }, take: 40 }),
+        ]);
+        const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
+        const childRecords = activeChild ? records.filter((item) => item.childId === activeChild.id) : [];
+        const childReports = activeChild ? reports.filter((item) => item.childId === activeChild.id) : [];
+        return {
+            user,
+            family,
+            children,
+            active_child: activeChild,
+            records: childRecords.slice(0, 8),
+            reports: childReports.slice(0, 5),
+            homework,
+            stats: {
+                records: childRecords.length,
+                writing: childRecords.filter((item) => item.type === "writing").length,
+                reading: Math.round(childRecords.filter((item) => item.type === "reading").reduce((sum, item) => sum + (item.score || 0), 0) / Math.max(1, childRecords.filter((item) => item.type === "reading").length)),
+                homework: Math.round(childRecords.filter((item) => item.type === "homework").reduce((sum, item) => sum + (item.score || 0), 0) / Math.max(1, childRecords.filter((item) => item.type === "homework").length)),
+            },
+        };
+    });
+    app.get("/api/mobile/growth", { preHandler: requireAuth }, async (request) => {
+        const familyId = getAuth(request).familyId;
+        const query = request.query;
+        const children = await prisma.child.findMany({ where: { familyId, status: "active" }, orderBy: { createdAt: "asc" } });
+        const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
+        if (!activeChild)
+            return { children, active_child: null, records: [], reports: [], growth: [] };
+        const [records, reports] = await Promise.all([
+            prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: 80 }),
+            prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: 40 }),
+        ]);
+        return {
+            children,
+            active_child: activeChild,
+            records,
+            reports,
+            growth: [...records].reverse().map((record) => ({
+                date: record.date.toISOString().slice(0, 10),
+                type: record.type,
+                score: record.score,
+            })),
+        };
+    });
+    app.get("/api/mobile/learning", { preHandler: requireAuth }, async (request) => {
+        const familyId = getAuth(request).familyId;
+        const query = request.query;
+        const moduleName = String(query.module || "questions");
+        const qTab = String(query.q_tab || "questions");
+        const wTab = String(query.w_tab || "wrong");
+        const children = await prisma.child.findMany({ where: { familyId, status: "active" }, orderBy: { createdAt: "asc" } });
+        const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
+        const childId = activeChild?.id || "";
+        const common = { ...query, child_id: childId, limit: query.limit || 50 };
+        let data = null;
+        if (moduleName === "questions") {
+            if (qTab === "types")
+                data = await listQuestionTypes(familyId, common);
+            else if (qTab === "mastery")
+                data = await listStudentMastery(familyId, common);
+            else
+                data = await listQuestions(familyId, common);
+        }
+        else if (moduleName === "wrong") {
+            if (wTab === "papers")
+                data = await listPracticePapers(familyId, common);
+            else if (wTab === "plans")
+                data = await listRemediationPlans(familyId, common);
+            else
+                data = await listWrongQuestions(familyId, common);
+        }
+        else if (moduleName === "textbooks") {
+            data = await prisma.textbook.findMany({ where: { familyId }, orderBy: { createdAt: "desc" } });
+        }
+        else if (moduleName === "homework") {
+            data = await prisma.homework.findMany({ where: { familyId }, orderBy: { dueDate: "asc" } });
+        }
+        else if (moduleName === "knowledge") {
+            data = await prisma.knowledgeItem.findMany({ where: { familyId }, orderBy: { createdAt: "desc" } });
+        }
+        return { children, active_child: activeChild, data };
     });
     app.get("/api/children", { preHandler: requireAuth }, async (request) => {
         return prisma.child.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "asc" } });

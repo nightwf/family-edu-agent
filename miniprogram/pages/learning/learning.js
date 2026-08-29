@@ -106,15 +106,26 @@ Page({
 
   async loadChildren() {
     try {
-      const children = await api.listChildren();
+      const data = await api.mobileLearning({
+        module: this.data.module,
+        q_tab: this.data.qTab,
+        w_tab: this.data.wTab,
+        child_id: this.data.childId || wx.getStorageSync("familyEduSelectedChildId"),
+        subject: this.data.subject,
+        query: this.data.query,
+        limit: 50
+      });
+      const children = data.children || [];
+      const activeChildId = data.active_child ? data.active_child.id : "";
+      const activeIndex = children.findIndex((child) => child.id === activeChildId);
       const childId = children.length ? children[0].id : "";
       this.setData({
         children,
         childNames: children.map((child) => `${child.name} · ${child.grade}`),
-        childId,
-        childIndex: 0
+        childId: activeChildId || childId,
+        childIndex: activeIndex >= 0 ? activeIndex : 0
       });
-      await this.loadModule();
+      this.applyModuleData(data.data);
     } catch (error) {
       this.setData({ error: error.message });
     }
@@ -157,26 +168,157 @@ Page({
 
   switchQTab(event) {
     this.setData({ qTab: event.currentTarget.dataset.tab });
-    this.loadQModule();
+    this.loadModule();
   },
 
   switchWTab(event) {
     this.setData({ wTab: event.currentTarget.dataset.tab });
-    this.loadWModule();
+    this.loadModule();
   },
 
   async loadModule() {
-    if (this.data.module === "questions") {
-      await this.loadQModule();
-    } else if (this.data.module === "wrong") {
-      await this.loadWModule();
-    } else if (this.data.module === "textbooks") {
-      await this.loadTextbooks();
-    } else if (this.data.module === "homework") {
-      await this.loadHomework();
-    } else if (this.data.module === "knowledge") {
-      await this.loadKnowledge();
+    this.setData({ loading: true, error: "" });
+    try {
+      const data = await api.mobileLearning({
+        module: this.data.module,
+        q_tab: this.data.qTab,
+        w_tab: this.data.wTab,
+        child_id: this.data.childId,
+        subject: this.data.subject,
+        query: this.data.query,
+        limit: 50
+      });
+      const children = data.children || this.data.children;
+      const activeChildId = data.active_child ? data.active_child.id : this.data.childId;
+      const activeIndex = children.findIndex((child) => child.id === activeChildId);
+      this.setData({
+        children,
+        childNames: children.map((child) => `${child.name} · ${child.grade}`),
+        childId: activeChildId || this.data.childId,
+        childIndex: activeIndex >= 0 ? activeIndex : this.data.childIndex
+      });
+      this.applyModuleData(data.data);
+    } catch (error) {
+      this.setData({ error: error.message, loading: false });
     }
+  },
+
+  applyModuleData(data) {
+    if (this.data.module === "questions" && this.data.qTab === "questions") {
+      this.setData({
+        questions: ((data && data.items) || []).map((item) => ({
+          ...item,
+          difficultyLabel: format.difficultyLabel(item.difficulty),
+          questionTypeName: item.questionType ? item.questionType.name : "-",
+          tagsText: format.joinTags(item.tags)
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "questions" && this.data.qTab === "types") {
+      this.setData({
+        questionTypes: ((data && data.items) || []).map((item) => ({
+          ...item,
+          knowledgeText: format.joinTags(item.knowledgePoints),
+          questionCount: item._count ? item._count.questions : 0,
+          masteryCount: item._count ? item._count.masteries : 0
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "questions" && this.data.qTab === "mastery") {
+      this.setData({
+        masteries: ((data && data.items) || []).map((item) => ({
+          ...item,
+          statusLabel: format.masteryStatus(item.status),
+          questionTypeName: item.questionType ? item.questionType.name : "-",
+          childName: item.child ? item.child.name : "-",
+          scorePercent: Math.min(100, Number(item.masteryScore || 0))
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "wrong" && this.data.wTab === "wrong") {
+      this.setData({
+        wrongQuestions: ((data && data.items) || []).map((item) => ({
+          ...item,
+          statusLabel: format.wrongStatus(item.status),
+          statusTone: format.wrongTone(item.status),
+          childName: item.child ? item.child.name : "-",
+          lastWrongAtText: format.formatDate(item.lastWrongAt),
+          knowledgeText: format.joinTags(item.knowledgePoints),
+          scorePercent: Math.min(100, Number(item.masteryScore || 0))
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "wrong" && this.data.wTab === "papers") {
+      this.setData({
+        papers: ((data && data.items) || []).map((item) => ({
+          ...item,
+          statusLabel: format.paperStatus(item.status),
+          childName: item.child ? item.child.name : "-",
+          questionCount: item._count ? item._count.questions : 0,
+          attemptCount: item._count ? item._count.attempts : 0
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "wrong" && this.data.wTab === "plans") {
+      this.setData({
+        plans: ((data && data.items) || []).map((item) => ({
+          ...item,
+          statusLabel: format.planStatus(item.status),
+          childName: item.child ? item.child.name : "-",
+          taskCount: item._count ? item._count.tasks : 0,
+          startText: format.formatDate(item.startDate),
+          endText: format.formatDate(item.endDate)
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "textbooks") {
+      this.setData({
+        textbooks: (data || []).map((item) => ({
+          ...item,
+          childName: format.childName(this.data.children, item.childId),
+          statusLabel: item.status === "ready" ? "已就绪" : "识别中"
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "homework") {
+      this.setData({
+        homework: (data || []).map((item) => ({
+          ...item,
+          childName: format.childName(this.data.children, item.childId),
+          statusLabel: format.homeworkStatus(item.status),
+          statusTone: format.homeworkTone(item.status),
+          dueText: format.formatDate(item.dueDate)
+        })),
+        loading: false
+      });
+      return;
+    }
+    if (this.data.module === "knowledge") {
+      this.setData({
+        knowledge: (data || []).map((item) => ({
+          ...item,
+          childName: format.childName(this.data.children, item.childId),
+          dateText: format.formatDate(item.createdAt)
+        })),
+        loading: false
+      });
+      return;
+    }
+    this.setData({ loading: false });
   },
 
   async loadQModule() {

@@ -30,21 +30,45 @@ Page({
 
   async loadChildren() {
     try {
-      const children = await api.listChildren();
       const savedChildId = wx.getStorageSync("familyEduSelectedChildId");
-      const savedIndex = children.findIndex((child) => child.id === savedChildId);
+      const data = await api.mobileGrowth({ child_id: savedChildId });
+      const children = data.children || [];
+      const activeChildId = data.active_child ? data.active_child.id : savedChildId;
+      const savedIndex = children.findIndex((child) => child.id === activeChildId);
       const childIndex = savedIndex >= 0 ? savedIndex : 0;
       const childId = children.length ? children[childIndex].id : "";
-      this.setData({
+      this.setGrowthData(data, {
         children,
         childNames: children.map((child) => `${child.name} · ${child.grade}`),
         childId,
         childIndex
       });
-      await this.loadData();
     } catch (error) {
       this.setData({ error: error.message, loading: false });
     }
+  },
+
+  setGrowthData(data, extra = {}) {
+    this.setData({
+      ...extra,
+      records: (data.records || []).map((item) => ({
+        ...item,
+        dateText: format.formatDate(item.date),
+        typeLabel: TYPE_LABELS[item.type] || item.type || "记录"
+      })),
+      reports: (data.reports || []).map((item) => ({
+        ...item,
+        dateText: format.formatDate(item.createdAt),
+        typeLabel: item.type === "weekly" ? "周报" : "月报"
+      })),
+      growth: (data.growth || []).map((item, index) => ({
+        ...item,
+        dateText: format.formatDate(item.date),
+        scorePercent: Math.min(100, Number(item.score || 0)),
+        row: index + 1
+      })),
+      loading: false
+    });
   },
 
   onChildChange(event) {
@@ -67,30 +91,8 @@ Page({
     }
     this.setData({ loading: true, error: "" });
     try {
-      const [records, reports, growth] = await Promise.all([
-        api.childRecords(childId),
-        api.childReports(childId),
-        api.childGrowth(childId)
-      ]);
-      this.setData({
-        records: (records || []).map((item) => ({
-          ...item,
-          dateText: format.formatDate(item.date),
-          typeLabel: TYPE_LABELS[item.type] || item.type || "记录"
-        })),
-        reports: (reports || []).map((item) => ({
-          ...item,
-          dateText: format.formatDate(item.createdAt),
-          typeLabel: item.type === "weekly" ? "周报" : "月报"
-        })),
-        growth: (growth || []).map((item, index) => ({
-          ...item,
-          dateText: format.formatDate(item.date),
-          scorePercent: Math.min(100, Number(item.score || 0)),
-          row: index + 1
-        })),
-        loading: false
-      });
+      const data = await api.mobileGrowth({ child_id: childId });
+      this.setGrowthData(data);
     } catch (error) {
       this.setData({ error: error.message, loading: false });
     }
