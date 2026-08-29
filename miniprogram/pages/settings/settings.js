@@ -135,31 +135,40 @@ Page({
     if (this.data.networkTesting) return;
     const url = `${config.baseUrl}/api/health`;
     const startedAt = format.formatDate(new Date().toISOString());
+    const maxRetry = 8;
     this.setData({ networkTesting: true, networkTestResult: `正在测试网络... ${startedAt}` });
-    wx.request({
-      url,
-      method: "GET",
-      timeout: 15000,
-      enableHttp2: false,
-      enableQuic: false,
-      success: (res) => {
-        const finishedAt = format.formatDate(new Date().toISOString());
-        this.setData({
-          error: "",
-          networkTesting: false,
-          networkTestResult: `健康检查成功：HTTP ${res.statusCode} · ${finishedAt}`
-        });
-      },
-      fail: (error) => {
-        const detail = error && error.errMsg ? error.errMsg : JSON.stringify(error || {});
-        const finishedAt = format.formatDate(new Date().toISOString());
-        console.error("[family-edu health check failed]", { url, error });
-        this.setData({
-          networkTesting: false,
-          networkTestResult: `健康检查失败：${detail} · ${finishedAt}\n${url}`
-        });
-      }
-    });
+    const send = (attempt) => {
+      this.setData({ networkTestResult: `正在测试网络... 第 ${attempt + 1}/${maxRetry + 1} 次 · ${startedAt}` });
+      wx.request({
+        url,
+        method: "GET",
+        timeout: 15000,
+        enableHttp2: false,
+        enableQuic: false,
+        success: (res) => {
+          const finishedAt = format.formatDate(new Date().toISOString());
+          this.setData({
+            error: "",
+            networkTesting: false,
+            networkTestResult: `健康检查成功：HTTP ${res.statusCode} · 第 ${attempt + 1} 次 · ${finishedAt}`
+          });
+        },
+        fail: (error) => {
+          const detail = error && error.errMsg ? error.errMsg : JSON.stringify(error || {});
+          const finishedAt = format.formatDate(new Date().toISOString());
+          console.error("[family-edu health check failed]", { url, detail, attempt });
+          if (attempt < maxRetry) {
+            setTimeout(() => send(attempt + 1), 600 + attempt * 400);
+            return;
+          }
+          this.setData({
+            networkTesting: false,
+            networkTestResult: `健康检查失败：${detail} · 已重试 ${maxRetry + 1} 次 · ${finishedAt}\n${url}`
+          });
+        }
+      });
+    };
+    send(0);
   },
 
   copyPrompt() {

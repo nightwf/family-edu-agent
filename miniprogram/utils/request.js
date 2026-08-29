@@ -14,6 +14,8 @@ function buildNetworkError(prefix, detail) {
   let hint = "";
   if (/ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET/i.test(detail)) {
     hint = "。连接被中途关闭，请先关闭手机 VPN/代理/加速器，切换普通 Wi-Fi 或蜂窝网络后重试";
+  } else if (/^request:fail$/i.test(detail)) {
+    hint = "。微信网络层没有返回具体原因，通常是开发者工具或当前网络链路临时失败，请稍后重试";
   } else if (/domain|url not in domain|合法域名/i.test(detail)) {
     hint = "。请确认微信公众平台 request 合法域名已配置 https://edu.skillstores.com，并在开发者工具刷新域名";
   } else if (/timeout/i.test(detail)) {
@@ -23,7 +25,8 @@ function buildNetworkError(prefix, detail) {
 }
 
 function isTransientNetworkError(detail) {
-  return /ERR_SOCKET_NOT_CONNECTED|ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET|socket|connection/i.test(detail || "");
+  if (/domain|url not in domain|合法域名/i.test(detail || "")) return false;
+  return /request:fail|ERR_SOCKET_NOT_CONNECTED|ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET|timeout|socket|connection/i.test(detail || "");
 }
 
 function request(options) {
@@ -36,7 +39,7 @@ function request(options) {
     if (options.auth !== false && token) {
       header.Authorization = `Bearer ${token}`;
     }
-    const maxRetry = options.retry === undefined ? 2 : Number(options.retry || 0);
+    const maxRetry = options.retry === undefined ? 4 : Number(options.retry || 0);
     const send = (attempt) => {
       wx.request({
         url,
