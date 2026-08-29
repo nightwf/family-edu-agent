@@ -8,6 +8,7 @@ function qs(params) {
 }
 
 const api = {
+  health: () => request({ url: "/api/health", auth: false, retry: 3 }),
   login: (data) => request({ url: "/api/auth/login", method: "POST", data, auth: false }),
   register: (data) => request({ url: "/api/auth/register", method: "POST", data, auth: false }),
   wechatLogin: (data) => request({ url: "/api/auth/wechat/login", method: "POST", data, auth: false }),

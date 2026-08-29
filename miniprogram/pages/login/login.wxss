@@ -40,6 +40,100 @@
 .hero-line { color: #d3e0df; font-size: 23rpx; }
 .hero-title { margin-top: 8rpx; font-size: 36rpx; font-weight: 800; line-height: 1.35; }
 
+.service-card {
+  min-height: 112rpx;
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin: 0 0 22rpx;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 24rpx;
+  background: #fffdf7;
+  box-shadow: 0 10rpx 28rpx rgba(39, 54, 57, 0.06);
+  box-sizing: border-box;
+}
+
+.service-card.ok {
+  border-color: #cde8df;
+  background: #f4fffb;
+}
+
+.service-card.checking {
+  border-color: #f0dfad;
+  background: #fff9e8;
+}
+
+.service-card.unstable {
+  border-color: #f1c9bf;
+  background: #fff5f1;
+}
+
+.service-icon {
+  width: 52rpx;
+  height: 52rpx;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18rpx;
+  background: #e4f3ef;
+}
+
+.service-card.checking .service-icon { background: #fff0c9; }
+.service-card.unstable .service-icon { background: #ffe0d7; }
+
+.service-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 999rpx;
+  background: #0f766e;
+  box-shadow: 0 0 0 8rpx rgba(15, 118, 110, 0.12);
+}
+
+.service-card.checking .service-dot {
+  background: #d89c22;
+  box-shadow: 0 0 0 8rpx rgba(216, 156, 34, 0.14);
+}
+
+.service-card.unstable .service-dot {
+  background: #c9503a;
+  box-shadow: 0 0 0 8rpx rgba(201, 80, 58, 0.12);
+}
+
+.service-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.service-title {
+  color: #203238;
+  font-size: 27rpx;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.service-detail {
+  margin-top: 5rpx;
+  color: #728186;
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
+.service-action {
+  min-width: 84rpx;
+  height: 54rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 23rpx;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1rpx #e8ddc5;
+}
+
 .login-sheet {
   padding: 32rpx 28rpx;
   border: 1rpx solid #e8ddc5;
@@ -80,5 +174,53 @@
 .bind-mode { min-height: 72rpx; display: flex; align-items: center; justify-content: center; border: 1rpx solid #e8ddc5; border-radius: 16rpx; color: #728186; font-size: 24rpx; }
 .bind-mode.active { border-color: #0f766e; background: #e4f3ef; color: #0f766e; font-weight: 700; }
 
-.error { margin-top: 22rpx; padding: 14rpx; border-radius: 10rpx; background: #fff0eb; color: #c9503a; font-size: 24rpx; text-align: center; }
+.error-card {
+  margin-top: 24rpx;
+  padding: 22rpx;
+  border: 1rpx solid #f0c7bc;
+  border-radius: 20rpx;
+  background: #fff5f1;
+}
+
+.error-title {
+  color: #9f3e2d;
+  font-size: 26rpx;
+  font-weight: 800;
+  line-height: 1.36;
+}
+
+.error-detail {
+  margin-top: 8rpx;
+  color: #b25b49;
+  font-size: 22rpx;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.error-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.error-action {
+  min-height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid #e8ddc5;
+  border-radius: 14rpx;
+  background: #ffffff;
+  color: #203238;
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.error-action.primary {
+  border-color: #0f766e;
+  background: #e4f3ef;
+  color: #0f766e;
+}
+
 .login-footer { margin-top: 26rpx; color: #8b989a; font-size: 21rpx; text-align: center; }

@@ -12,6 +12,17 @@
     <view class="hero-title">把孩子的学习变化放进同一个家庭档案</view>
   </view>
 
+  <view class="service-card {{serviceState}}">
+    <view class="service-icon">
+      <view class="service-dot"></view>
+    </view>
+    <view class="service-main">
+      <view class="service-title">{{serviceTitle}}</view>
+      <view class="service-detail">{{serviceDetail}}</view>
+    </view>
+    <view wx:if="{{serviceState !== 'ok'}}" class="service-action" bindtap="retryService">重试</view>
+  </view>
+
   <view class="login-sheet">
     <block wx:if="{{!bindStep}}">
       <view class="sheet-title">欢迎回来</view>
@@ -71,7 +82,14 @@
       <button class="btn btn-primary submit-button" loading="{{loading}}" bindtap="submitBind">完成绑定</button>
     </block>
 
-    <view wx:if="{{error}}" class="error">{{error}}</view>
+    <view wx:if="{{error}}" class="error-card">
+      <view class="error-title">{{error}}</view>
+      <view wx:if="{{errorDetail}}" class="error-detail">{{errorDetail}}</view>
+      <view class="error-actions">
+        <view class="error-action primary" bindtap="wechatLogin">再试微信登录</view>
+        <view class="error-action" data-mode="login" bindtap="switchMode">使用邮箱登录</view>
+      </view>
+    </view>
   </view>
 
   <view class="login-footer">家庭数据仅当前账号可见</view>
