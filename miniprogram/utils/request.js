@@ -12,7 +12,7 @@ function clearSession() {
 
 function buildNetworkError(prefix, detail) {
   let hint = "";
-  if (/ERR_CONNECTION_CLOSED/i.test(detail)) {
+  if (/ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET/i.test(detail)) {
     hint = "。连接被中途关闭，请先关闭手机 VPN/代理/加速器，切换普通 Wi-Fi 或蜂窝网络后重试";
   } else if (/domain|url not in domain|合法域名/i.test(detail)) {
     hint = "。请确认微信公众平台 request 合法域名已配置 https://edu.skillstores.com，并在开发者工具刷新域名";
@@ -23,7 +23,7 @@ function buildNetworkError(prefix, detail) {
 }
 
 function isTransientNetworkError(detail) {
-  return /ERR_SOCKET_NOT_CONNECTED|ERR_CONNECTION_CLOSED|socket|connection/i.test(detail || "");
+  return /ERR_SOCKET_NOT_CONNECTED|ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET|socket|connection/i.test(detail || "");
 }
 
 function request(options) {
