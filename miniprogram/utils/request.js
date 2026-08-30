@@ -33,13 +33,15 @@ function request(options) {
   return new Promise((resolve, reject) => {
     const token = wx.getStorageSync("familyEduToken");
     const url = `${config.baseUrl}${options.url}`;
+    const canCache = (options.method || "GET") === "GET" && options.auth !== false;
+    const cacheKey = `familyEduCache:${url}`;
     const header = {
       "Content-Type": "application/json"
     };
     if (options.auth !== false && token) {
       header.Authorization = `Bearer ${token}`;
     }
-    const maxRetry = options.retry === undefined ? 4 : Number(options.retry || 0);
+    const maxRetry = options.retry === undefined ? 2 : Number(options.retry || 0);
     const send = (attempt) => {
       wx.request({
         url,
@@ -61,14 +63,32 @@ function request(options) {
             reject(new Error(message));
             return;
           }
+          if (canCache) {
+            try {
+              wx.setStorageSync(cacheKey, { data: res.data, cachedAt: Date.now() });
+            } catch (_error) {
+              // ignore cache write errors
+            }
+          }
           resolve(res.data);
         },
         fail(error) {
           const detail = error && error.errMsg ? error.errMsg : "unknown request error";
           console.error("[family-edu request failed]", { url, detail, attempt });
           if (attempt < maxRetry && isTransientNetworkError(detail)) {
-            setTimeout(() => send(attempt + 1), 700 + attempt * 800);
+            setTimeout(() => send(attempt + 1), 350 + attempt * 500);
             return;
+          }
+          if (canCache) {
+            try {
+              const cached = wx.getStorageSync(cacheKey);
+              if (cached && cached.data) {
+                resolve({ ...cached.data, __stale: true, __cachedAt: cached.cachedAt });
+                return;
+              }
+            } catch (_error) {
+              // ignore cache read errors
+            }
           }
           reject(new Error(buildNetworkError("网络连接失败", detail)));
         }

@@ -60,6 +60,13 @@ function getAuth(request) {
     const payload = request.user;
     return { id: payload.sub, familyId: payload.familyId };
 }
+function pageValues(input = {}, defaultLimit = 20, maxLimit = 100) {
+    const rawLimit = Number(input.limit || defaultLimit);
+    const rawOffset = Number(input.offset || 0);
+    const limit = Math.min(maxLimit, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : defaultLimit));
+    const offset = Math.max(0, Number.isFinite(rawOffset) ? rawOffset : 0);
+    return { limit, offset };
+}
 async function getValidFamilyInvite(code) {
     if (!code)
         return null;
@@ -429,9 +436,9 @@ export async function buildApp() {
             prisma.user.findUnique({ where: { id: auth.id } }),
             prisma.family.findUnique({ where: { id: auth.familyId } }),
             prisma.child.findMany({ where: { familyId: auth.familyId, status: "active" }, orderBy: { createdAt: "asc" } }),
-            prisma.report.findMany({ where: { familyId: auth.familyId }, orderBy: { createdAt: "desc" }, take: 8 }),
-            prisma.homework.findMany({ where: { familyId: auth.familyId }, orderBy: { dueDate: "asc" }, take: 30 }),
-            prisma.record.findMany({ where: { familyId: auth.familyId }, orderBy: { date: "desc" }, take: 40 }),
+            prisma.report.findMany({ where: { familyId: auth.familyId }, orderBy: { createdAt: "desc" }, take: 5 }),
+            prisma.homework.findMany({ where: { familyId: auth.familyId }, orderBy: { dueDate: "asc" }, take: 15 }),
+            prisma.record.findMany({ where: { familyId: auth.familyId }, orderBy: { date: "desc" }, take: 20 }),
         ]);
         const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
         const childRecords = activeChild ? records.filter((item) => item.childId === activeChild.id) : [];
@@ -455,24 +462,29 @@ export async function buildApp() {
     app.get("/api/mobile/growth", { preHandler: requireAuth }, async (request) => {
         const familyId = getAuth(request).familyId;
         const query = request.query;
+        const { limit, offset } = pageValues(query, 20, 50);
         const children = await prisma.child.findMany({ where: { familyId, status: "active" }, orderBy: { createdAt: "asc" } });
         const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
         if (!activeChild)
-            return { children, active_child: null, records: [], reports: [], growth: [] };
-        const [records, reports] = await Promise.all([
-            prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: 80 }),
-            prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: 40 }),
+            return { children, active_child: null, records: [], reports: [], growth: [], page: { limit, offset, total_records: 0, total_reports: 0 } };
+        const [records, reports, growthRecords, totalRecords, totalReports] = await Promise.all([
+            prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: limit, skip: offset }),
+            prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: Math.min(10, limit), skip: offset }),
+            prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "asc" }, take: 80 }),
+            prisma.record.count({ where: { childId: activeChild.id, familyId } }),
+            prisma.report.count({ where: { childId: activeChild.id, familyId } }),
         ]);
         return {
             children,
             active_child: activeChild,
             records,
             reports,
-            growth: [...records].reverse().map((record) => ({
+            growth: growthRecords.map((record) => ({
                 date: record.date.toISOString().slice(0, 10),
                 type: record.type,
                 score: record.score,
             })),
+            page: { limit, offset, total_records: totalRecords, total_reports: totalReports },
         };
     });
     app.get("/api/mobile/learning", { preHandler: requireAuth }, async (request) => {
@@ -484,7 +496,8 @@ export async function buildApp() {
         const children = await prisma.child.findMany({ where: { familyId, status: "active" }, orderBy: { createdAt: "asc" } });
         const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
         const childId = activeChild?.id || "";
-        const common = { ...query, child_id: childId, limit: query.limit || 50 };
+        const { limit, offset } = pageValues(query, 20, 100);
+        const common = { ...query, child_id: childId, limit, offset };
         let data = null;
         if (moduleName === "questions") {
             if (qTab === "types")
@@ -503,13 +516,25 @@ export async function buildApp() {
                 data = await listWrongQuestions(familyId, common);
         }
         else if (moduleName === "textbooks") {
-            data = await prisma.textbook.findMany({ where: { familyId }, orderBy: { createdAt: "desc" } });
+            const [items, total] = await Promise.all([
+                prisma.textbook.findMany({ where: { familyId }, orderBy: { createdAt: "desc" }, take: limit, skip: offset }),
+                prisma.textbook.count({ where: { familyId } }),
+            ]);
+            data = { items, total, limit, offset };
         }
         else if (moduleName === "homework") {
-            data = await prisma.homework.findMany({ where: { familyId }, orderBy: { dueDate: "asc" } });
+            const [items, total] = await Promise.all([
+                prisma.homework.findMany({ where: { familyId }, orderBy: { dueDate: "asc" }, take: limit, skip: offset }),
+                prisma.homework.count({ where: { familyId } }),
+            ]);
+            data = { items, total, limit, offset };
         }
         else if (moduleName === "knowledge") {
-            data = await prisma.knowledgeItem.findMany({ where: { familyId }, orderBy: { createdAt: "desc" } });
+            const [items, total] = await Promise.all([
+                prisma.knowledgeItem.findMany({ where: { familyId }, orderBy: { createdAt: "desc" }, take: limit, skip: offset }),
+                prisma.knowledgeItem.count({ where: { familyId } }),
+            ]);
+            data = { items, total, limit, offset };
         }
         return { children, active_child: activeChild, data };
     });
@@ -555,15 +580,18 @@ export async function buildApp() {
     });
     app.get("/api/children/:childId/records", { preHandler: requireAuth }, async (request) => {
         const { childId } = request.params;
-        return prisma.record.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { date: "desc" } });
+        const { limit, offset } = pageValues(request.query, 50, 100);
+        return prisma.record.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { date: "desc" }, take: limit, skip: offset });
     });
     app.get("/api/children/:childId/reports", { preHandler: requireAuth }, async (request) => {
         const { childId } = request.params;
-        return prisma.report.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
+        const { limit, offset } = pageValues(request.query, 20, 100);
+        return prisma.report.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" }, take: limit, skip: offset });
     });
     app.get("/api/children/:childId/growth", { preHandler: requireAuth }, async (request) => {
         const { childId } = request.params;
-        const records = await prisma.record.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { date: "asc" } });
+        const { limit, offset } = pageValues(request.query, 100, 200);
+        const records = await prisma.record.findMany({ where: { childId, familyId: getAuth(request).familyId }, orderBy: { date: "asc" }, take: limit, skip: offset });
         return records.map((record) => ({
             date: record.date.toISOString().slice(0, 10),
             type: record.type,
@@ -571,7 +599,8 @@ export async function buildApp() {
         }));
     });
     app.get("/api/knowledge", { preHandler: requireAuth }, async (request) => {
-        return prisma.knowledgeItem.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
+        const { limit, offset } = pageValues(request.query, 50, 100);
+        return prisma.knowledgeItem.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" }, take: limit, skip: offset });
     });
     app.post("/api/knowledge", { preHandler: requireAuth }, async (request, reply) => {
         const familyId = getAuth(request).familyId;
@@ -597,7 +626,8 @@ export async function buildApp() {
         return { ok: true };
     });
     app.get("/api/homework", { preHandler: requireAuth }, async (request) => {
-        return prisma.homework.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { dueDate: "asc" } });
+        const { limit, offset } = pageValues(request.query, 50, 100);
+        return prisma.homework.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { dueDate: "asc" }, take: limit, skip: offset });
     });
     app.post("/api/homework", { preHandler: requireAuth }, async (request, reply) => {
         const familyId = getAuth(request).familyId;
@@ -650,7 +680,8 @@ export async function buildApp() {
         return { ok: true };
     });
     app.get("/api/textbooks", { preHandler: requireAuth }, async (request) => {
-        return prisma.textbook.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" } });
+        const { limit, offset } = pageValues(request.query, 50, 100);
+        return prisma.textbook.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "desc" }, take: limit, skip: offset });
     });
     app.post("/api/textbooks", { preHandler: requireAuth }, async (request, reply) => {
         const familyId = getAuth(request).familyId;

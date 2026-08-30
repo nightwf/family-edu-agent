@@ -285,7 +285,7 @@ Page({
     }
     if (this.data.module === "textbooks") {
       this.setData({
-        textbooks: (data || []).map((item) => ({
+        textbooks: (((data && data.items) || data || [])).map((item) => ({
           ...item,
           childName: format.childName(this.data.children, item.childId),
           statusLabel: item.status === "ready" ? "已就绪" : "识别中"
@@ -296,7 +296,7 @@ Page({
     }
     if (this.data.module === "homework") {
       this.setData({
-        homework: (data || []).map((item) => ({
+        homework: (((data && data.items) || data || [])).map((item) => ({
           ...item,
           childName: format.childName(this.data.children, item.childId),
           statusLabel: format.homeworkStatus(item.status),
@@ -309,7 +309,7 @@ Page({
     }
     if (this.data.module === "knowledge") {
       this.setData({
-        knowledge: (data || []).map((item) => ({
+        knowledge: (((data && data.items) || data || [])).map((item) => ({
           ...item,
           childName: format.childName(this.data.children, item.childId),
           dateText: format.formatDate(item.createdAt)
