@@ -101,10 +101,10 @@
       <view class="connection-note">复制后发给 WorkBuddy，它会按当前家庭身份调用教育数据。</view>
       <view wx:if="{{mcpToken}}" class="token-box">
         <view class="token-label">专属 Token</view>
-        <text class="token-text">{{mcpToken}}</text>
+        <text class="token-text" user-select="{{true}}">{{mcpToken}}</text>
       </view>
       <view class="prompt-box {{promptExpanded ? 'expanded' : ''}}">
-        <text class="prompt-text">{{workbuddyPrompt || '连接提示词尚未生成'}}</text>
+        <text class="prompt-text" user-select="{{true}}">{{workbuddyPrompt || '连接提示词尚未生成'}}</text>
       </view>
       <view class="prompt-toggle" bindtap="togglePrompt">{{promptExpanded ? '收起提示词' : '展开完整提示词'}} {{promptExpanded ? '⌃' : '⌄'}}</view>
     </view>
@@ -118,7 +118,7 @@
       </view>
       <view class="connection-note">复制后发给豆包工作，用同一个家庭 Token 读取和同步孩子数据。</view>
       <view class="prompt-box {{doubaoPromptExpanded ? 'expanded' : ''}}">
-        <text class="prompt-text">{{doubaoPrompt || '连接提示词尚未生成'}}</text>
+        <text class="prompt-text" user-select="{{true}}">{{doubaoPrompt || '连接提示词尚未生成'}}</text>
       </view>
       <view class="prompt-toggle" bindtap="toggleDoubaoPrompt">{{doubaoPromptExpanded ? '收起提示词' : '展开完整提示词'}} {{doubaoPromptExpanded ? '⌃' : '⌄'}}</view>
     </view>

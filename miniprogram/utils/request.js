@@ -74,11 +74,11 @@ function request(options) {
         },
         fail(error) {
           const detail = error && error.errMsg ? error.errMsg : "unknown request error";
-          console.error("[family-edu request failed]", { url, detail, attempt });
           if (attempt < maxRetry && isTransientNetworkError(detail)) {
             setTimeout(() => send(attempt + 1), 350 + attempt * 500);
             return;
           }
+          console.error("[family-edu request failed]", { url, detail, attempt });
           if (canCache) {
             try {
               const cached = wx.getStorageSync(cacheKey);

@@ -12,15 +12,22 @@ Page({
     password: "",
     error: "",
     errorDetail: "",
-    serviceState: "checking",
-    serviceTitle: "正在连接家庭档案服务",
-    serviceDetail: "首次打开会先确认服务是否可访问",
+    serviceState: "idle",
+    serviceTitle: "可以登录家庭档案",
+    serviceDetail: "如果当前网络不稳定，可以点这里检测服务连接",
     loading: false,
     wechatLoading: false
   },
 
-  onLoad() {
-    this.checkService(true);
+  onLoad(options = {}) {
+    const token = wx.getStorageSync("familyEduToken");
+    if (token) {
+      wx.switchTab({ url: "/pages/home/home" });
+      return;
+    }
+    if (options.family_invite) {
+      this.setData({ mode: "register", inviteCode: options.family_invite });
+    }
   },
 
   onField(event) {
