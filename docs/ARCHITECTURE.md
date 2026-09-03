@@ -1,9 +1,10 @@
 # 技术架构
 
-WorkBuddy 负责 AI 理解、对话、讲解和出题；Family Education MCP 提供教育规则与受控数据工具；本项目保存家庭长期数据，并通过 Web 管理端供家长查看和管理。
+WorkBuddy 负责 AI 理解、对话、讲解和出题；Family Education MCP 提供教育规则与受控数据工具；本项目保存家庭长期数据，并通过 Web 管理端供家长查看和管理。开放平台将同一套能力包装为 Connector + Skill + Expert，不新建第二套 MCP。
 
 ```text
 WorkBuddy
+   │ 禾芽家庭私教 Expert + 禾芽教育 Skill
    │ Streamable HTTP MCP + 家庭专属 Token
    ▼
 Fastify API / Family Education MCP
@@ -24,6 +25,7 @@ React Web 家长管理端 / 微信小程序
 - Web API 从登录 JWT 获取 `familyId`；
 - MCP 从 `X-MCP-Token` 获取 `familyId`，忽略调用方提供的家庭编号；
 - 所有学生和资源 ID 在读写前再次校验属于当前家庭；
+- 开放平台包只保存 `${HEYA_FAMILY_TOKEN}` 占位符，用户填写的 Token 由 WorkBuddy 本机保管；
 - 题目属于家庭，可供家庭内多个学生复用；
 - 作答和掌握度属于“学生 + 题型”，不同学生互不影响。
 
@@ -72,3 +74,13 @@ React Web 家长管理端 / 微信小程序
 服务通过 Docker Compose 独立运行 PostgreSQL、API 和 MinIO，API 仅监听 `127.0.0.1:4100`。Nginx 只代理 `/family-edu/`，不修改服务器其他站点。容器启动时先执行 `prisma migrate deploy`，然后启动 Fastify。
 
 错题本使用 `20260818160000_wrong_book` 增量迁移，不清空现有家庭、账号和业务数据。部署前必须先运行数据库备份，迁移失败时停止 API 更新并保留原容器。
+
+## WorkBuddy 开放平台
+
+- Connector：一个远程 `streamableHttp` MCP，使用本机 Token 表单注入 `X-MCP-Token`；
+- Skill：定义学生选择、上下文读取、计划、作业、错题、掌握度和写回边界；
+- Expert：提供“禾芽家庭私教”入口，并声明 MCP 依赖；
+- `get_agent_bootstrap`：新会话一次读取家庭学生、数据概况、任务路由和安全规则；
+- `get_sync_spec`：复杂任务或工具变化时读取详细同步规范。
+
+公开分发初期使用 Token 模式；用户规模扩大后升级 OAuth 2.1 + PKCE，替代复制 Token 的授权体验。

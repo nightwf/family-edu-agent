@@ -1,0 +1,59 @@
+{
+  "mcpServers": {
+    "heyah-family-education": {
+      "type": "http",
+      "url": "https://edu.skillstores.com/family-edu/mcp",
+      "headers": {
+        "X-MCP-Token": "${HEYA_FAMILY_TOKEN}"
+      },
+      "x-workbuddy": {
+        "displayName": {
+          "zh": "禾芽家庭教务",
+          "en": "Heyah Family Education"
+        },
+        "description": {
+          "zh": "连接学生档案、作业、错题、题库、报告和成长记录。",
+          "en": "Connect student profiles, homework, wrong answers, reports and growth records."
+        },
+        "icon": "./avatars/expert.png",
+        "auth": {
+          "type": "token",
+          "tokenSchema": {
+            "title": {
+              "zh": "连接禾芽家庭教务",
+              "en": "Connect Heyah Family Education"
+            },
+            "description": {
+              "zh": "输入禾芽设置页中的家庭专属 Token。凭证只保存在 WorkBuddy 本机。",
+              "en": "Enter the family token from Heyah Settings. It is stored locally by WorkBuddy."
+            },
+            "docUrl": "https://edu.skillstores.com/family-edu/",
+            "docLabel": {
+              "zh": "在哪里复制家庭 Token？",
+              "en": "Where can I copy the family token?"
+            },
+            "fields": [
+              {
+                "key": "HEYA_FAMILY_TOKEN",
+                "label": {
+                  "zh": "家庭专属 Token",
+                  "en": "Family Token"
+                },
+                "placeholder": {
+                  "zh": "在禾芽设置页复制",
+                  "en": "Copy from Heyah Settings"
+                },
+                "type": "password",
+                "required": true,
+                "description": {
+                  "zh": "该 Token 只允许访问其绑定家庭的数据。",
+                  "en": "This token only grants access to its linked family."
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

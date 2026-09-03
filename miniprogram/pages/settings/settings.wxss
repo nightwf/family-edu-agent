@@ -142,6 +142,13 @@
 .token-box { margin-top: 18rpx; padding: 18rpx 20rpx; border-radius: 18rpx; background: #fff4cf; }
 .token-label { color: #8a6c25; font-size: 21rpx; }
 .token-text { display: block; margin-top: 5rpx; overflow: hidden; color: #5e5337; font-size: 22rpx; text-overflow: ellipsis; white-space: nowrap; }
+.platform-steps { margin-top: 18rpx; padding: 4rpx 0; }
+.platform-step { display: flex; align-items: flex-start; gap: 14rpx; padding: 10rpx 0; }
+.step-index { width: 36rpx; height: 36rpx; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #e4f3ef; color: #0f766e; font-size: 20rpx; font-weight: 800; }
+.step-text { flex: 1; color: #52636a; font-size: 23rpx; line-height: 1.55; }
+.backup-head { display: flex; align-items: center; justify-content: space-between; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid #eee5d3; }
+.backup-title { color: #52636a; font-size: 23rpx; font-weight: 800; }
+.backup-copy { min-height: 50rpx; display: flex; align-items: center; padding: 0 12rpx; color: #0f766e; font-size: 22rpx; font-weight: 800; }
 .prompt-box { position: relative; max-height: 168rpx; margin-top: 16rpx; overflow: hidden; padding: 20rpx; border: 1rpx solid #e8ddc5; border-radius: 18rpx; background: #f8f4e9; box-sizing: border-box; }
 .prompt-box::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 62rpx; background: linear-gradient(180deg, rgba(248, 244, 233, 0), #f8f4e9); }
 .prompt-box.expanded { max-height: none; }

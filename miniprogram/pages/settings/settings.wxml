@@ -93,15 +93,25 @@
     <view class="connection-card">
       <view class="connection-head">
         <view>
-          <view class="connection-title">WorkBuddy 连接</view>
-          <view class="connection-status"><view class="status-dot"></view>连接资料已生成</view>
+          <view class="connection-title">WorkBuddy 开放平台</view>
+          <view class="connection-status"><view class="status-dot"></view>连接器接入已就绪</view>
         </view>
-        <view class="copy-button" bindtap="copyPrompt">{{copyText}}</view>
+        <view class="copy-button" bindtap="copyMcpToken">{{tokenCopyText}}</view>
       </view>
-      <view class="connection-note">复制后发给 WorkBuddy，它会按当前家庭身份调用教育数据。</view>
+      <view class="connection-note">安装“禾芽家庭教务”连接器后，只需粘贴一次家庭 Token。以后召唤“禾芽家庭私教”，它会自动读取家庭和学生规范。</view>
       <view wx:if="{{mcpToken}}" class="token-box">
-        <view class="token-label">专属 Token</view>
+        <view class="token-label">家庭专属 Token</view>
         <text class="token-text" user-select="{{true}}">{{mcpToken}}</text>
+      </view>
+      <view wx:if="{{openPlatformSteps.length}}" class="platform-steps">
+        <view wx:for="{{openPlatformSteps}}" wx:key="*this" class="platform-step">
+          <view class="step-index">{{index + 1}}</view>
+          <view class="step-text">{{item}}</view>
+        </view>
+      </view>
+      <view class="backup-head">
+        <view class="backup-title">手动连接备用</view>
+        <view class="backup-copy" bindtap="copyPrompt">{{copyText}}</view>
       </view>
       <view class="prompt-box {{promptExpanded ? 'expanded' : ''}}">
         <text class="prompt-text" user-select="{{true}}">{{workbuddyPrompt || '连接提示词尚未生成'}}</text>

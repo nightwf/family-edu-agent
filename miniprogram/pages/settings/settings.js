@@ -15,10 +15,12 @@ Page({
     userInitial: "家",
     childCount: 0,
     mcpToken: "",
+    openPlatformSteps: [],
     workbuddyPrompt: "",
     doubaoPrompt: "",
     isWechatBound: false,
     copyText: "复制提示词",
+    tokenCopyText: "复制 Token",
     doubaoCopyText: "复制提示词",
     promptExpanded: false,
     doubaoPromptExpanded: false,
@@ -66,6 +68,7 @@ Page({
         userInitial: ((settings.family && settings.family.name) || (settings.user && settings.user.email) || "家").slice(0, 1),
         childCount: settings.child_count || 0,
         mcpToken: settings.mcp_token || "",
+        openPlatformSteps: (settings.workbuddy_open_platform && settings.workbuddy_open_platform.install_steps) || [],
         workbuddyPrompt: settings.workbuddy_prompt || "",
         doubaoPrompt: settings.doubao_prompt || "",
         isWechatBound: Boolean(settings.user && settings.user.wechatOpenId),
@@ -175,17 +178,22 @@ Page({
     this.copyAgentPrompt("workbuddyPrompt", "copyText");
   },
 
+  copyMcpToken() {
+    this.copyAgentPrompt("mcpToken", "tokenCopyText");
+  },
+
   copyDoubaoPrompt() {
     this.copyAgentPrompt("doubaoPrompt", "doubaoCopyText");
   },
 
   copyAgentPrompt(promptKey, copyKey) {
     if (!this.data[promptKey]) return;
+    const idleText = copyKey === "tokenCopyText" ? "复制 Token" : "复制提示词";
     wx.setClipboardData({
       data: this.data[promptKey],
       success: () => {
         this.setData({ [copyKey]: "已复制" });
-        setTimeout(() => this.setData({ [copyKey]: "复制提示词" }), 1500);
+        setTimeout(() => this.setData({ [copyKey]: idleText }), 1500);
       }
     });
   },

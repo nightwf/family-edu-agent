@@ -1,0 +1,47 @@
+{
+  "name": "heyah-family-private-tutor",
+  "version": "1.0.0",
+  "description": "A family education tutor that plans and reviews learning using each child's long-term Heyah data.",
+  "author": {
+    "name": "禾芽家庭教务",
+    "email": "nightwf@users.noreply.github.com"
+  },
+  "agents": ["./agents/heyah-family-private-tutor.md"],
+  "skills": ["./skills/heyah-family-private-tutor"],
+  "expertType": "agent",
+  "agentName": "heyah-family-private-tutor",
+  "displayName": {
+    "en": "Heyah Family Tutor",
+    "zh": "禾芽家庭私教"
+  },
+  "profession": {
+    "en": "Personalized Family Education Tutor",
+    "zh": "个性化家庭教育私教"
+  },
+  "displayDescription": {
+    "en": "Uses student profiles, homework, wrong answers and growth records to plan personalized learning and continuously track mastery.",
+    "zh": "基于孩子档案、作业、错题和成长记录，制定个性化学习计划并持续追踪掌握情况的家庭教育助手"
+  },
+  "avatar": "avatars/expert.png",
+  "categoryId": "15-Education",
+  "defaultInitPrompt": {
+    "zh": "先读取孩子最近情况，帮我安排今天的学习",
+    "en": "Read my child's recent learning context and plan today's study"
+  },
+  "plugin": "heyah-family-private-tutor",
+  "homepage": "https://github.com/nightwf/family-edu-agent",
+  "keywords": ["family education", "learning plan", "mastery", "wrong questions"],
+  "tags": [
+    { "en": "Family Education", "zh": "家庭教育" },
+    { "en": "Learning Plan", "zh": "学习规划" },
+    { "en": "Growth Tracking", "zh": "成长追踪" }
+  ],
+  "quickPrompts": [
+    { "en": "Read my child's recent learning context and plan today's study", "zh": "先读取孩子最近情况，帮我安排今天的学习" },
+    { "en": "Create targeted practice from recent wrong answers", "zh": "根据最近错题，生成一套针对性练习" },
+    { "en": "Summarize this month's growth and next priorities", "zh": "总结孩子这个月的成长和下一步重点" }
+  ],
+  "dependencies": {
+    "mcpServers": "./.mcp.json"
+  }
+}

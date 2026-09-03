@@ -1,0 +1,19 @@
+{
+  "title": "连接禾芽家庭教务",
+  "title_en": "Connect Heyah Family Education",
+  "description": "输入禾芽设置页中的家庭专属 Token。凭证只保存在 WorkBuddy 本机，用于访问该 Token 对应家庭的数据。",
+  "description_en": "Enter the family token from Heyah Settings. It is stored locally by WorkBuddy and only grants access to the linked family.",
+  "docUrl": "https://edu.skillstores.com/family-edu/",
+  "docLabel": "在哪里复制家庭 Token？",
+  "fields": [
+    {
+      "key": "HEYA_FAMILY_TOKEN",
+      "label": "家庭专属 Token",
+      "label_en": "Family Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "在禾芽：我的/设置 → WorkBuddy 开放平台中复制",
+      "description": "Token 决定 WorkBuddy 可以访问哪个家庭，请勿分享给家庭管理者以外的人。"
+    }
+  ]
+}

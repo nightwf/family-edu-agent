@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "heyah-family-education": {
+      "type": "streamableHttp",
+      "url": "https://edu.skillstores.com/family-edu/mcp",
+      "headers": {
+        "X-MCP-Token": "${HEYA_FAMILY_TOKEN}"
+      },
+      "timeout": 30000
+    }
+  }
+}

@@ -1,3 +1,67 @@
+export const WORKBUDDY_MCP_URL = "https://edu.skillstores.com/family-edu/mcp";
+export function buildAgentBootstrap(input) {
+    return {
+        version: "1.0",
+        product: "禾芽家庭教务",
+        agent_role: "禾芽家庭私教",
+        operating_model: "WorkBuddy 负责理解、对话、讲解、出题和规划；禾芽负责家庭教育方法、孩子长期上下文、结构化数据与结果追踪。",
+        family: {
+            authenticated: true,
+            name: input.family_name || "当前家庭",
+            identity_source: "X-MCP-Token",
+            isolation_rule: "只允许访问当前 Token 绑定的家庭，不接受调用方传入或猜测 family_id。",
+        },
+        children: input.children,
+        stats: input.stats,
+        startup: input.children.length === 0
+            ? ["当前家庭还没有学生档案。先请家长在禾芽创建学生，再开始制定个性化计划。"]
+            : [
+                "先根据家长提到的姓名匹配 children 中的 child_id。",
+                "未说明学生且家庭有多个孩子时，先询问选择，不猜测。",
+                "确定 child_id 后调用 get_child_context，再按任务读取作业、错题、掌握度或成长记录。",
+                "教育方法优先调用 get_effective_skill，使用当前家庭已经个性化后的规则。",
+            ],
+        workflow_router: {
+            daily_plan: ["get_child_context", "list_homework", "list_wrong_questions", "list_student_mastery", "list_remediation_plans"],
+            homework: ["get_child_context", "save_homework", "update_homework_status or complete_homework"],
+            growth: ["get_child_context", "get_growth_summary", "create_report or save_knowledge_item"],
+            question_practice: ["get_question_generation_context", "save_questions_batch", "record_question_attempt"],
+            wrong_question_practice: ["get_wrong_question_practice_context", "save_questions_batch", "create_practice_paper", "record_question_attempt"],
+            remediation_plan: ["get_wrong_question_practice_context", "save_remediation_plan", "update_remediation_task_status"],
+        },
+        guardrails: [
+            "不替孩子完成作业或代写。",
+            "不根据单次表现宣布已经掌握。",
+            "普通闲聊不自动保存；家长明确要求记录、同步、保存或写入时再写入。",
+            "写入后读取或检查返回结果，失败时不得声称已经同步。",
+            "不进行医学或心理诊断。",
+        ],
+        next_action: input.children.length === 1
+            ? `默认可先读取 ${input.children[0].name} 的 get_child_context；若家长指明其他学生则按姓名重新匹配。`
+            : "根据用户当前请求选择学生并读取上下文；需要详细同步规则时调用 get_sync_spec。",
+    };
+}
+export function buildWorkbuddyOpenPlatformConfig(mcpToken) {
+    return {
+        connector_name: "禾芽家庭教务",
+        expert_name: "禾芽家庭私教",
+        mcp_url: WORKBUDDY_MCP_URL,
+        auth_mode: "token",
+        token_field: "HEYA_FAMILY_TOKEN",
+        token: mcpToken,
+        minimum_workbuddy_version: "4.24.0",
+        install_steps: [
+            "在 WorkBuddy 安装“禾芽家庭教务”连接器或召唤“禾芽家庭私教”专家。",
+            "连接时在家庭 Token 输入框粘贴当前页面的专属 Token，只需配置一次。",
+            "连接成功后，Expert 会调用 get_agent_bootstrap 获取家庭、学生和工作规范。",
+        ],
+        quick_prompts: [
+            "先读取孩子最近情况，帮我安排今天的学习",
+            "根据最近错题，生成一套针对性练习",
+            "总结孩子这个月的成长和下一步重点",
+        ],
+    };
+}
 function buildEducationAgentPrompt(platformName, mcpToken, platformNote) {
     return `你在${platformName}中担任“禾芽家庭教务”的家庭教育助手。
 
@@ -6,16 +70,19 @@ ${platformNote}
 MCP 连接信息：
 - 名称：family-edu-mcp
 - 类型：HTTP
-- 地址：https://edu.skillstores.com/family-edu/mcp
+- 地址：${WORKBUDDY_MCP_URL}
 - 请求头：X-MCP-Token: ${mcpToken}
 
+如果已经通过 WorkBuddy 开放平台安装“禾芽家庭教务”连接器，家庭 Token 只需在连接表单中配置一次，不要要求家长在每次对话中重复粘贴本提示词。
+
 工作流程：
-1. 首次连接、工具变化或不确定同步规则时，先调用 get_sync_spec 读取最新版规范。
-2. 每次涉及具体孩子时，先确认 child_id；可以先调用 list_children 或 get_family_summary 获取孩子列表，再调用 get_child_context 获取具体上下文。
-3. 处理教育问题前，先调用 get_child_context 获取孩子上下文。
-4. 再调用 get_education_skill 获取对应教育 Skill，并严格遵守 Skill 的流程、评价标准和禁忌。
-5. 不确定使用哪个 Skill 时，先调用 list_education_skills。
-6. 生成结果后，按场景调用保存工具。
+1. 新会话首次使用禾芽时，先调用 get_agent_bootstrap，确认当前家庭、学生列表、能力范围和下一步动作。
+2. 工具变化或不确定同步规则时，再调用 get_sync_spec 读取最新版详细规范。
+3. 每次涉及具体孩子时，先确认 child_id；可以先调用 list_children 或 get_family_summary 获取孩子列表，再调用 get_child_context 获取具体上下文。
+4. 处理教育问题前，先调用 get_child_context 获取孩子上下文。
+5. 再调用 get_effective_skill 获取当前家庭个性化后的教育 Skill；没有家庭配置时才回退 get_education_skill。
+6. 不确定使用哪个 Skill 时，先调用 list_education_skills。
+7. 生成结果后，按场景调用保存工具。
 
 写作 / 日记：
 - 使用 writing-coach Skill

@@ -1,10 +1,11 @@
 # WorkBuddy 同步规范
 
-WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education MCP 读取教育规则并写入家庭数据。首次连接、工具变化或不确定同步范围时调用 `get_sync_spec`。
+WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education MCP 读取教育规则并写入家庭数据。新会话首次使用禾芽时调用 `get_agent_bootstrap`；工具变化、复杂任务或不确定同步范围时再调用 `get_sync_spec`。
 
 ## 通用规则
 
 - 家庭身份只由 `X-MCP-Token` 确定，不传入或猜测 `family_id`；
+- 使用开放平台连接器后，家庭 Token 只在连接时配置一次，不要求家长每次粘贴提示词；
 - 涉及学生时先调用 `list_children` 确认 `child_id`；
 - 普通闲聊不自动保存；家长明确要求保存、同步、写入或记录时调用对应工具；
 - 写入后读取结果确认，不把没有成功保存的内容描述为“已经同步”。

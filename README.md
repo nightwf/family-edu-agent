@@ -15,6 +15,7 @@
 - 学生错题本、严格掌握证据、针对性练习试卷和错题教学规划；
 - 明亮学堂 Web 管理端，支持桌面端和手机端。
 - 微信小程序家长端，支持微信一键登录和家庭专属 WorkBuddy / 豆包工作提示词。
+- WorkBuddy 开放平台 Connector、Skill、Expert 提交包，支持本机填写一次家庭 Token 后自动加载家庭私教规范。
 
 ## 本地启动
 
@@ -48,6 +49,8 @@ npm run build         # 构建 Web
 npm run test          # 全部单元测试
 npm run test:e2e      # Playwright 端到端测试
 npm run test:mcp      # MCP 握手检查，需要 MCP_SMOKE_TOKEN
+npm run check:workbuddy   # 检查开放平台 Connector / Expert 包
+npm run package:workbuddy # 生成可上传开放平台的 ZIP
 npm run db:generate   # 生成 Prisma Client
 npm run db:deploy     # 执行增量 migration
 ```
@@ -103,10 +106,9 @@ PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
 
 ## WorkBuddy / 豆包工作接入
 
-1. 登录管理端并进入“设置”；
-2. 按使用的平台复制完整连接提示词，其中包含家庭专属 Token；
-3. 在 WorkBuddy 或豆包工作配置同一个 `family-edu-mcp`；
-4. 首次使用时让 Agent 调用 `get_sync_spec` 读取最新版规范。
+推荐方式：在 WorkBuddy 开放平台安装“禾芽家庭教务”连接器或召唤“禾芽家庭私教”Expert，连接时粘贴一次家庭专属 Token。新会话由 Agent 自动调用 `get_agent_bootstrap` 获取学生、能力范围和启动规则，不需要家长反复粘贴提示词。
+
+设置页仍保留完整手动连接提示词，供开放平台资产尚未发布、豆包工作接入或排障时使用。详细提交方式见 [WorkBuddy 开放平台接入](docs/workbuddy-open-platform.md)。
 
 远程 MCP 地址：`https://edu.skillstores.com/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
 

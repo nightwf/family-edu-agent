@@ -5,12 +5,19 @@ import { prisma } from "./prisma.js";
 import { listEducationSkills, getEducationSkill, getCoachingPolicy, buildChildContext } from "./education.js";
 import { env } from "./env.js";
 import { resolveFamilyByMcpToken } from "./mcp-token.js";
+import { buildAgentBootstrap } from "./workbuddy-prompt.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, proposePolicyChange, reviewPolicyChange, getPolicyHistory, createSkillOverride, listSkillOverrides, } from "./personalization.js";
 import { createQuestion, createQuestionsBatch, createQuestionType, deleteQuestion, deleteQuestionType, getQuestion, getQuestionGenerationContext, getQuestionType, getStudentMastery, listQuestionAttempts, listQuestions, listQuestionTypes, listStudentMastery, recalculateMastery, updateMasteryOverride, updateQuestion, updateQuestionType, } from "./question-bank.js";
 import { createPracticePaper, deletePracticePaper, deleteRemediationPlan, deleteWrongQuestion, getPracticePaper, getRemediationPlan, getWrongQuestion, getWrongQuestionPracticeContext, listPracticePapers, listRemediationPlans, listWrongQuestions, recalculateWrongQuestionMastery, recordQuestionAttemptWithWrongBook, saveRemediationPlan, saveWrongQuestion, updatePracticePaper, updateRemediationPlan, updateRemediationTaskStatus, updateWrongQuestion, updateWrongQuestionStatus, } from "./wrong-book.js";
 function textResult(payload) {
     return {
         content: [{ type: "text", text: typeof payload === "string" ? payload : JSON.stringify(payload, null, 2) }],
+    };
+}
+function structuredResult(payload) {
+    return {
+        ...textResult(payload),
+        structuredContent: payload,
     };
 }
 async function questionBankResult(action) {
@@ -25,7 +32,7 @@ async function questionBankResult(action) {
     }
 }
 export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
-    const server = new McpServer({ name: "family-edu-mcp", version: "2.0.0" });
+    const server = new McpServer({ name: "family-education-mcp-server", version: "2.3.0" });
     const ensureOwned = async (modelName, id, label) => {
         const model = prisma[modelName];
         const item = await model.findFirst({ where: { id, familyId }, select: { id: true } });
@@ -33,6 +40,50 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
             throw new Error(`${label}不存在或不属于当前家庭`);
     };
     const ensureChild = (childId) => ensureOwned("child", childId, "学生");
+    const getFamilySnapshot = async () => {
+        const [family, children, recordCount, reportCount, textbookCount, homeworkCount, knowledgeCount, wrongQuestionCount] = await Promise.all([
+            prisma.family.findUnique({ where: { id: familyId }, select: { name: true } }),
+            prisma.child.findMany({
+                where: { familyId, status: "active" },
+                orderBy: { createdAt: "asc" },
+                select: { id: true, name: true, age: true, grade: true },
+            }),
+            prisma.record.count({ where: { familyId } }),
+            prisma.report.count({ where: { familyId } }),
+            prisma.textbook.count({ where: { familyId } }),
+            prisma.homework.count({ where: { familyId } }),
+            prisma.knowledgeItem.count({ where: { familyId } }),
+            prisma.wrongQuestionEntry.count({ where: { familyId, status: { not: "archived" } } }),
+        ]);
+        return {
+            family_name: family?.name,
+            children: children.map((child) => ({
+                child_id: child.id,
+                name: child.name,
+                age: child.age,
+                grade: child.grade,
+            })),
+            stats: {
+                record_count: recordCount,
+                report_count: reportCount,
+                textbook_count: textbookCount,
+                homework_count: homeworkCount,
+                knowledge_count: knowledgeCount,
+                wrong_question_count: wrongQuestionCount,
+            },
+        };
+    };
+    server.registerTool("get_agent_bootstrap", {
+        title: "启动禾芽家庭私教",
+        description: "新会话首次使用禾芽时调用一次。返回当前 Token 对应家庭的学生列表、数据概况、任务路由和安全规则，帮助 WorkBuddy 在不要求用户重复粘贴提示词的情况下正确开始工作。只读取数据，不修改任何内容。",
+        inputSchema: {},
+        annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+        },
+    }, async () => structuredResult(buildAgentBootstrap(await getFamilySnapshot())));
     server.tool("list_education_skills", "读取项目内置的教育 Skill 列表。", {}, async () => textResult(listEducationSkills()));
     server.tool("get_education_skill", { skill_id: z.string() }, async ({ skill_id }) => {
         const skill = getEducationSkill(skill_id);
@@ -42,8 +93,9 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         const policy = getCoachingPolicy(skill_id);
         return policy ? textResult(policy) : textResult({ error: "education skill not found" });
     });
-    server.tool("get_sync_spec", "读取禾芽最新版 WorkBuddy 数据同步、题库与错题教学工作规范。首次连接、工具变化或不确定应保存什么时调用。", {}, async () => textResult({
-        version: "2.2",
+    server.tool("get_sync_spec", "读取禾芽最新版详细同步规范。新会话先调用 get_agent_bootstrap；工具变化、复杂任务或不确定应保存什么时再调用本工具。", {}, async () => textResult({
+        version: "2.3",
+        startup_rule: "新会话首次使用禾芽时先调用 get_agent_bootstrap；连接后无需让家长重复粘贴提示词。",
         family_identity: "家庭身份只由 X-MCP-Token 决定，不传入或猜测 family_id。",
         child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
         save_rule: "普通闲聊不保存；家长明确要求保存、同步、写入、记录时调用对应工具。",
@@ -147,20 +199,11 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         return textResult(children);
     });
     server.tool("get_family_summary", { family_id: z.string().optional() }, async ({ family_id }) => {
-        const activeFamilyId = familyId;
-        const children = await prisma.child.findMany({
-            where: { familyId: activeFamilyId, status: "active" },
-            orderBy: { createdAt: "asc" },
-        });
-        const records = await prisma.record.count({ where: { familyId: activeFamilyId } });
-        const textbooks = await prisma.textbook.count({ where: { familyId: activeFamilyId } });
-        const knowledge = await prisma.knowledgeItem.count({ where: { familyId: activeFamilyId } });
+        const snapshot = await getFamilySnapshot();
         return textResult({
-            family_id: activeFamilyId,
-            children: children.map((child) => ({ child_id: child.id, name: child.name, grade: child.grade })),
-            record_count: records,
-            textbook_count: textbooks,
-            knowledge_count: knowledge,
+            family_name: snapshot.family_name,
+            children: snapshot.children,
+            ...snapshot.stats,
         });
     });
     server.tool("create_child", {

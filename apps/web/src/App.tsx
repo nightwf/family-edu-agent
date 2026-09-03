@@ -27,6 +27,12 @@ type Knowledge = { id: string; childId: string; kind: string; title: string; con
 type Textbook = { id: string; childId: string; title: string; subject?: string; publisher?: string; version?: string; status: string };
 type HomeData = { children: Child[]; reports: any[]; textbooks: Textbook[]; knowledge: Knowledge[]; homework: Homework[]; stats: any };
 type SettingsData = {
+  workbuddy_open_platform?: {
+    connector_name: string;
+    expert_name: string;
+    minimum_workbuddy_version: string;
+    install_steps: string[];
+  };
   workbuddy_prompt?: string;
   doubao_prompt?: string;
   mcp_token?: string;
@@ -558,16 +564,28 @@ function App() {
               </div>
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">
-                  <h3 className="font-semibold">WorkBuddy 连接提示词</h3>
-                  <button onClick={() => copyAgentPrompt(settings?.workbuddy_prompt, "workbuddy")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "workbuddy" ? "已复制" : "复制"}</button>
+                  <div>
+                    <h3 className="font-semibold">WorkBuddy 开放平台连接</h3>
+                    <p className="mt-1 text-sm text-stone-500">安装连接器后只需配置一次家庭 Token，Expert 会自动读取禾芽规范。</p>
+                  </div>
+                  <button onClick={() => copyAgentPrompt(settings?.mcp_token, "mcp-token")} className="inline-flex shrink-0 items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "mcp-token" ? "已复制" : "复制 Token"}</button>
                 </div>
                 {settings?.mcp_token && (
                   <div className="mb-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                    <div className="mb-1 font-semibold text-stone-500">家庭专属 MCP Token</div>
+                    <div className="mb-1 font-semibold text-stone-500">家庭专属 Token</div>
                     <code className="break-all">{settings.mcp_token}</code>
                   </div>
                 )}
-                <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
+                <ol className="space-y-2 text-sm leading-6 text-stone-600">
+                  {(settings?.workbuddy_open_platform?.install_steps || []).map((step, index) => <li key={step}>{index + 1}. {step}</li>)}
+                </ol>
+                <div className="mt-4 border-t border-stone-100 pt-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-stone-600">手动连接备用提示词</h4>
+                    <button onClick={() => copyAgentPrompt(settings?.workbuddy_prompt, "workbuddy")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "workbuddy" ? "已复制" : "复制备用配置"}</button>
+                  </div>
+                  <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-40 w-full rounded-lg border border-stone-200 p-3 text-sm" />
+                </div>
               </div>
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">

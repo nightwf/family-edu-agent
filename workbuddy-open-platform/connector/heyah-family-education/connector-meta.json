@@ -1,0 +1,25 @@
+{
+  "name": "Heyah Family Education",
+  "name_zh": "禾芽家庭教务",
+  "name_en": "Heyah Family Education",
+  "description": "Connect WorkBuddy to family learning records, homework, reports, questions and mastery evidence.",
+  "description_zh": "连接家庭学生档案、成长记录、作业、报告、题库与错题掌握证据，支持家庭私教工作流。",
+  "description_en": "Connect family learning records, homework, reports, questions and mastery evidence.",
+  "source": "heyah-family-education",
+  "type": "mcp",
+  "version": "1.0.0",
+  "auth_mode": "token",
+  "minWorkbuddyVersion": "4.24.0",
+  "examples_zh": [
+    "先读取 JOJO 最近的情况，帮我安排今天的学习",
+    "把老师发来的作业识别后同步到禾芽",
+    "根据最近错题生成一套针对性练习",
+    "总结孩子这个月的成长和下一步重点"
+  ],
+  "examples_en": [
+    "Read Jojo's recent learning context and plan today's study",
+    "Save the teacher's homework list to Heyah",
+    "Create targeted practice from recent wrong answers",
+    "Summarize this month's growth and next priorities"
+  ]
+}

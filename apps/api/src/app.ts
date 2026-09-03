@@ -9,7 +9,7 @@ import { prisma } from "./prisma.js";
 import { env } from "./env.js";
 import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
-import { buildDoubaoPrompt, buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
+import { buildDoubaoPrompt, buildWorkbuddyOpenPlatformConfig, buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
 import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
 import {
@@ -797,6 +797,7 @@ export async function buildApp() {
       policy_changes: policyChanges,
       child_count: childCount,
       mcp_token: mcpToken,
+      workbuddy_open_platform: mcpToken ? buildWorkbuddyOpenPlatformConfig(mcpToken) : null,
       workbuddy_prompt: mcpToken ? buildWorkbuddyPrompt(mcpToken) : "",
       doubao_prompt: mcpToken ? buildDoubaoPrompt(mcpToken) : "",
     };

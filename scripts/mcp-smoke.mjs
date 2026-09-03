@@ -19,6 +19,7 @@ try {
   const listed = await client.listTools();
   const names = new Set(listed.tools.map((tool) => tool.name));
   const required = [
+    "get_agent_bootstrap",
     "get_sync_spec",
     "list_children",
     "save_wrong_question",
@@ -43,16 +44,21 @@ try {
   ];
   const missing = required.filter((name) => !names.has(name));
   if (missing.length) throw new Error(`missing MCP tools: ${missing.join(", ")}`);
+  const bootstrap = await client.callTool({ name: "get_agent_bootstrap", arguments: {} });
+  const bootstrapText = bootstrap.content?.find((item) => item.type === "text")?.text || "";
+  if (!bootstrapText.includes('"agent_role": "禾芽家庭私教"') || !bootstrapText.includes('"identity_source": "X-MCP-Token"')) {
+    throw new Error("get_agent_bootstrap did not return the family tutor startup contract");
+  }
   const spec = await client.callTool({ name: "get_sync_spec", arguments: {} });
   const text = spec.content?.find((item) => item.type === "text")?.text || "";
-  if (!text.includes('"version": "2.2"') || !text.includes("wrong_book_capture")) {
-    throw new Error("get_sync_spec did not return the wrong-book v2.2 workflow");
+  if (!text.includes('"version": "2.3"') || !text.includes("wrong_book_capture")) {
+    throw new Error("get_sync_spec did not return the WorkBuddy v2.3 workflow");
   }
   for (const name of ["list_wrong_questions", "list_practice_papers", "list_remediation_plans"]) {
     const result = await client.callTool({ name, arguments: { limit: 1, offset: 0 } });
     if (result.isError) throw new Error(`${name} returned an MCP error`);
   }
-  console.log(`MCP smoke test passed: ${listed.tools.length} tools, wrong-book workflows available`);
+  console.log(`MCP smoke test passed: ${listed.tools.length} tools, agent bootstrap and wrong-book workflows available`);
 } finally {
   await client.close().catch(() => {});
 }

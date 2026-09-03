@@ -14,6 +14,8 @@
     "test:api": "npm run test --workspace @family-edu/api",
     "test:e2e": "npx playwright test --config apps/web/playwright.config.js",
     "test:mcp": "bash scripts/mcp-smoke.sh",
+    "check:workbuddy": "node scripts/validate-workbuddy-open-platform.mjs",
+    "package:workbuddy": "node scripts/package-workbuddy-open-platform.mjs",
     "check:miniprogram": "node scripts/validate-miniprogram.mjs",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",

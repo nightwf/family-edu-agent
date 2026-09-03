@@ -2,6 +2,15 @@
 
 MCP 地址为 `https://edu.skillstores.com/family-edu/mcp`。每个家庭使用独立 `X-MCP-Token`，服务端只从 Token 获取 `familyId`，所有资源 ID 还会再次校验家庭归属。
 
+## Agent 启动工具
+
+| 工具 | 用途 |
+| --- | --- |
+| `get_agent_bootstrap` | 新会话首次使用禾芽时调用，返回当前家庭的学生列表、数据概况、任务路由和安全边界 |
+| `get_sync_spec` | 工具变化、复杂同步或不确定写入范围时读取详细规范 |
+
+开放平台 Expert 和 Skill 会先调用 `get_agent_bootstrap`，不要求家长每次重新粘贴完整提示词。
+
 ## 错题工具
 
 | 工具 | 关键参数 | 用途 |
