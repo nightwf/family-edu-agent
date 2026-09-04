@@ -45,7 +45,14 @@ Page({
     inviteLoading: false,
     joinLoading: false,
     networkTesting: false,
-    networkTestResult: ""
+    networkTestResult: "",
+    familyPolicy: null,
+    memberships: [],
+    methodLibrary: [],
+    policyWeeklyTimeBudget: "",
+    policyPrioritySubjects: "",
+    policyPressureBoundary: "",
+    policyParentGoals: ""
   },
 
   async onShow() {
@@ -55,7 +62,12 @@ Page({
   async load() {
     this.setData({ loading: true, error: "" });
     try {
-      const settings = await api.settings();
+      const [settings, familyPolicy, membershipsData, methodLibrary] = await Promise.all([
+        api.settings(),
+        api.getFamilyPolicy(),
+        api.familyMemberships(),
+        api.listEducationMethodsV2()
+      ]);
       const education = settings.education_settings || {};
       const methods = settings.education_methods || { recommended: [] };
       const changes = settings.policy_changes || [];
@@ -80,6 +92,21 @@ Page({
         strictnessIndex: Math.max(0, STRICTNESS.indexOf(strictness)),
         parentGoals: (education.parentGoals || []).join("、"),
         recommendedMethods: (methods.recommended || []).map((item) => item.name),
+        familyPolicy,
+        policyWeeklyTimeBudget: familyPolicy && familyPolicy.weeklyTimeBudget ? String(familyPolicy.weeklyTimeBudget) : "",
+        policyPrioritySubjects: (familyPolicy && familyPolicy.prioritySubjects || []).join("、"),
+        policyPressureBoundary: familyPolicy && familyPolicy.pressureBoundary || "",
+        policyParentGoals: (familyPolicy && familyPolicy.parentGoals || []).join("、"),
+        memberships: (membershipsData.memberships || []).map((item) => ({
+          ...item,
+          isCurrent: membershipsData.current_family_id === item.family.id,
+          familyName: item.family.name,
+          roleText: item.role === "owner" ? "创建者" : "管理者"
+        })),
+        methodLibrary: (methodLibrary || []).map((item) => ({
+          ...item,
+          categoryText: item.category === "CORE" ? "核心" : item.category === "SCENARIO" ? "场景" : "理念参考"
+        })),
         policyChanges: (changes || []).filter((item) => item.status === "proposed").map((item) => ({
           ...item,
           createdText: format.formatDate(item.createdAt)
@@ -124,6 +151,42 @@ Page({
 
   onParentGoals(event) {
     this.setData({ parentGoals: event.detail.value });
+  },
+
+  onPolicyField(event) {
+    const field = event.currentTarget.dataset.field;
+    this.setData({ [field]: event.detail.value });
+  },
+
+  async saveFamilyPolicy() {
+    try {
+      await api.updateFamilyPolicy({
+        weekly_time_budget: this.data.policyWeeklyTimeBudget ? Number(this.data.policyWeeklyTimeBudget) : null,
+        priority_subjects: this.data.policyPrioritySubjects.split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
+        pressure_boundary: this.data.policyPressureBoundary,
+        parent_goals: this.data.policyParentGoals.split(/[,，、]/).map((item) => item.trim()).filter(Boolean)
+      });
+      wx.showToast({ title: "已保存", icon: "success" });
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: "none" });
+    }
+  },
+
+  async switchFamily(event) {
+    const familyId = event.currentTarget.dataset.id;
+    if (!familyId) return;
+    try {
+      const data = await api.switchFamily({ familyId });
+      wx.setStorageSync("familyEduToken", data.token);
+      wx.setStorageSync("familyEduUser", data.user || {});
+      wx.setStorageSync("familyEduFamily", data.family || {});
+      getApp().globalData.user = data.user || null;
+      getApp().globalData.family = data.family || null;
+      wx.showToast({ title: "已切换家庭", icon: "success" });
+      wx.switchTab({ url: "/pages/home/home" });
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: "none" });
+    }
   },
 
   onInviteEmail(event) {

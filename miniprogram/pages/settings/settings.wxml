@@ -14,6 +14,21 @@
     <view class="profile-count"><text>{{childCount}}</text> 个孩子</view>
   </view>
 
+  <view wx:if="{{memberships.length}}" class="setting-section">
+    <view class="group-title">我的家庭</view>
+    <view class="family-card">
+      <view wx:for="{{memberships}}" wx:key="family.id" class="member-row">
+        <view class="member-avatar">{{item.familyName.slice(0, 1)}}</view>
+        <view class="member-main">
+          <view class="member-name">{{item.familyName}}</view>
+          <view class="member-meta">{{item.roleText}}</view>
+        </view>
+        <view wx:if="{{item.isCurrent}}" class="status-ok">当前</view>
+        <view wx:else class="row-action" data-id="{{item.family.id}}" bindtap="switchFamily">切换</view>
+      </view>
+    </view>
+  </view>
+
   <view class="setting-section">
     <view class="group-title">账号与连接</view>
     <view class="setting-group">
@@ -135,44 +150,44 @@
   </view>
 
   <view class="setting-section">
-    <view class="group-title">家庭教育方式</view>
+    <view class="group-title">家庭边界</view>
     <view class="education-card">
       <view class="education-intro">
-        <view class="education-title">家庭偏好</view>
-        <view class="setting-desc">用于辅助 WorkBuddy 调整沟通和教学策略</view>
+        <view class="education-title">家庭设定</view>
+        <view class="setting-desc">用于限制时间、压力、学科优先级和家长目标，不固定教育流派</view>
       </view>
       <view class="form-item">
-        <view class="form-label">教育理念</view>
-        <picker mode="selector" range="{{philosophies}}" value="{{philosophyIndex}}" bindchange="onPhilosophyChange">
-          <view class="select-row"><text>{{philosophy}}</text><text class="select-arrow">›</text></view>
-        </picker>
+        <view class="form-label">每周学习时间预算（分钟）</view>
+        <input class="input" type="number" value="{{policyWeeklyTimeBudget}}" data-field="policyWeeklyTimeBudget" bindinput="onPolicyField" placeholder="例如 300" />
       </view>
       <view class="form-item">
-        <view class="form-label">沟通风格</view>
-        <picker mode="selector" range="{{communicationStyles}}" value="{{communicationIndex}}" bindchange="onCommunicationChange">
-          <view class="select-row"><text>{{communicationStyle}}</text><text class="select-arrow">›</text></view>
-        </picker>
+        <view class="form-label">优先学科</view>
+        <input class="input" value="{{policyPrioritySubjects}}" data-field="policyPrioritySubjects" bindinput="onPolicyField" placeholder="数学、语文" />
       </view>
       <view class="form-item">
-        <view class="form-label">要求程度</view>
-        <picker mode="selector" range="{{strictnessOptions}}" value="{{strictnessIndex}}" bindchange="onStrictnessChange">
-          <view class="select-row"><text>{{strictness}}</text><text class="select-arrow">›</text></view>
-        </picker>
+        <view class="form-label">压力边界</view>
+        <input class="input" value="{{policyPressureBoundary}}" data-field="policyPressureBoundary" bindinput="onPolicyField" placeholder="不通过催促或批评推动学习" />
       </view>
       <view class="form-item goals-item">
         <view class="form-label">家长目标</view>
-        <input class="input" value="{{parentGoals}}" bindinput="onParentGoals" placeholder="培养自主性、阅读习惯" />
+        <input class="input" value="{{policyParentGoals}}" data-field="policyParentGoals" bindinput="onPolicyField" placeholder="培养自主性、阅读习惯" />
         <view class="form-hint">多个目标用顿号分隔</view>
       </view>
-      <button class="btn btn-primary save-education" bindtap="saveEducation">保存家庭偏好</button>
+      <button class="btn btn-primary save-education" bindtap="saveFamilyPolicy">保存家庭边界</button>
     </view>
   </view>
 
-  <view wx:if="{{recommendedMethods.length}}" class="setting-section">
-    <view class="group-title">当前教学方法</view>
+  <view wx:if="{{methodLibrary.length}}" class="setting-section">
+    <view class="group-title">教育方法库</view>
     <view class="method-card">
-      <view class="tag-group">
-        <view wx:for="{{recommendedMethods}}" wx:key="*this" class="method-tag">{{item}}</view>
+      <view class="method-list">
+        <view wx:for="{{methodLibrary}}" wx:key="id" class="method-row">
+          <view class="method-row-main">
+            <view class="method-name">{{item.name}}</view>
+            <view class="setting-desc">{{item.description}}</view>
+          </view>
+          <view class="method-meta">{{item.categoryText}} · {{item.evidenceLevel}}</view>
+        </view>
       </view>
     </view>
   </view>

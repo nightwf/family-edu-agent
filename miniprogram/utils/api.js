@@ -22,6 +22,8 @@ const api = {
   mobileLearning: (params) => request({ url: `/api/mobile/learning?${qs({ limit: 20, ...(params || {}) })}` }),
   settings: () => request({ url: "/api/settings" }),
   familyMembers: () => request({ url: "/api/family/members" }),
+  familyMemberships: () => request({ url: "/api/family/memberships" }),
+  switchFamily: (data) => request({ url: "/api/family/switch", method: "POST", data }),
   createFamilyInvite: (data) => request({ url: "/api/family/invites", method: "POST", data }),
   acceptFamilyInvite: (data) => request({ url: "/api/family/invites/accept", method: "POST", data }),
   cancelFamilyInvite: (id) => request({ url: `/api/family/invites/${id}`, method: "DELETE" }),
@@ -43,6 +45,7 @@ const api = {
   confirmStageGoal: (id, data) => request({ url: `/api/v2/goals/${id}`, method: "PATCH", data }),
   getFamilyPolicy: () => request({ url: "/api/v2/family/policy" }),
   updateFamilyPolicy: (data) => request({ url: "/api/v2/family/policy", method: "PUT", data }),
+  listEducationMethodsV2: () => request({ url: "/api/v2/education-methods" }),
 
   listQuestions: (params) => request({ url: `/api/questions?${qs(params)}` }),
   getQuestion: (id) => request({ url: `/api/questions/${id}` }),

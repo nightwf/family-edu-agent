@@ -165,6 +165,11 @@
 .save-education { margin-top: 8rpx; }
 .method-card { padding: 22rpx; }
 .method-tag { padding: 10rpx 16rpx; border-radius: 999rpx; background: #e4f3ef; color: #0f766e; font-size: 23rpx; }
+.method-list { display: grid; gap: 14rpx; }
+.method-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; padding: 16rpx; border: 1rpx solid #eee5d3; border-radius: 16rpx; background: #fffdf7; }
+.method-row-main { flex: 1; min-width: 0; }
+.method-name { color: #203238; font-size: 26rpx; font-weight: 800; }
+.method-meta { flex-shrink: 0; color: #0f766e; font-size: 21rpx; }
 
 .policy-card { margin-bottom: 14rpx; padding: 22rpx; }
 .policy-title { font-size: 28rpx; font-weight: 800; }
