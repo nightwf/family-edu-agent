@@ -50,5 +50,17 @@
 
 ## 待完成
 
-- 将本地领先的 Git 提交推送到 `https://github.com/nightwf/family-edu-agent.git`。当前本机到 GitHub 出现 `SSL_ERROR_SYSCALL`。
-- 在 WorkBuddy 开放平台上传并提交三个 ZIP 审核。
+- GitHub 已同步到最新提交。
+- WorkBuddy 开放平台当前资产均处于“审核中”，但需要撤回后重新提交最新包：
+  - Connector：`oc_3de0b7a7c0596827`
+  - Skill：`os_a90004f6b04a053d`
+  - Expert：`oe_a90004f6b04a053d`
+
+重新提交顺序：
+
+1. 撤回 Connector 当前审核。
+2. 上传 `heyah-family-education-connector.zip` 并提交审核。
+3. 撤回 Skill 当前审核。
+4. 上传 `heyah-family-private-tutor-skill.zip` 并提交审核。
+5. 撤回 Expert 当前审核。
+6. 上传 `heyah-family-private-tutor-expert.zip` 并提交审核。
