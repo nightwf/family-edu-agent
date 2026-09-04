@@ -20,6 +20,8 @@ import {
 import RecordDetail from "./components/RecordDetail";
 import QuestionBank from "./components/QuestionBank";
 import WrongBook from "./components/WrongBook";
+import ChildOverview from "./components/ChildOverview";
+import GoalPlan from "./components/GoalPlan";
 
 type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
@@ -45,8 +47,9 @@ type SettingsData = {
 };
 
 const PAGES = [
-  { id: "home", label: "首页", icon: LayoutDashboard },
+  { id: "home", label: "孩子", icon: LayoutDashboard },
   { id: "students", label: "学生", icon: Users },
+  { id: "plan", label: "计划", icon: TrendingUp },
   { id: "reports", label: "报告成长", icon: TrendingUp },
   { id: "textbooks", label: "教材", icon: BookOpen },
   { id: "questions", label: "题库", icon: BookMarked },
@@ -89,23 +92,32 @@ function App() {
   const [policyChanges, setPolicyChanges] = useState<any[]>([]);
   const [educationSettings, setEducationSettings] = useState<any>({});
   const [educationMethods, setEducationMethods] = useState<any>(null);
+  const [v2EducationMethods, setV2EducationMethods] = useState<any[]>([]);
+  const [familyPolicy, setFamilyPolicy] = useState<any>({});
+  const [memberships, setMemberships] = useState<any>({});
 
   async function load() {
     if (!token) return;
-    const [data, settingData, policyData, changeData] = await Promise.all([
+    const [data, settingData, policyData, changeData, familyPolicyData, membershipData] = await Promise.all([
       request("/api/home", {}, token),
       request("/api/settings", {}, token),
       request("/api/policies", {}, token),
       request("/api/policy-changes", {}, token),
+      request("/api/v2/family/policy", {}, token),
+      request("/api/family/memberships", {}, token),
     ]);
     setHome(data);
     setSettings(settingData);
     setPolicies(policyData);
     setPolicyChanges(changeData);
-    const educationData = await request("/api/education-settings", {}, token);
+    setFamilyPolicy(familyPolicyData || {});
+    setMemberships(membershipData || {});
+    const [educationData, v2MethodData] = await Promise.all([
+      request("/api/education-settings", {}, token),
+      request("/api/v2/education-methods", {}, token),
+    ]);
     setEducationSettings(educationData || {});
-    const methodData = await request("/api/education-methods", {}, token);
-    setEducationMethods(methodData);
+    setV2EducationMethods(Array.isArray(v2MethodData) ? v2MethodData : []);
   }
 
   useEffect(() => {
@@ -267,6 +279,29 @@ function App() {
     await load();
   }
 
+  async function saveFamilyPolicy(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await request("/api/v2/family/policy", {
+      method: "PUT",
+      body: JSON.stringify({
+        weekly_time_budget: Number(form.get("weekly_time_budget") || 0) || null,
+        priority_subjects: String(form.get("priority_subjects") || "").split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
+        pressure_boundary: form.get("pressure_boundary"),
+        parent_goals: String(form.get("parent_goals") || "").split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
+      }),
+    }, token);
+    await load();
+  }
+
+  async function switchFamily(familyId: string) {
+    const data = await request("/api/family/switch", {
+      method: "POST",
+      body: JSON.stringify({ familyId }),
+    }, token);
+    saveToken(data.token);
+  }
+
   async function reviewPolicy(changeId: string, action: "approved" | "ignored") {
     await request(`/api/policy-changes/${changeId}/review`, {
       method: "POST",
@@ -369,35 +404,11 @@ function App() {
           </div>
 
           {page === "home" && home && (
-            <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  ["成长记录", home.stats.records || 0],
-                  ["作文完成", `${home.stats.writing || 0} 篇`],
-                  ["阅读复述", `${home.stats.reading || 0}%`],
-                  ["作业完成度", `${home.stats.homework || 0}%`],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg border border-stone-200 bg-panel p-4">
-                    <div className="text-sm text-stone-500">{label}</div>
-                    <div className="mt-2 text-3xl font-bold">{value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-lg border border-stone-200 bg-panel p-4">
-                <h2 className="mb-3 font-semibold">孩子</h2>
-                <div className="space-y-3">
-                  {home.children.map((child) => (
-                    <div key={child.id} className="flex items-center justify-between gap-3 border-b border-dashed border-stone-200 pb-3">
-                      <div>
-                        <div className="font-semibold">{child.name}</div>
-                        <div className="text-sm text-stone-500">{child.grade} · {child.subjects.join(" / ")}</div>
-                      </div>
-                      <span className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">已建档</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ChildOverview token={token} children={home.children} request={request} />
+          )}
+
+          {page === "plan" && home && (
+            <GoalPlan token={token} children={home.children} request={request} />
           )}
 
           {page === "students" && home && (
@@ -512,6 +523,36 @@ function App() {
                 <div className="flex justify-between"><span className="text-stone-500">孩子数量</span><span>{settings?.child_count || 0} 个</span></div>
               </div>
               <div className="mt-6 rounded-lg border border-stone-200 bg-white p-4">
+                <h3 className="font-semibold">家庭边界</h3>
+                <form onSubmit={saveFamilyPolicy} className="mt-4 space-y-3">
+                  <input name="weekly_time_budget" type="number" defaultValue={familyPolicy.weeklyTimeBudget ?? ""} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="每周学习时间预算（分钟）" />
+                  <input name="priority_subjects" defaultValue={(familyPolicy.prioritySubjects || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="优先学科，多个用顿号分隔" />
+                  <input name="pressure_boundary" defaultValue={familyPolicy.pressureBoundary || ""} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="压力边界，例如：不通过催促完成学习" />
+                  <input name="parent_goals" defaultValue={(familyPolicy.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
+                  <button className="rounded-lg bg-teal px-4 py-2 text-white">保存家庭边界</button>
+                </form>
+              </div>
+              {memberships.memberships?.length > 1 && (
+                <div className="mt-5 rounded-lg border border-stone-200 bg-white p-4">
+                  <h3 className="font-semibold">我的家庭</h3>
+                  <div className="mt-3 space-y-2">
+                    {memberships.memberships.map((item: any) => (
+                      <div key={item.family.id} className="flex items-center justify-between gap-3 rounded-lg bg-stone-50 p-3">
+                        <div>
+                          <div className="font-medium">{item.family.name}</div>
+                          <div className="text-xs text-stone-500">{item.role === "owner" ? "创建者" : "管理者"}</div>
+                        </div>
+                        {memberships.current_family_id === item.family.id ? (
+                          <span className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">当前家庭</span>
+                        ) : (
+                          <button onClick={() => switchFamily(item.family.id)} className="rounded-lg border border-teal px-3 py-1 text-sm text-teal">切换</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-6 rounded-lg border border-stone-200 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="font-semibold">家庭管理者</h3>
@@ -596,41 +637,20 @@ function App() {
                 <textarea readOnly value={settings?.doubao_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
               </div>
               <div className="mt-6">
-                <h3 className="font-semibold">家庭教育方式</h3>
-                <form onSubmit={saveEducationSettings} className="mt-4 space-y-3">
-                  <select name="education_philosophy" defaultValue={educationSettings.educationPhilosophy || "以引导和鼓励为主"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
-                    <option value="以引导和鼓励为主">以引导和鼓励为主</option>
-                    <option value="兴趣优先">兴趣优先</option>
-                    <option value="习惯优先">习惯优先</option>
-                    <option value="成绩与能力并重">成绩与能力并重</option>
-                    <option value="自主探索">自主探索</option>
-                  </select>
-                  <select name="communication_style" defaultValue={educationSettings.communicationStyle || "温和直接"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
-                    <option value="温和直接">温和直接</option>
-                    <option value="鼓励为主">鼓励为主</option>
-                    <option value="简洁明确">简洁明确</option>
-                    <option value="陪伴讨论">陪伴讨论</option>
-                  </select>
-                  <select name="strictness" defaultValue={educationSettings.strictness || "适中"} className="w-full rounded-lg border border-stone-200 px-3 py-2">
-                    <option value="宽松">宽松</option>
-                    <option value="适中">适中</option>
-                    <option value="严格">严格</option>
-                  </select>
-                  <input name="parent_goals" defaultValue={(educationSettings.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
-                  <button className="rounded-lg bg-teal px-4 py-2 text-white">保存教育方式</button>
-                </form>
-                {educationMethods?.recommended?.length ? (
-                  <div className="mt-4 rounded-lg border border-stone-200 bg-white p-4">
-                    <div className="mb-2 text-sm font-semibold text-stone-500">系统将重点使用</div>
-                    <div className="flex flex-wrap gap-2">
-                      {educationMethods.recommended.map((method: any) => (
-                        <span key={method.id} className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">
-                          {method.name}
-                        </span>
-                      ))}
+                <h3 className="font-semibold">教育方法库</h3>
+                <p className="mt-1 text-sm text-stone-500">公共方法由禾芽统一维护，家庭只设置边界；这里只展示方法用途和证据强度。</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {v2EducationMethods.map((method: any) => (
+                    <div key={method.id} className="rounded-lg border border-stone-200 bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-semibold">{method.name}</div>
+                        <span className="rounded-full bg-teal/10 px-2 py-1 text-xs text-teal">{method.category}</span>
+                      </div>
+                      <p className="mt-2 text-sm text-stone-600">{method.description}</p>
+                      <div className="mt-2 text-xs text-stone-500">证据强度：{method.evidenceLevel} · 版本 {method.version}</div>
                     </div>
-                  </div>
-                ) : null}
+                  ))}
+                </div>
               </div>
               <div className="mt-6">
                 <h3 className="font-semibold">优化建议</h3>

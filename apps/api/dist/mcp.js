@@ -9,6 +9,7 @@ import { buildAgentBootstrap } from "./workbuddy-prompt.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, proposePolicyChange, reviewPolicyChange, getPolicyHistory, createSkillOverride, listSkillOverrides, } from "./personalization.js";
 import { createQuestion, createQuestionsBatch, createQuestionType, deleteQuestion, deleteQuestionType, getQuestion, getQuestionGenerationContext, getQuestionType, getStudentMastery, listQuestionAttempts, listQuestions, listQuestionTypes, listStudentMastery, recalculateMastery, updateMasteryOverride, updateQuestion, updateQuestionType, } from "./question-bank.js";
 import { createPracticePaper, deletePracticePaper, deleteRemediationPlan, deleteWrongQuestion, getPracticePaper, getRemediationPlan, getWrongQuestion, getWrongQuestionPracticeContext, listPracticePapers, listRemediationPlans, listWrongQuestions, recalculateWrongQuestionMastery, recordQuestionAttemptWithWrongBook, saveRemediationPlan, saveWrongQuestion, updatePracticePaper, updateRemediationPlan, updateRemediationTaskStatus, updateWrongQuestion, updateWrongQuestionStatus, } from "./wrong-book.js";
+import { registerV2McpTools } from "./v2/mcp-tools.js";
 function textResult(payload) {
     return {
         content: [{ type: "text", text: typeof payload === "string" ? payload : JSON.stringify(payload, null, 2) }],
@@ -849,6 +850,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         completion_evidence: z.any().optional(), completed_at: z.string().datetime().optional(),
     }, async ({ remediation_plan_id, task_id, ...input }) => questionBankResult(() => updateRemediationTaskStatus(familyId, remediation_plan_id, task_id, input)));
     server.tool("delete_remediation_plan", "删除尚无完成任务的教学规划；已有完成证据时归档。", { remediation_plan_id: z.string() }, async ({ remediation_plan_id }) => (questionBankResult(() => deleteRemediationPlan(familyId, remediation_plan_id))));
+    registerV2McpTools(server, familyId);
     return server;
 }
 export async function registerMcpHttp(app) {

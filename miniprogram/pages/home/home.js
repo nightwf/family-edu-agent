@@ -85,6 +85,7 @@ Page({
     todayText: "",
     stateTitle: "",
     stateSummary: "",
+    activeGoal: null,
     currentStats: [],
     pendingTasks: [],
     activityItems: []
@@ -120,7 +121,29 @@ Page({
           dueText: item.dueDate ? `${format.formatDate(item.dueDate)} 前` : "未设置截止时间",
           sourceText: item.source === "workbuddy" ? "来自 WorkBuddy" : item.source || "手动记录"
         }));
-      const state = buildState(activeChild, records || [], reports || [], pendingTasks);
+      let state = buildState(activeChild, records || [], reports || [], pendingTasks);
+      let activeGoal = null;
+      if (activeChild) {
+        try {
+          const [childState, goalsData] = await Promise.all([
+            api.childState(activeChild.id),
+            api.listStageGoals(activeChild.id, { status: "ACTIVE" })
+          ]);
+          const goalItems = (goalsData && goalsData.items) || [];
+          activeGoal = goalItems.find((item) => item.status === "ACTIVE") || goalItems[0] || null;
+          if (childState && childState.summary) {
+            const summary = childState.summary;
+            if (!records.length && !reports.length && !pendingTasks.length) {
+              state = {
+                title: `${activeChild.name} 的当前状态已生成`,
+                summary: `近 7 天 ${summary.evidence_7d || 0} 条证据，待确认 ${summary.pending_confirmation || 0} 条。`
+              };
+            }
+          }
+        } catch (_error) {
+          // V2 状态不可用时继续使用旧首页数据，不影响基础展示。
+        }
+      }
       const scoredRecords = (records || []).filter((item) => typeof item.score === "number");
       const latestScore = scoredRecords.length ? `${scoredRecords[0].score}` : "-";
       const recentRecordCount = (records || []).filter((item) => {
@@ -158,6 +181,7 @@ Page({
         todayText: format.formatDate(new Date()),
         stateTitle: state.title,
         stateSummary: state.summary,
+        activeGoal,
         currentStats: [
           { value: `${recentRecordCount}`, label: "7天新动态" },
           { value: `${pendingTasks.length}`, label: "待完成任务" },

@@ -1,10 +1,33 @@
 # 禾芽工具路由
 
+## 理解孩子
+
+`get_agent_bootstrap` → `get_child_state` → `get_family_policy` → `get_planning_context`
+
+先确认当前孩子状态、活跃目标和家庭边界，再给出判断。不要只根据一次成绩或一条记录下结论。
+
+## 阶段目标与周计划
+
+1. `get_planning_context`
+2. `propose_stage_goals`，写入 2-3 个候选目标
+3. 家长确认后 `get_stage_goal`
+4. `create_weekly_plan`
+5. 执行后 `update_plan_item_status`
+6. 到期 `create_assessment`
+
+阶段目标应为 4-8 周，每个候选目标都要包含可验证标准和起止日期。计划任务完成时必须提供证据。
+
 ## 每日学习计划
 
-`get_agent_bootstrap` → `get_child_context` → `list_homework` → `list_wrong_questions` → `list_student_mastery` → `list_remediation_plans`
+`get_child_state` → `get_weekly_plan` → `list_homework` → `list_wrong_questions` → `list_student_mastery`
 
-先给出今天最需要完成的 1-3 件事，说明每项依据、预计时间和完成证据。只有家长要求保存计划时才调用 `save_remediation_plan` 或 `save_knowledge_item`。
+先给出今天最需要完成的 1-3 件事，说明每项依据、预计时间和完成证据。
+
+## 证据记录
+
+- 行为观察：`save_evidence_record`
+- 家长确认或纠正：`review_evidence_record`
+- 证据必须包含场景、表现、频率、有效策略、相反证据和置信度。
 
 ## 作业
 
@@ -32,4 +55,12 @@
 
 ## 教育方法
 
-先调用 `list_education_skills` 确认方法，再调用 `get_effective_skill` 获取当前家庭版本。不要用全局默认方法覆盖家庭已经确认的教育偏好。
+先调用 `list_education_methods`，优先使用核心方法和场景工具。每次使用后通过 `save_method_effect` 记录是否有效、证据和置信度。不要把费曼、蒙氏等方法当成孩子的固定身份。
+
+## 知识与教材
+
+- 来源：`import_source_document`
+- 结构化知识：`save_knowledge_nodes_batch`
+- 教学上下文：`get_knowledge_context`
+
+知识必须带来源、年级、学科和版本，不能只保存一段总结。

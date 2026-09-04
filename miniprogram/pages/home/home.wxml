@@ -37,6 +37,12 @@
       </view>
     </view>
 
+    <view wx:if="{{activeGoal}}" class="goal-card">
+      <view class="goal-label">当前阶段目标</view>
+      <view class="goal-title">{{activeGoal.title}}</view>
+      <view class="goal-summary">{{activeGoal.objective}}</view>
+    </view>
+
     <view class="home-section">
       <view class="section-head compact-head">
         <view class="home-section-title">未完成任务</view>

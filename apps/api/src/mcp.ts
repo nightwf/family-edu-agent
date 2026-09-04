@@ -58,6 +58,7 @@ import {
   updateWrongQuestion,
   updateWrongQuestionStatus,
 } from "./wrong-book.js";
+import { registerV2McpTools } from "./v2/mcp-tools.js";
 
 function textResult(payload: unknown) {
   return {
@@ -1001,6 +1002,8 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
   server.tool("delete_remediation_plan", "删除尚无完成任务的教学规划；已有完成证据时归档。", { remediation_plan_id: z.string() }, async ({ remediation_plan_id }) => (
     questionBankResult(() => deleteRemediationPlan(familyId, remediation_plan_id))
   ));
+
+  registerV2McpTools(server, familyId);
 
   return server;
 }

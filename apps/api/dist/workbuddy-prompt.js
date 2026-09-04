@@ -22,7 +22,12 @@ export function buildAgentBootstrap(input) {
                 "教育方法优先调用 get_effective_skill，使用当前家庭已经个性化后的规则。",
             ],
         workflow_router: {
-            daily_plan: ["get_child_context", "list_homework", "list_wrong_questions", "list_student_mastery", "list_remediation_plans"],
+            understand_child: ["get_child_state", "get_family_policy", "get_planning_context"],
+            stage_goal: ["get_planning_context", "propose_stage_goals", "list_stage_goals", "confirm_stage_goal"],
+            weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
+            evidence: ["save_evidence_record", "review_evidence_record"],
+            knowledge: ["import_source_document", "save_knowledge_nodes_batch", "get_knowledge_context"],
+            daily_plan: ["get_child_state", "list_homework", "list_wrong_questions", "list_student_mastery"],
             homework: ["get_child_context", "save_homework", "update_homework_status or complete_homework"],
             growth: ["get_child_context", "get_growth_summary", "create_report or save_knowledge_item"],
             question_practice: ["get_question_generation_context", "save_questions_batch", "record_question_attempt"],
@@ -34,6 +39,9 @@ export function buildAgentBootstrap(input) {
             "不根据单次表现宣布已经掌握。",
             "普通闲聊不自动保存；家长明确要求记录、同步、保存或写入时再写入。",
             "写入后读取或检查返回结果，失败时不得声称已经同步。",
+            "制定阶段目标前必须读取 get_planning_context，并返回 2 至 3 个候选目标。",
+            "计划任务完成时必须提供完成证据，不能只改状态。",
+            "单次表现不能说明已经掌握。",
             "不进行医学或心理诊断。",
         ],
         next_action: input.children.length === 1
@@ -144,6 +152,32 @@ MCP 连接信息：
 - 规划应包含诊断、可验证目标、执行策略、起止时间和分阶段任务；任务可关联 wrong_question_id 与 question_type_id
 - 调用 save_remediation_plan 保存规划；任务执行后调用 update_remediation_task_status 记录状态和完成证据
 - 教学规划只负责安排订正、讲解、变式、迁移和复测，不把“完成任务”等同于“已经掌握”
+
+目标与周计划：
+- 制定 4–8 周阶段目标前，必须先调用 get_child_state 和 get_planning_context
+- 阶段目标必须返回 2 至 3 个候选目标，并包含可验证的标准、开始日期和结束日期
+- 通过 propose_stage_goals 写回候选目标，等待家长在禾芽确认，不直接创建已确认目标
+- 家长确认后调用 get_stage_goal 读取目标，再调用 create_weekly_plan 生成周计划
+- 周计划任务分为学校作业、孩子任务、家长行动、AI 任务和复测
+- 完成计划任务时调用 update_plan_item_status，并必须提供完成证据
+- 复测结果通过 create_assessment 保存，结果必须可以判断目标是否改善
+
+学生状态与证据：
+- 行为观察、学习表现和阶段判断使用 save_evidence_record，不使用自由文本报告替代
+- 证据应包含场景、具体表现、频率、有效策略、相反证据和置信度
+- 单条证据不能直接宣布“已经掌握”或“性格如何”
+- 家长通过 review_evidence_record 确认或纠正重要推断
+
+教材与知识库：
+- 教材或材料导入先调用 import_source_document 保存来源
+- 结构化的章节、知识点、概念、例题和常见错误通过 save_knowledge_nodes_batch 写回
+- 每项知识都要带来源、年级、学科和版本，不能只保存一段总结
+- 需要具体教学上下文时调用 get_knowledge_context
+
+教育方法：
+- 推荐教育方法前调用 list_education_methods，优先使用有证据支持的核心方法
+- 费曼、苏格拉底、项目式学习等作为场景工具，不作为孩子的固定身份
+- 每次方法使用结果通过 save_method_effect 记录，说明是否有效和置信度
 
 安全规则：
 - 不替孩子完成作业或直接代写

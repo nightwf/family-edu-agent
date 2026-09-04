@@ -582,3 +582,489 @@ model RemediationTask {
   @@index([questionTypeId])
   @@index([status, dueAt])
 }
+
+enum FamilyRole {
+  OWNER
+  ADMIN
+}
+
+enum MemberStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ChildStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ResourceStatus {
+  ACTIVE
+  ARCHIVED
+  SUPERSEDED
+  DRAFT
+}
+
+enum GoalStatus {
+  DRAFT
+  PROPOSED
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum WeeklyPlanStatus {
+  DRAFT
+  PROPOSED
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PlanItemType {
+  SCHOOL_HOMEWORK
+  CHILD_TASK
+  PARENT_ACTION
+  AGENT_TASK
+  RETEST
+}
+
+enum PlanItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  CANCELLED
+  NEEDS_REVIEW
+}
+
+enum EvidenceType {
+  OBSERVATION
+  WRITING
+  READING
+  HOMEWORK_COMPLETION
+  QUESTION_ATTEMPT
+  RETEST
+  PARENT_NOTE
+}
+
+enum ReviewStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  CORRECTED
+  SUPERSEDED
+}
+
+enum MethodCategory {
+  CORE
+  SCENARIO
+  PHILOSOPHY
+}
+
+enum KnowledgeNodeType {
+  CHAPTER
+  KNOWLEDGE_POINT
+  CONCEPT
+  EXAMPLE
+  MISCONCEPTION
+}
+
+enum KnowledgeRelationType {
+  PREREQUISITE_OF
+  CONTAINS
+  RELATED_TO
+  EXAMPLE_OF
+  ERROR_OF
+}
+
+enum ChildKnowledgeStatus {
+  UNASSESSED
+  LEARNING
+  PARTIAL
+  MASTERED
+  NEEDS_REVIEW
+}
+
+model FamilyPolicy {
+  id               String    @id @default(cuid())
+  familyId         String    @unique
+  weeklyTimeBudget Int?
+  prioritySubjects String[]  @default([])
+  pressureBoundary String?
+  parentGoals      String[]  @default([])
+  principles       Json?
+  version          Int       @default(1)
+  effectiveFrom    DateTime  @default(now())
+  effectiveTo      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model EducationMethod {
+  id            String         @id @default(cuid())
+  key           String         @unique
+  name          String
+  category      MethodCategory
+  evidenceLevel String
+  description   String
+  applicability Json?
+  risks         Json?
+  workflow      Json?
+  version       String
+  status        ResourceStatus @default(ACTIVE)
+  validFrom     DateTime       @default(now())
+  validUntil    DateTime?
+  supersededBy  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  effects       MethodEffect[]
+}
+
+model MethodEffect {
+  id          String         @id @default(cuid())
+  familyId    String
+  childId     String
+  methodId    String
+  method      EducationMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+  goalId      String?
+  goal        StageGoal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  context     Json?
+  outcome     String
+  confidence  Float?
+  evidenceRef String?
+  observedAt  DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  @@index([familyId, childId, methodId])
+  @@index([goalId])
+}
+
+model EvidenceRecord {
+  id                String       @id @default(cuid())
+  familyId          String
+  childId           String
+  type              EvidenceType
+  taskDescription   String?
+  environment       String?
+  observedBehavior  String?
+  frequency         String?
+  effectiveStrategy String?
+  counterEvidence   String?
+  confidence        Float?
+  source            String       @default("workbuddy")
+  sourceRef         String?
+  observedAt        DateTime     @default(now())
+  reviewStatus      ReviewStatus @default(PENDING_CONFIRMATION)
+  reviewedAt        DateTime?
+  reviewedBy        String?
+  reviewNote        String?
+  createdAt         DateTime     @default(now())
+
+  @@index([familyId, childId, observedAt])
+  @@index([familyId, childId, type, reviewStatus])
+}
+
+model ChildStateSnapshot {
+  id            String   @id @default(cuid())
+  familyId      String
+  childId       String
+  asOf          DateTime
+  periodWindow  String
+  summary       Json?
+  indicators    Json?
+  confidence    Float?
+  sourceVersion String?
+  generatedAt   DateTime @default(now())
+
+  @@unique([childId, periodWindow, asOf])
+  @@index([familyId, childId, generatedAt])
+}
+
+model StageGoal {
+  id             String         @id @default(cuid())
+  familyId       String
+  childId        String
+  title          String
+  objective      String
+  criteria       Json?
+  startDate      DateTime
+  endDate        DateTime
+  status         GoalStatus     @default(DRAFT)
+  proposedBy     String?
+  confirmedBy    String?
+  confirmedAt    DateTime?
+  methodIds      String[]       @default([])
+  contextVersion String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  plans          WeeklyPlan[]
+  assessments    Assessment[]
+  methodEffects  MethodEffect[]
+
+  @@index([familyId, childId, status])
+  @@index([familyId, childId, startDate, endDate])
+}
+
+model WeeklyPlan {
+  id             String           @id @default(cuid())
+  familyId       String
+  childId        String
+  stageGoalId    String
+  stageGoal      StageGoal        @relation(fields: [stageGoalId], references: [id], onDelete: Cascade)
+  weekStart      DateTime
+  weekEnd        DateTime
+  status         WeeklyPlanStatus @default(DRAFT)
+  generatedBy    String?
+  confirmedBy    String?
+  confirmedAt    DateTime?
+  contextVersion String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  items          PlanItem[]
+
+  @@index([familyId, childId, weekStart])
+  @@unique([stageGoalId, weekStart])
+}
+
+model PlanItem {
+  id                 String         @id @default(cuid())
+  weeklyPlanId       String
+  weeklyPlan         WeeklyPlan     @relation(fields: [weeklyPlanId], references: [id], onDelete: Cascade)
+  type               PlanItemType
+  title              String
+  description        String?
+  ownerUserId        String?
+  methodId           String?
+  sourceRef          String?
+  sequence           Int
+  estimatedMinutes   Int?
+  dueAt              DateTime?
+  status             PlanItemStatus @default(PENDING)
+  completionEvidence Json?
+  completedAt        DateTime?
+  createdBy          String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([weeklyPlanId, sequence])
+  @@index([weeklyPlanId, status, dueAt])
+}
+
+model PlanChange {
+  id         String    @id @default(cuid())
+  familyId   String
+  planId     String?
+  planItemId String?
+  type       String
+  before     Json?
+  after      Json?
+  reason     String?
+  createdBy  String
+  approvedBy String?
+  status     String    @default("proposed")
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+
+  @@index([familyId, status])
+}
+
+model Assessment {
+  id             String     @id @default(cuid())
+  familyId       String
+  childId        String
+  stageGoalId    String?
+  stageGoal      StageGoal? @relation(fields: [stageGoalId], references: [id], onDelete: SetNull)
+  planItemId     String?
+  title          String
+  assessmentType String
+  criteria       Json?
+  score          Float?
+  passed         Boolean?
+  outcome        Json?
+  sourceRef      String?
+  observedAt     DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+
+  @@index([familyId, childId, observedAt])
+  @@index([stageGoalId])
+}
+
+model SourceDocument {
+  id           String         @id @default(cuid())
+  familyId     String
+  title        String
+  kind         String
+  subject      String?
+  grade        String?
+  publisher    String?
+  version      String?
+  fileKey      String?
+  status       ResourceStatus @default(ACTIVE)
+  validFrom    DateTime       @default(now())
+  validUntil   DateTime?
+  supersededBy String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  nodes        KnowledgeNode[]
+
+  @@index([familyId, subject, grade, status])
+}
+
+model KnowledgeNode {
+  id                  String                @id @default(cuid())
+  familyId            String
+  sourceDocumentId    String?
+  sourceDocument      SourceDocument?       @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  parentId            String?
+  parent              KnowledgeNode?        @relation("KnowledgeTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children            KnowledgeNode[]       @relation("KnowledgeTree")
+  type                KnowledgeNodeType
+  subject             String?
+  grade               String?
+  title               String
+  description         String?
+  content             Json?
+  sourcePage          String?
+  version             String
+  status              ResourceStatus       @default(ACTIVE)
+  validFrom           DateTime             @default(now())
+  validUntil          DateTime?
+  supersededBy        String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  outgoingRelations   KnowledgeRelation[]   @relation("RelationSource")
+  incomingRelations   KnowledgeRelation[]   @relation("RelationTarget")
+  childStates         ChildKnowledgeState[]
+
+  @@index([familyId, subject, grade, status])
+  @@index([familyId, sourceDocumentId])
+}
+
+model KnowledgeRelation {
+  id           String                @id @default(cuid())
+  familyId     String
+  sourceNodeId String
+  sourceNode   KnowledgeNode         @relation("RelationSource", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNodeId String
+  targetNode   KnowledgeNode         @relation("RelationTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
+  relationType KnowledgeRelationType
+  metadata     Json?
+  version      String
+  validFrom    DateTime              @default(now())
+  validUntil   DateTime?
+  createdAt    DateTime              @default(now())
+
+  @@index([familyId, sourceNodeId, relationType])
+  @@index([familyId, targetNodeId, relationType])
+}
+
+model ChildKnowledgeState {
+  id              String               @id @default(cuid())
+  familyId        String
+  childId         String
+  knowledgeNodeId String
+  knowledgeNode   KnowledgeNode        @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+  status          ChildKnowledgeStatus @default(UNASSESSED)
+  score           Float                @default(0)
+  evidence        Json?
+  lastPracticedAt DateTime?
+  nextReviewAt    DateTime?
+  manualStatus    String?
+  manualReason    String?
+  manualSource    String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([childId, knowledgeNodeId])
+  @@index([familyId, childId, status])
+  @@index([knowledgeNodeId, status])
+}
+
+model WeeklyReview {
+  id                String    @id @default(cuid())
+  familyId          String
+  childId           String
+  weekStart         DateTime
+  weekEnd           DateTime
+  status            String    @default("draft")
+  draft             Json?
+  parentAdjustments Json?
+  confirmedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([childId, weekStart])
+  @@index([familyId, childId, status])
+}
+
+model StageReport {
+  id                  String    @id @default(cuid())
+  familyId            String
+  childId             String
+  stageGoalId         String?
+  periodStart         DateTime
+  periodEnd           DateTime
+  verdict             String?
+  summary             String?
+  evidence            Json?
+  nextRecommendations Json?
+  status              String    @default("draft")
+  generatedAt         DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+
+  @@index([familyId, childId, generatedAt])
+  @@index([stageGoalId])
+}
+
+model StoredObject {
+  id              String    @id @default(cuid())
+  familyId        String
+  bucket          String
+  objectKey       String
+  contentType     String?
+  size            Int?
+  checksum        String?
+  retentionPolicy String?
+  status          String    @default("active")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([familyId, status])
+}
+
+model BackgroundJob {
+  id        String    @id @default(cuid())
+  familyId  String?
+  type      String
+  status    String    @default("pending")
+  payload   Json?
+  nextRunAt DateTime?
+  lockedAt  DateTime?
+  attempts  Int       @default(0)
+  lastError String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([type, status, nextRunAt])
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  familyId   String?
+  actorType  String
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  reason     String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([familyId, createdAt])
+  @@index([entityType, entityId])
+}

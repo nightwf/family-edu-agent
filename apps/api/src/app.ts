@@ -26,6 +26,7 @@ import { listQuestions, listQuestionTypes, listStudentMastery } from "./question
 import { listPracticePapers, listRemediationPlans, listWrongQuestions } from "./wrong-book.js";
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
+import { registerV2Routes } from "./v2/routes.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import {
   createInviteCode,
@@ -332,6 +333,34 @@ export async function buildApp() {
       getActiveFamilyMember(auth.familyId, auth.id),
     ]);
     return { members, invites, current_member: currentMember };
+  });
+
+  app.get("/api/family/memberships", { preHandler: requireAuth as any }, async (request) => {
+    const auth = getAuth(request);
+    const memberships = await prisma.familyMember.findMany({
+      where: { userId: auth.id, status: "active" },
+      include: {
+        family: { select: { id: true, name: true, createdAt: true } },
+      },
+      orderBy: [{ joinedAt: "asc" }, { createdAt: "asc" }],
+    });
+    return {
+      memberships,
+      current_family_id: auth.familyId,
+    };
+  });
+
+  app.post("/api/family/switch", { preHandler: requireAuth as any }, async (request, reply) => {
+    const auth = getAuth(request);
+    const targetFamilyId = String((request.body as any)?.familyId || (request.body as any)?.family_id || "").trim();
+    if (!targetFamilyId) return reply.code(400).send({ error: "缺少 familyId" });
+    const member = await getActiveFamilyMember(targetFamilyId, auth.id);
+    if (!member) return reply.code(403).send({ error: "当前账号不是该家庭的成员" });
+    const user = await prisma.user.update({
+      where: { id: auth.id },
+      data: { familyId: targetFamilyId },
+    });
+    return createSessionResponse(app, user);
   });
 
   app.post("/api/family/invites", { preHandler: requireAuth as any }, async (request, reply) => {
@@ -864,6 +893,7 @@ export async function buildApp() {
 
   registerQuestionBankRoutes(app, requireAuth, (request) => getAuth(request).familyId);
   registerWrongBookRoutes(app, requireAuth, (request) => getAuth(request).familyId);
+  registerV2Routes(app, requireAuth, (request) => getAuth(request));
 
   await registerMcpHttp(app);
 
