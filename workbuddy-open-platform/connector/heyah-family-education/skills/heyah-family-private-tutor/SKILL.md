@@ -5,7 +5,7 @@ display_name_en: Heyah Family Tutor
 description: Use Heyah family data and education methods to plan, coach, track and review a child's learning with WorkBuddy.
 description_zh: 当家长需要基于孩子档案、作业、错题、掌握度和成长记录进行学习规划、辅导与复盘时使用。
 description_en: Use when parents need personalized learning plans, coaching or reviews based on a child's long-term education data.
-version: 2.0.0
+version: 2.1.0
 author: 禾芽家庭教务
 ---
 

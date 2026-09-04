@@ -48,19 +48,14 @@
 - 部署只重建本项目 `api` 容器，未触碰其他系统。
 - 临时 smoke/E2E 测试家庭和账号已从 PostgreSQL 清理。
 
+## WorkBuddy 审核状态
+
+- Connector `oc_3de0b7a7c0596827`：已用 `1.1.0` 重新提交审核。
+- Skill `os_a90004f6b04a053d`：已用 `2.1.0` 重新提交审核。
+- Expert `oe_a90004f6b04a053d`：已用 `1.1.0` 重新提交审核。
+- Expert ZIP 已改为根目录结构，打包脚本同步修正。
+
 ## 待完成
 
-- GitHub 已同步到最新提交。
-- WorkBuddy 开放平台当前资产均处于“审核中”，但需要撤回后重新提交最新包：
-  - Connector：`oc_3de0b7a7c0596827`
-  - Skill：`os_a90004f6b04a053d`
-  - Expert：`oe_a90004f6b04a053d`
-
-重新提交顺序：
-
-1. 撤回 Connector 当前审核。
-2. 上传 `heyah-family-education-connector.zip` 并提交审核。
-3. 撤回 Skill 当前审核。
-4. 上传 `heyah-family-private-tutor-skill.zip` 并提交审核。
-5. 撤回 Expert 当前审核。
-6. 上传 `heyah-family-private-tutor-expert.zip` 并提交审核。
+- 等待 WorkBuddy 开放平台审核结果。
+- 将本轮版本号、打包脚本和验收报告提交并推送到 GitHub。

@@ -16,8 +16,8 @@ const packages = [
     target: path.join(dist, "heyah-family-education-connector.zip"),
   },
   {
-    cwd: path.join(root, "expert"),
-    source: "heyah-family-private-tutor",
+    cwd: path.join(root, "expert", "heyah-family-private-tutor"),
+    source: ["."],
     target: path.join(dist, "heyah-family-private-tutor-expert.zip"),
   },
   {
