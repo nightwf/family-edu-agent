@@ -41,6 +41,17 @@ try {
     "update_remediation_plan",
     "update_remediation_task_status",
     "delete_remediation_plan",
+    "get_family_policy",
+    "propose_family_policy_change",
+    "get_child_state",
+    "save_evidence_record",
+    "get_planning_context",
+    "propose_stage_goals",
+    "create_weekly_plan",
+    "update_plan_item_status",
+    "import_source_document",
+    "list_education_methods",
+    "save_method_effect",
   ];
   const missing = required.filter((name) => !names.has(name));
   if (missing.length) throw new Error(`missing MCP tools: ${missing.join(", ")}`);
@@ -51,7 +62,7 @@ try {
   }
   const spec = await client.callTool({ name: "get_sync_spec", arguments: {} });
   const text = spec.content?.find((item) => item.type === "text")?.text || "";
-  if (!text.includes('"version": "2.3"') || !text.includes("wrong_book_capture")) {
+  if (!text.includes('"version": "2.3"') || !text.includes("stage_goal")) {
     throw new Error("get_sync_spec did not return the WorkBuddy v2.3 workflow");
   }
   for (const name of ["list_wrong_questions", "list_practice_papers", "list_remediation_plans"]) {

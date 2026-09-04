@@ -162,6 +162,11 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
     save_rule: "普通闲聊不保存；家长明确要求保存、同步、写入、记录时调用对应工具。",
     workflows: {
+      understand_child: ["get_child_state", "get_family_policy", "get_planning_context"],
+      stage_goal: ["get_planning_context", "propose_stage_goals", "confirm_stage_goal"],
+      weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
+      evidence: ["save_evidence_record", "review_evidence_record"],
+      knowledge_v2: ["import_source_document", "save_knowledge_nodes_batch", "get_knowledge_context"],
       writing: ["get_child_context", "get_education_skill(writing-coach)", "save_writing_record"],
       reading: ["get_child_context", "get_education_skill(reading-coach)", "save_reading_record"],
       homework: ["save_homework", "update_homework_status", "complete_homework"],
