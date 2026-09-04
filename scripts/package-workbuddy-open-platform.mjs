@@ -21,16 +21,17 @@ const packages = [
     target: path.join(dist, "heyah-family-private-tutor-expert.zip"),
   },
   {
-    cwd: path.join(root, "connector", "heyah-family-education"),
-    source: "skills",
+    source: ["SKILL.md", "references"],
+    cwd: path.join(root, "connector", "heyah-family-education", "skills", "heyah-family-private-tutor"),
     target: path.join(dist, "heyah-family-private-tutor-skill.zip"),
   },
 ];
 
 for (const item of packages) {
   if (fs.existsSync(item.target)) fs.unlinkSync(item.target);
-  const result = spawnSync("zip", ["-q", "-r", item.target, item.source], { cwd: item.cwd, stdio: "inherit" });
-  if (result.status !== 0) throw new Error(`failed to package ${item.source}`);
+  const sources = Array.isArray(item.source) ? item.source : [item.source];
+  const result = spawnSync("zip", ["-q", "-r", item.target, ...sources], { cwd: item.cwd, stdio: "inherit" });
+  if (result.status !== 0) throw new Error(`failed to package ${sources.join(", ")}`);
 }
 
 console.log(`WorkBuddy upload packages created in ${dist}`);
