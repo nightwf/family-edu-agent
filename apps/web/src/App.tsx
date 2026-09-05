@@ -413,11 +413,11 @@ function App() {
           )}
 
           {page === "students" && home && (
-            <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-semibold">学生档案</h2>
-                <button onClick={() => { setEditingChild(null); setChildDialog(true); }} className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />新建孩子</button>
-              </div>
+            <Panel
+              title="学生档案"
+              description="管理家庭里的孩子基础信息。编辑和删除操作保留在每一行右侧。"
+              actions={<button onClick={() => { setEditingChild(null); setChildDialog(true); }} className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white"><Plus size={16} />新建孩子</button>}
+            >
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
                   <thead>
@@ -445,23 +445,29 @@ function App() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </Panel>
           )}
 
           {page === "questions" && home && (
-            <QuestionBank token={token} children={home.children} request={request} />
+            <div className="space-y-5">
+              <PageHeader title="题库" description="家庭题库、题型规则和学生掌握证据。" />
+              <QuestionBank token={token} children={home.children} request={request} />
+            </div>
           )}
 
           {page === "wrong-book" && home && (
-            <WrongBook token={token} children={home.children} request={request} />
+            <div className="space-y-5">
+              <PageHeader title="错题本" description="学生错题、掌握证据和针对性练习。" />
+              <WrongBook token={token} children={home.children} request={request} />
+            </div>
           )}
 
           {page === "textbooks" && home && (
-            <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-semibold">教材库</h2>
-                <button onClick={() => setTextbookDialog(true)} className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm text-white"><Plus size={16} />导入教材</button>
-              </div>
+            <Panel
+              title="教材库"
+              description="教材由 WorkBuddy 导入，这里查看来源、版本和处理状态。"
+              actions={<button onClick={() => setTextbookDialog(true)} className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white"><Plus size={16} />导入教材</button>}
+            >
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
                   <thead><tr className="text-left text-stone-500"><th className="px-2 py-2">教材</th><th className="px-2 py-2">孩子</th><th className="px-2 py-2">状态</th><th className="px-2 py-2">操作</th></tr></thead>
@@ -477,18 +483,14 @@ function App() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </Panel>
           )}
 
           {page === "homework" && home && (
-            <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-semibold">家庭作业</h2>
-                <button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>
-              </div>
+            <Panel title="家庭作业" description="查看 WorkBuddy 同步的作业和完成状态" actions={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>}>
               <div className="space-y-3">
                 {home.homework.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 border-b border-dashed border-stone-200 pb-3">
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 bg-white p-3">
                     <div><div className="font-semibold">{item.title}</div><div className="text-sm text-stone-500">{childName(home.children, item.childId)} · {item.dueDate || "-"}</div></div>
                     <div className="flex items-center gap-2">
                       <span className={`rounded-full px-3 py-1 text-xs ${item.status === "done" ? "bg-teal/10 text-teal" : "bg-amber-100 text-amber-700"}`}>{item.status === "done" ? "已完成" : "待完成"}</span>
@@ -497,26 +499,24 @@ function App() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Panel>
           )}
 
           {page === "knowledge" && home && (
-            <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold">知识库</h2><button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button></div>
+            <Panel title="知识库" description="家庭积累的结构化知识和来源" actions={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>}>
               <div className="space-y-4">
                 {home.knowledge.map((item) => (
-                  <div key={item.id} className="border-b border-dashed border-stone-200 pb-4">
+                  <div key={item.id} className="rounded-xl border border-stone-100 bg-white p-3">
                     <div className="flex items-center justify-between"><div className="font-semibold">{item.title}</div><span className="text-xs text-teal">{childName(home.children, item.childId)}</span></div>
                     <p className="mt-2 text-sm text-stone-600">{item.content}</p>
                   </div>
                 ))}
               </div>
-            </div>
+            </Panel>
           )}
 
           {page === "settings" && (
-            <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <h2 className="mb-4 font-semibold">账号设置</h2>
+            <Panel title="账号设置" description="管理家庭、连接和数据边界">
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between"><span className="text-stone-500">登录邮箱</span><span>{settings?.user?.email || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-stone-500">家庭编号</span><span>{settings?.family?.id || "-"}</span></div>
@@ -669,12 +669,11 @@ function App() {
                 </div>
               </div>
               <button onClick={logout} className="mt-5 inline-flex items-center gap-2 rounded-lg border border-accent px-4 py-2 text-accent"><LogOut size={16} />退出登录</button>
-            </div>
+            </Panel>
           )}
 
           {page === "reports" && (
-            <div className="rounded-lg border border-stone-200 bg-panel p-4">
-              <h2 className="mb-4 font-semibold">报告与成长轨迹</h2>
+            <Panel title="报告与成长轨迹" description="查看成长记录、周报和阶段报告">
               {reportData ? (
                 <div className="space-y-5">
                   <div>
@@ -697,7 +696,7 @@ function App() {
                   </div>
                 </div>
               ) : <p className="text-stone-500">暂无数据。</p>}
-            </div>
+            </Panel>
           )}
           </div>
         </main>
