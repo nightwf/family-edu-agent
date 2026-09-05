@@ -7,7 +7,7 @@
   "description_en": "Connect family learning records, homework, reports, questions and mastery evidence.",
   "source": "heyah-family-education",
   "type": "mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "auth_mode": "token",
   "minWorkbuddyVersion": "4.24.0",
   "examples_zh": [

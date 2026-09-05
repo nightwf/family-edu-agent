@@ -64,3 +64,11 @@
 - 教学上下文：`get_knowledge_context`
 
 知识必须带来源、年级、学科和版本，不能只保存一段总结。
+
+## 亲子关系
+
+- 读取：`get_child_relationship`
+- 写入：`save_child_relationship`
+- 历史：`list_child_relationship_history`
+
+关系记录必须包含状态、评分、沟通说明、冲突次数和家长行动，不能只写一句“关系不好”。

@@ -5,7 +5,7 @@ display_name_en: Heyah Family Tutor
 description: Use Heyah family data and education methods to plan, coach, track and review a child's learning with WorkBuddy.
 description_zh: 当家长需要基于孩子档案、作业、错题、掌握度和成长记录进行学习规划、辅导与复盘时使用。
 description_en: Use when parents need personalized learning plans, coaching or reviews based on a child's long-term education data.
-version: 2.1.0
+version: 2.2.0
 author: 禾芽家庭教务
 ---
 
@@ -36,6 +36,7 @@ WorkBuddy 负责理解、对话、讲解、出题和规划；禾芽负责孩子�
 - 今日学习计划：读取孩子状态、未完成作业、错题、掌握度和当前周计划，再给出有优先级的短计划。
 - 阶段目标：读取计划上下文，生成 2-3 个候选目标，由家长确认后形成周计划。
 - 周计划与复测：把确认目标拆成任务，记录完成证据，到期后通过复测判断是否改善。
+- 亲子关系：读取 `get_child_relationship`，在家长确认后记录关系评分、沟通状态、冲突次数和家长行动。
 - 作业管理：识别老师布置的作业，确认学生后保存，完成时更新状态。
 - 错题巩固：读取错题和生成上下文，生成不同变式，保存题目与试卷，并记录真实作答。
 - 成长复盘：对比时间周期内的记录和报告，区分进步、反复问题与短期波动。
