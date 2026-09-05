@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, RefreshCw } from "lucide-react";
+import { Badge, ChildTabs, PageHeader, Panel } from "./Layout";
 
 type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 
@@ -37,17 +38,17 @@ export default function GoalPlan({ token, children, request }: Props) {
   }
 
   if (children.length === 0) {
-    return <div className="rounded-lg border border-stone-200 bg-panel p-5 text-stone-500">当前家庭还没有学生档案。</div>;
+    return <Panel>当前家庭还没有学生档案。</Panel>;
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {children.map((child) => (
-          <button key={child.id} onClick={() => setSelectedChildId(child.id)} className={`rounded-full px-4 py-2 text-sm ${selectedChildId === child.id ? "bg-teal text-white" : "bg-white text-stone-600"}`}>
-            {child.name}
-          </button>
-        ))}
+      <PageHeader
+        title="计划"
+        description="围绕一个 4–8 周目标安排每周任务，到期通过复测判断是否改善。"
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <ChildTabs children={children} activeChildId={selectedChildId} onChange={setSelectedChildId} />
         <button onClick={() => {
           const data = request(`/api/v2/children/${selectedChildId}/goals`, {}, token);
           data.then((result) => setGoals(result.items || []));
@@ -59,22 +60,18 @@ export default function GoalPlan({ token, children, request }: Props) {
       {loading ? (
         <p className="text-stone-500">加载中...</p>
       ) : goals.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-stone-200 bg-panel p-5 text-sm text-stone-500">
+        <Panel className="border-dashed">
           暂无阶段目标。阶段目标由 WorkBuddy 读取孩子状态后生成，家长在这里确认。
-        </div>
+        </Panel>
       ) : (
         <div className="space-y-4">
           {goals.map((goal) => (
-            <div key={goal.id} className="rounded-lg border border-stone-200 bg-panel p-4">
+            <Panel key={goal.id} title={goal.title} actions={<Badge tone={goal.status === "PROPOSED" ? "warn" : "teal"}>{goal.status}</Badge>}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="font-semibold">{goal.title}</div>
                   <p className="mt-1 text-sm text-stone-600">{goal.objective}</p>
                   <div className="mt-2 text-xs text-stone-500">{goal.startDate?.slice(0, 10)} 至 {goal.endDate?.slice(0, 10)}</div>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs ${goal.status === "PROPOSED" ? "bg-amber-100 text-amber-700" : goal.status === "CONFIRMED" || goal.status === "ACTIVE" ? "bg-teal/10 text-teal" : "bg-stone-100 text-stone-500"}`}>
-                  {goal.status}
-                </span>
               </div>
               {goal.status === "PROPOSED" && (
                 <div className="mt-3 flex gap-2">
@@ -86,7 +83,7 @@ export default function GoalPlan({ token, children, request }: Props) {
                   </button>
                 </div>
               )}
-            </div>
+            </Panel>
           ))}
         </div>
       )}

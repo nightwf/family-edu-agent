@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>禾芽家庭教务 Web 后台结构设计</title>
+  <style>
+    :root {
+      --teal: #0f766e;
+      --teal-deep: #114f4a;
+      --gold: #f3c969;
+      --cream: #f6f0dc;
+      --paper: #fffdf7;
+      --ink: #26343b;
+      --muted: #75858a;
+      --line: #e6dfcb;
+      --coral: #c9503a;
+      --green-soft: #e4f3ef;
+      --gold-soft: #fff4cf;
+      --shadow: 0 12px 32px rgba(38, 52, 59, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--cream);
+      font-family: "PingFang SC", "Noto Sans SC", sans-serif;
+      letter-spacing: 0;
+    }
+    .shell { min-height: 100vh; display: flex; }
+    .sidebar {
+      width: 232px;
+      flex-shrink: 0;
+      color: #dbe9e5;
+      background: #23353b;
+      padding: 22px 14px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px 24px;
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--gold);
+      color: var(--ink);
+      font-weight: 800;
+    }
+    .brand-name { font-weight: 800; color: white; }
+    .nav-group {
+      margin: 16px 0 8px;
+      padding: 0 10px;
+      color: #93a7a4;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #dbe9e5;
+      text-align: left;
+      border-radius: 12px;
+      padding: 11px 12px;
+      font-size: 14px;
+      cursor: default;
+    }
+    .nav-item.active {
+      background: var(--teal);
+      color: white;
+      font-weight: 700;
+    }
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      font-size: 12px;
+    }
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 0 28px 48px;
+    }
+    .topbar {
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-title { font-size: 18px; font-weight: 800; }
+    .topbar-actions { display: flex; align-items: center; gap: 10px; }
+    .chip {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.62);
+      border-radius: 999px;
+      padding: 8px 13px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .content {
+      max-width: 1180px;
+      margin: 26px auto 0;
+      display: grid;
+      gap: 18px;
+    }
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .page-title { margin: 0; font-size: 26px; line-height: 1.2; }
+    .page-desc { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+    .primary-btn, .ghost-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: default;
+    }
+    .primary-btn { background: var(--teal); color: white; }
+    .ghost-btn { border: 1px solid var(--line); background: white; color: var(--ink); }
+    .grid { display: grid; gap: 16px; }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid-main { grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.9fr); }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    .panel.tint { background: linear-gradient(135deg, #0f766e, #1a5c55); color: white; border: 0; }
+    .panel.gold { background: var(--gold-soft); }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .panel-title { margin: 0; font-size: 16px; font-weight: 800; }
+    .muted { color: var(--muted); }
+    .stat-label { font-size: 13px; color: var(--muted); }
+    .stat-value { margin-top: 6px; font-size: 28px; font-weight: 900; }
+    .stat-note { margin-top: 4px; font-size: 12px; color: var(--muted); }
+    .child-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+    .child-tab {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 999px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: default;
+    }
+    .child-tab.active { background: var(--teal); border-color: var(--teal); color: white; }
+    .goal-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .goal-icon {
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.16);
+      font-weight: 900;
+    }
+    .goal-title { font-weight: 800; font-size: 16px; }
+    .goal-sub { margin-top: 4px; color: #d3e8e3; font-size: 13px; }
+    .list { display: grid; gap: 10px; }
+    .item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid #f0e9d8;
+    }
+    .item-title { font-weight: 700; font-size: 14px; }
+    .item-desc { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .badge {
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: var(--green-soft);
+      color: var(--teal);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge.warn { background: #fff0d6; color: #8a5a12; }
+    .badge.coral { background: #ffe7e1; color: var(--coral); }
+    .timeline { display: grid; gap: 0; }
+    .timeline-item {
+      position: relative;
+      padding: 0 0 22px 26px;
+      border-left: 2px solid #dce8e5;
+    }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -6px;
+      top: 3px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--gold);
+      border: 2px solid white;
+    }
+    .task-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .task {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: white;
+      padding: 14px;
+    }
+    .task-index {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--green-soft);
+      color: var(--teal);
+      font-weight: 800;
+    }
+    .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .table th { text-align: left; color: var(--muted); padding: 10px 8px; border-bottom: 1px solid var(--line); }
+    .table td { padding: 14px 8px; border-bottom: 1px solid #f0e9d8; }
+    .avatar {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--green-soft);
+      color: var(--teal);
+      font-weight: 900;
+    }
+    .note { color: var(--muted); font-size: 12px; }
+    .mobile { display: none; }
+    @media (max-width: 860px) {
+      .shell { display: block; }
+      .sidebar { display: none; }
+      .main { padding: 0 16px 32px; }
+      .topbar { height: 58px; }
+      .grid-3, .grid-4, .grid-main { grid-template-columns: 1fr; }
+      .task-grid { grid-template-columns: 1fr; }
+      .page-head { align-items: flex-start; flex-direction: column; }
+      .mobile { display: flex; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">禾</div>
+        <div class="brand-name">禾芽家庭教务</div>
+      </div>
+      <div class="nav-group">围绕孩子</div>
+      <button class="nav-item active"><span class="nav-icon">孩</span>孩子总览</button>
+      <button class="nav-item"><span class="nav-icon">计</span>计划</button>
+      <button class="nav-item"><span class="nav-icon">学</span>学生</button>
+      <button class="nav-item"><span class="nav-icon">长</span>报告成长</button>
+      <div class="nav-group">学习资源</div>
+      <button class="nav-item"><span class="nav-icon">教</span>教材</button>
+      <button class="nav-item"><span class="nav-icon">题</span>题库</button>
+      <button class="nav-item"><span class="nav-icon">错</span>错题本</button>
+      <button class="nav-item"><span class="nav-icon">作</span>作业</button>
+      <button class="nav-item"><span class="nav-icon">知</span>知识库</button>
+      <div class="nav-group">账号与配置</div>
+      <button class="nav-item"><span class="nav-icon">设</span>设置</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title">孩子总览</div>
+        <div class="topbar-actions">
+          <button class="chip">家庭：我的家庭</button>
+          <button class="chip">JOJO · 三年级</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">JOJO 最近怎么样了？</h1>
+            <p class="page-desc">先看当前目标和证据，再决定本周要做什么。</p>
+          </div>
+          <button class="primary-btn">生成本周计划</button>
+        </div>
+
+        <div class="child-tabs">
+          <button class="child-tab active">JOJO</button>
+          <button class="child-tab">Mia</button>
+          <button class="child-tab">+ 添加学生</button>
+        </div>
+
+        <section class="grid grid-main">
+          <div class="panel tint">
+            <div class="panel-head"><h2 class="panel-title" style="color:white">孩子当前状态</h2><span class="badge">高置信</span></div>
+            <div class="goal-row">
+              <div class="goal-icon">数</div>
+              <div><div class="goal-title">当前重点：两位数退位减法</div><div class="goal-sub">独立正确率从 3/10 提升到 7/10，退位借位仍偶尔出错。</div></div>
+            </div>
+            <div class="goal-row">
+              <div class="goal-icon">读</div>
+              <div><div class="goal-title">当前状态：阅读复述有进步</div><div class="goal-sub">能说出主要事件，结尾原因解释还不稳定。</div></div>
+            </div>
+          </div>
+
+          <div class="panel gold">
+            <div class="panel-head"><h2 class="panel-title">亲子关系状态</h2><span class="badge">需要留意</span></div>
+            <div class="goal-row">
+              <div class="goal-icon" style="background:#ffe8d8;color:#a34a2e">沟</div>
+              <div><div class="goal-title">沟通节奏正常</div><div class="goal-sub">最近没有出现催促后明显抵触。</div></div>
+            </div>
+            <div class="goal-row">
+              <div class="goal-icon" style="background:#ffe8d8;color:#a34a2e">陪</div>
+              <div><div class="goal-title">作业陪伴需要降温</div><div class="goal-sub">家长连续纠正时，孩子会停止主动尝试。</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid grid-main">
+          <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">本周重点</h2><span class="muted">优先看截止时间近、需要家长参与的任务</span></div>
+            <div class="list">
+              <div class="item"><div><div class="item-title">数学练习册 P12</div><div class="item-desc">今晚完成，并拍照提交。</div></div><span class="badge">已完成</span></div>
+              <div class="item"><div><div class="item-title">退位减法变式 10 题</div><div class="item-desc">周三独立完成，家长只观察不提示。</div></div><span class="badge warn">进行中</span></div>
+              <div class="item"><div><div class="item-title">家长行动：观察独立完成情况</div><div class="item-desc">重点看是否出现“忘记借位”。</div></div><span class="badge">待开始</span></div>
+            </div>
+          </div>
+
+          <div class="panel gold">
+            <div class="panel-head"><h2 class="panel-title">需要家长确认</h2><span class="badge coral">2 条</span></div>
+            <div class="list">
+              <div class="item"><div><div class="item-title">语文：新课预习</div><div class="item-desc">主动标记不会的词语，但复述仍依赖提示。这会影响后续阅读策略。</div></div><span class="badge warn">待确认</span></div>
+              <div class="item"><div><div class="item-title">阅读：结尾原因解释</div><div class="item-desc">能读完并说出主要事件，但还不能稳定解释原因。</div></div><span class="badge warn">待确认</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">最近动态</h2><span class="muted">最近确认的学习证据</span></div>
+          <div class="task-grid">
+            <div class="task"><span class="task-index">数</span><div><div class="item-title">数学：两位数退位减法</div><div class="note">独立正确率 3/10 → 7/10</div></div><span class="badge">已确认</span></div>
+            <div class="task"><span class="task-index">读</span><div><div class="item-title">阅读：20 分钟自主阅读</div><div class="note">能说出人物和主要事件</div></div><span class="badge">已确认</span></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">二级页：孩子状态详情</h2><span class="muted">从首页点开查看更多证据</span></div>
+          <div class="grid grid-4">
+            <div class="panel"><div class="stat-label">近 7 天证据</div><div class="stat-value">12</div><div class="stat-note">系统自动汇总</div></div>
+            <div class="panel"><div class="stat-label">待家长确认</div><div class="stat-value">2</div><div class="stat-note">影响后续计划</div></div>
+            <div class="panel"><div class="stat-label">本周任务</div><div class="stat-value">6</div><div class="stat-note">4 项作业 + 2 项计划</div></div>
+            <div class="panel"><div class="stat-label">已确认动态</div><div class="stat-value">10</div><div class="stat-note">可回溯证据</div></div>
+          </div>
+          <div style="height:150px;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,#e4f3ef,#fff4cf);color:var(--muted)">学习能力趋势：正确率、独立完成率、任务完成度</div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">二级页：亲子关系</h2><span class="muted">关系状态、沟通方式与家庭边界</span></div>
+          <div class="grid grid-3">
+            <div class="panel"><div class="stat-label">亲子关系评分</div><div class="stat-value">76</div><div class="stat-note">稳定，需减少纠错打断</div></div>
+            <div class="panel"><div class="stat-label">本周冲突</div><div class="stat-value">1</div><div class="stat-note">发生在数学订正场景</div></div>
+            <div class="panel"><div class="stat-label">家长行动</div><div class="stat-value">2</div><div class="stat-note">观察、暂停纠正</div></div>
+          </div>
+        </section>
+
+        <section class="grid grid-main">
+          <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">计划页设计</h2><span class="muted">4–8 周目标 + 单周任务</span></div>
+            <div class="child-tabs" style="margin-bottom:14px">
+              <button class="child-tab active">本周</button><button class="child-tab">上周</button><button class="child-tab">下周</button>
+            </div>
+            <div class="goal-row">
+              <div class="goal-icon" style="background:var(--gold-soft);color:#7b5b12">目</div>
+              <div><div class="item-title">提升两位数退位减法正确率</div><div class="note">2026-09-07 至 2026-10-19</div></div>
+              <span class="badge">执行中</span>
+            </div>
+            <div class="list" style="margin-top:14px">
+              <div class="item"><div><div class="item-title">学校作业</div><div class="item-desc">完成数学练习册，拍照提交。</div></div><span class="badge">已完成</span></div>
+              <div class="item"><div><div class="item-title">孩子任务</div><div class="item-desc">独立完成 10 道退位减法变式。</div></div><span class="badge warn">进行中</span></div>
+              <div class="item"><div><div class="item-title">家长行动</div><div class="item-desc">只记录独立完成情况，不提示。</div></div><span class="badge">待开始</span></div>
+            </div>
+          </div>
+          <div class="panel gold">
+            <div class="panel-head"><h2 class="panel-title">本周复盘</h2><span class="badge">周五生成</span></div>
+            <div class="timeline">
+              <div class="timeline-item"><div class="item-title">周一</div><div class="item-desc">任务完成，独立程度提高。</div></div>
+              <div class="timeline-item"><div class="item-title">周三</div><div class="item-desc">错题集中出现在“忘记借位”。</div></div>
+              <div class="timeline-item"><div class="item-title">周五</div><div class="item-desc">复测，判断是否进入掌握流程。</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">学生页设计</h2><button class="primary-btn">新建学生</button></div>
+          <table class="table">
+            <thead><tr><th>学生</th><th>年级</th><th>关注学科</th><th>当前目标</th><th>状态</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><div style="display:flex;align-items:center;gap:10px"><span class="avatar">J</span><b>JOJO</b></div></td><td>三年级</td><td>数学、语文、英语</td><td>退位减法</td><td><span class="badge">执行中</span></td><td><button class="ghost-btn">更多</button></td></tr>
+              <tr><td><div style="display:flex;align-items:center;gap:10px"><span class="avatar">M</span><b>Mia</b></div></td><td>一年级</td><td>语文、数学</td><td>拼音拼读</td><td><span class="badge warn">待确认</span></td><td><button class="ghost-btn">更多</button></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="grid grid-main">
+          <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">报告成长页设计</h2><span class="muted">周报 / 阶段报告</span></div>
+            <div class="child-tabs" style="margin-bottom:14px"><button class="child-tab active">近 4 周</button><button class="child-tab">近 8 周</button><button class="child-tab">本学期</button></div>
+            <div style="height:180px;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,#e4f3ef,#fff4cf);color:var(--muted)">趋势图区域：正确率 / 独立完成率 / 任务完成度</div>
+            <div class="list" style="margin-top:14px">
+              <div class="item"><div><div class="item-title">第 3 周成长回顾</div><div class="item-desc">数学独立完成率上升，语文复述仍需支架。</div></div><span class="badge">已确认</span></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2 class="panel-title">教材页设计</h2><span class="muted">来源与结构化知识</span></div>
+            <div class="list">
+              <div class="item"><div><div class="item-title">人教版三年级上册数学</div><div class="item-desc">已提取 12 章、38 个知识点</div></div><span class="badge">有效</span></div>
+              <div class="item"><div><div class="item-title">人教版三年级上册语文</div><div class="item-desc">待提取 8 个知识点</div></div><span class="badge warn">处理中</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">设置页设计</h2></div>
+          <div class="task-grid">
+            <div class="task"><span class="task-index">家</span><div><div class="item-title">家庭边界</div><div class="note">时间预算、压力边界、优先学科</div></div></div>
+            <div class="task"><span class="task-index">管</span><div><div class="item-title">家庭管理者</div><div class="note">邀请、移除、切换家庭</div></div></div>
+            <div class="task"><span class="task-index">连</span><div><div class="item-title">WorkBuddy / 豆包连接</div><div class="note">Token 与提示词</div></div></div>
+            <div class="task"><span class="task-index">法</span><div><div class="item-title">教育方法库</div><div class="note">只读方法、证据强度、风险</div></div></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

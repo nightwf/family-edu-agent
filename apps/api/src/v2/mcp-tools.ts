@@ -23,6 +23,11 @@ import {
   saveKnowledgeNodesBatch,
   upsertChildKnowledgeState,
 } from "./knowledge.js";
+import {
+  getLatestRelationship,
+  listRelationshipHistory,
+  saveRelationshipSnapshot,
+} from "./relationship.js";
 
 function textResult(payload: unknown) {
   return {
@@ -372,6 +377,48 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
       await ensureEducationMethods();
       return listEducationMethods(input);
     }),
+  );
+
+  server.tool(
+    "get_child_relationship",
+    { child_id: z.string() },
+    async ({ child_id }) => safe(() => getLatestRelationship(familyId, child_id)),
+  );
+
+  server.tool(
+    "save_child_relationship",
+    {
+      child_id: z.string(),
+      status: z.string().optional(),
+      score: z.number().min(0).max(100).optional(),
+      communication_note: z.string().optional(),
+      conflict_count: z.number().int().min(0).optional(),
+      parent_action: z.string().optional(),
+      evidence: z.record(z.any()).optional(),
+    },
+    async (input) =>
+      safe(() =>
+        saveRelationshipSnapshot(familyId, {
+          childId: input.child_id,
+          status: input.status,
+          score: input.score,
+          communicationNote: input.communication_note,
+          conflictCount: input.conflict_count,
+          parentAction: input.parent_action,
+          evidence: input.evidence,
+        }),
+      ),
+  );
+
+  server.tool(
+    "list_child_relationship_history",
+    {
+      child_id: z.string(),
+      limit: z.number().int().min(1).max(100).optional(),
+      offset: z.number().int().min(0).optional(),
+    },
+    async ({ child_id, limit, offset }) =>
+      safe(() => listRelationshipHistory(familyId, child_id, limit, offset)),
   );
 
   server.tool(

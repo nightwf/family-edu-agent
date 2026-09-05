@@ -22,6 +22,18 @@ import QuestionBank from "./components/QuestionBank";
 import WrongBook from "./components/WrongBook";
 import ChildOverview from "./components/ChildOverview";
 import GoalPlan from "./components/GoalPlan";
+import ChildStateDetail from "./components/ChildStateDetail";
+import ParentRelation from "./components/ParentRelation";
+import {
+  Badge,
+  ChildTabs,
+  PageHeader,
+  Panel,
+  Sidebar,
+  StatCard,
+  Topbar,
+  type PageId,
+} from "./components/Layout";
 
 type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
@@ -46,19 +58,6 @@ type SettingsData = {
   child_count?: number;
 };
 
-const PAGES = [
-  { id: "home", label: "孩子", icon: LayoutDashboard },
-  { id: "students", label: "学生", icon: Users },
-  { id: "plan", label: "计划", icon: TrendingUp },
-  { id: "reports", label: "报告成长", icon: TrendingUp },
-  { id: "textbooks", label: "教材", icon: BookOpen },
-  { id: "questions", label: "题库", icon: BookMarked },
-  { id: "wrong-book", label: "错题本", icon: BookX },
-  { id: "homework", label: "作业", icon: ClipboardCheck },
-  { id: "knowledge", label: "知识库", icon: Library },
-  { id: "settings", label: "设置", icon: Settings },
-];
-
 const apiBase = location.pathname.startsWith("/family-edu/") ? "/family-edu" : "";
 
 async function request(path: string, options: RequestInit = {}, token?: string) {
@@ -77,7 +76,7 @@ function childName(children: Child[], childId: string) {
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("familyEduToken") || "");
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState<PageId>("home");
   const [home, setHome] = useState<HomeData | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
@@ -345,9 +344,6 @@ function App() {
     await load();
   }
 
-  const activePage = PAGES.find((item) => item.id === page)!;
-  const ActiveIcon = activePage.icon;
-
   if (!token) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center p-4">
@@ -377,38 +373,43 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-cream">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-panel/90 px-4 py-3">
-        <div className="flex items-center gap-2 font-bold">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold text-ink">禾</span>
-          <span>禾芽家庭教务</span>
-        </div>
-        <button onClick={logout} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"><LogOut size={16} />退出登录</button>
-      </header>
-
-      <div className="flex flex-col md:flex-row">
-        <aside className="grid grid-cols-3 gap-2 border-b border-stone-200 bg-[#23353b] p-3 text-white sm:grid-cols-4 md:flex md:min-h-screen md:w-56 md:flex-col md:border-b-0">
-          {PAGES.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button key={item.id} onClick={() => setPage(item.id)} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm md:justify-start ${page === item.id ? "bg-teal text-white" : "text-white/75"}`}>
-                <Icon size={17} />{item.label}
-              </button>
-            );
-          })}
-        </aside>
-
-        <main className="min-w-0 flex-1 p-4 md:p-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold md:text-3xl">{activePage.label}</h1>
-          </div>
+    <div className="flex min-h-screen bg-cream">
+      <Sidebar page={page} onNavigate={setPage} onLogout={logout} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Topbar
+          title={
+            page === "home" ? "孩子总览" :
+            page === "plan" ? "计划" :
+            page === "child-state" ? "孩子状态" :
+            page === "relation" ? "亲子关系" :
+            page === "students" ? "学生" :
+            page === "reports" ? "报告成长" :
+            page === "textbooks" ? "教材" :
+            page === "questions" ? "题库" :
+            page === "wrong-book" ? "错题本" :
+            page === "homework" ? "作业" :
+            page === "knowledge" ? "知识库" : "设置"
+          }
+          familyName={settings?.family?.name || home?.stats?.familyName}
+          childName={home?.children?.[0]?.name}
+        />
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-7">
+          <div className="mx-auto max-w-[1180px] space-y-5">
 
           {page === "home" && home && (
-            <ChildOverview token={token} children={home.children} request={request} />
+            <ChildOverview token={token} children={home.children} home={home} request={request} />
           )}
 
           {page === "plan" && home && (
             <GoalPlan token={token} children={home.children} request={request} />
+          )}
+
+          {page === "child-state" && home && (
+            <ChildStateDetail token={token} children={home.children} request={request} />
+          )}
+
+          {page === "relation" && home && (
+            <ParentRelation token={token} children={home.children} request={request} />
           )}
 
           {page === "students" && home && (
@@ -698,6 +699,7 @@ function App() {
               ) : <p className="text-stone-500">暂无数据。</p>}
             </div>
           )}
+          </div>
         </main>
       </div>
 

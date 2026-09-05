@@ -29,18 +29,21 @@
       </view>
       <view class="state-title">{{stateTitle}}</view>
       <view class="state-summary">{{stateSummary}}</view>
-      <view class="state-row">
-        <view wx:for="{{currentStats}}" wx:key="label" class="state-stat">
-          <view class="state-stat-value">{{item.value}}</view>
-          <view class="state-stat-label">{{item.label}}</view>
-        </view>
-      </view>
     </view>
 
     <view wx:if="{{activeGoal}}" class="goal-card">
       <view class="goal-label">当前阶段目标</view>
       <view class="goal-title">{{activeGoal.title}}</view>
       <view class="goal-summary">{{activeGoal.objective}}</view>
+    </view>
+
+    <view wx:if="{{relationship}}" class="relation-card">
+      <view class="relation-head">
+        <view class="goal-label">亲子关系状态</view>
+        <view class="relation-score">评分 {{relationship.score || '-'}}</view>
+      </view>
+      <view class="goal-title">{{relationship.status || '暂无记录'}}</view>
+      <view class="goal-summary">{{relationship.communicationNote || '暂时没有亲子关系记录。'}}</view>
     </view>
 
     <view class="home-section">

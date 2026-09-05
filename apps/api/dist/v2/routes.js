@@ -3,6 +3,7 @@ import { createEvidenceRecord, listEvidence, reviewEvidenceRecord } from "./evid
 import { confirmStageGoal, confirmWeeklyPlan, createAssessment, createWeeklyPlan, getStageGoal, getWeeklyPlan, listStageGoals, proposeStageGoals, updatePlanItemStatus, } from "./goal-plan.js";
 import { ensureEducationMethods, listEducationMethods, saveMethodEffect } from "./education-methods-v2.js";
 import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
+import { getLatestRelationship, listRelationshipHistory, saveRelationshipSnapshot, } from "./relationship.js";
 async function respond(reply, action) {
     try {
         return await action();
@@ -173,6 +174,31 @@ export function registerV2Routes(app, requireAuth, getAuth) {
     app.get("/api/v2/education-methods", auth, async (request) => {
         await ensureEducationMethods();
         return listEducationMethods(request.query);
+    });
+    app.get("/api/v2/children/:childId/relationship", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { childId } = request.params;
+        return getLatestRelationship(familyId, childId);
+    });
+    app.get("/api/v2/children/:childId/relationship/history", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { childId } = request.params;
+        const { limit, offset } = request.query;
+        return listRelationshipHistory(familyId, childId, limit, offset);
+    });
+    app.post("/api/v2/children/:childId/relationship/snapshots", auth, async (request, reply) => {
+        const { familyId, id } = getAuth(request);
+        const { childId } = request.params;
+        const body = request.body;
+        return respond(reply.code(201), () => saveRelationshipSnapshot(familyId, {
+            childId,
+            status: body.status,
+            score: body.score,
+            communicationNote: body.communication_note,
+            conflictCount: body.conflict_count,
+            parentAction: body.parent_action,
+            evidence: body.evidence,
+        }, { type: "workbuddy", id }));
     });
     app.post("/api/v2/method-effects", auth, async (request, reply) => {
         const { familyId, id } = getAuth(request);

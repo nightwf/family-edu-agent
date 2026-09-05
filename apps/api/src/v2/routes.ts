@@ -21,6 +21,11 @@ import {
   saveKnowledgeNodesBatch,
   upsertChildKnowledgeState,
 } from "./knowledge.js";
+import {
+  getLatestRelationship,
+  listRelationshipHistory,
+  saveRelationshipSnapshot,
+} from "./relationship.js";
 
 type AuthContext = { id: string; familyId: string };
 
@@ -240,6 +245,36 @@ export function registerV2Routes(
   app.get("/api/v2/education-methods", auth, async (request) => {
     await ensureEducationMethods();
     return listEducationMethods(request.query as any);
+  });
+
+  app.get("/api/v2/children/:childId/relationship", auth, async (request) => {
+    const { familyId } = getAuth(request);
+    const { childId } = request.params as any;
+    return getLatestRelationship(familyId, childId);
+  });
+
+  app.get("/api/v2/children/:childId/relationship/history", auth, async (request) => {
+    const { familyId } = getAuth(request);
+    const { childId } = request.params as any;
+    const { limit, offset } = request.query as any;
+    return listRelationshipHistory(familyId, childId, limit, offset);
+  });
+
+  app.post("/api/v2/children/:childId/relationship/snapshots", auth, async (request, reply) => {
+    const { familyId, id } = getAuth(request);
+    const { childId } = request.params as any;
+    const body = request.body as any;
+    return respond(reply.code(201), () =>
+      saveRelationshipSnapshot(familyId, {
+        childId,
+        status: body.status,
+        score: body.score,
+        communicationNote: body.communication_note,
+        conflictCount: body.conflict_count,
+        parentAction: body.parent_action,
+        evidence: body.evidence,
+      }, { type: "workbuddy", id }),
+    );
   });
 
   app.post("/api/v2/method-effects", auth, async (request, reply) => {

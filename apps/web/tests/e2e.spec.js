@@ -9,7 +9,7 @@ test("question bank workflow, family isolation and mobile layout", async ({ page
   await page.locator('input[placeholder="邮箱"]').fill(email);
   await page.locator('input[placeholder="密码"]').fill("123456");
   await page.getByRole("button", { name: "注册并登录" }).click();
-  await expect(page.getByText("孩子", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("孩子总览", { exact: true }).first()).toBeVisible();
 
   const token = await page.evaluate(() => localStorage.getItem("familyEduToken"));
   expect(token).toBeTruthy();
@@ -20,7 +20,7 @@ test("question bank workflow, family isolation and mobile layout", async ({ page
   expect(childResponse.ok()).toBeTruthy();
   const child = await childResponse.json();
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "孩子", exact: true }).first().click();
+  await page.getByRole("button", { name: "孩子总览", exact: true }).first().click();
   await expect(page.getByText("题库测试学生").first()).toBeVisible();
 
   const typeResponse = await request.post(api("question-types"), {
@@ -72,7 +72,7 @@ test("question bank workflow, family isolation and mobile layout", async ({ page
   await expect(page.locator("tbody").getByText("学习中").first()).toBeVisible();
   await page.screenshot({ path: "/tmp/family-edu-question-desktop.png", fullPage: true });
 
-  for (const name of ["学生", "计划", "报告成长", "教材", "题库", "作业", "知识库", "设置"]) {
+  for (const name of ["计划", "孩子状态", "亲子关系", "学生", "报告成长", "教材", "题库", "作业", "知识库", "设置"]) {
     await page.getByRole("button", { name, exact: true }).first().click();
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
   }

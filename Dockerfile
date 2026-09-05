@@ -4,6 +4,7 @@ COPY package.json package-lock.json ./
 COPY apps ./apps
 COPY prisma ./prisma
 COPY skills ./skills
+COPY scripts ./scripts
 RUN npm install --no-audit --no-fund
 RUN npm run db:generate
 RUN npm run build --workspace @family-edu/api
@@ -15,6 +16,7 @@ COPY package.json package-lock.json ./
 COPY apps ./apps
 COPY prisma ./prisma
 COPY skills ./skills
+COPY scripts ./scripts
 RUN npm install --no-audit --no-fund
 RUN npm run db:generate
 COPY --from=builder /app/apps/api/dist ./apps/api/dist

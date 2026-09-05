@@ -783,6 +783,23 @@ model ChildStateSnapshot {
   @@index([familyId, childId, generatedAt])
 }
 
+model ChildRelationshipSnapshot {
+  id                String   @id @default(cuid())
+  familyId          String
+  childId           String
+  status            String   @default("stable")
+  score             Float?
+  communicationNote String?
+  conflictCount     Int      @default(0)
+  parentAction      String?
+  evidence          Json?
+  asOf              DateTime @default(now())
+  generatedAt       DateTime @default(now())
+
+  @@unique([childId, asOf])
+  @@index([familyId, childId, generatedAt])
+}
+
 model StageGoal {
   id             String         @id @default(cuid())
   familyId       String

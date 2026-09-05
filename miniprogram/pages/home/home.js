@@ -86,6 +86,7 @@ Page({
     stateTitle: "",
     stateSummary: "",
     activeGoal: null,
+    relationship: null,
     currentStats: [],
     pendingTasks: [],
     activityItems: []
@@ -125,12 +126,14 @@ Page({
       let activeGoal = null;
       if (activeChild) {
         try {
-          const [childState, goalsData] = await Promise.all([
+          const [childState, goalsData, relationship] = await Promise.all([
             api.childState(activeChild.id),
-            api.listStageGoals(activeChild.id, { status: "ACTIVE" })
+            api.listStageGoals(activeChild.id, { status: "ACTIVE" }),
+            api.childRelationship(activeChild.id)
           ]);
           const goalItems = (goalsData && goalsData.items) || [];
           activeGoal = goalItems.find((item) => item.status === "ACTIVE") || goalItems[0] || null;
+          this.setData({ relationship: relationship || null });
           if (childState && childState.summary) {
             const summary = childState.summary;
             if (!records.length && !reports.length && !pendingTasks.length) {
