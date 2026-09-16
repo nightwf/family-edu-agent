@@ -22,19 +22,19 @@
   </view>
 
   <view class="login-sheet">
-    <block wx:if="{{attachStep}}">
-      <view class="sheet-title">绑定已有账号</view>
-      <view class="sheet-subtitle">只有早期用邮箱注册的账号需要绑定一次，绑定后继续使用微信登录</view>
+    <block wx:if="{{emailLoginStep}}">
+      <view class="sheet-title">邮箱登录</view>
+      <view class="sheet-subtitle">适用于早期用邮箱注册的账号</view>
       <view class="form-item">
         <view class="form-label">邮箱</view>
-        <input class="input" type="text" placeholder="原账号邮箱" value="{{attachEmail}}" data-field="attachEmail" bindinput="onAttachField" />
+        <input class="input" type="text" placeholder="请输入邮箱" value="{{email}}" data-field="email" bindinput="onEmailField" />
       </view>
       <view class="form-item">
         <view class="form-label">密码</view>
-        <input class="input" password placeholder="原账号密码" value="{{attachPassword}}" data-field="attachPassword" bindinput="onAttachField" />
+        <input class="input" password placeholder="请输入密码" value="{{password}}" data-field="password" bindinput="onEmailField" />
       </view>
-      <button class="btn btn-primary submit-button" loading="{{wechatLoading}}" bindtap="attachAccount">绑定微信并登录</button>
-      <view class="attach-back" bindtap="closeAttach">返回微信登录</view>
+      <button class="btn btn-primary submit-button" loading="{{emailLoading}}" bindtap="submitEmailLogin">登录</button>
+      <view class="email-back" bindtap="closeEmailLogin">返回微信登录</view>
       <view wx:if="{{error}}" class="error-card">
         <view class="error-title">{{error}}</view>
         <view wx:if="{{errorDetail}}" class="error-detail">{{errorDetail}}</view>
@@ -60,7 +60,7 @@
       </view>
     </view>
 
-    <view class="attach-entry" bindtap="openAttach">以前用邮箱注册过？绑定微信后继续使用</view>
+    <view class="email-entry" bindtap="openEmailLogin">邮箱登录</view>
     </block>
   </view>
 

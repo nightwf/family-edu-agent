@@ -81,8 +81,29 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
   const [qrUrl, setQrUrl] = useState("");
   const [status, setStatus] = useState<"loading" | "pending" | "approved" | "expired" | "error">("loading");
   const [error, setError] = useState("");
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
   const sessionRef = useRef<{ public_id: string; browser_secret: string } | null>(null);
   const [nonce, setNonce] = useState(0);
+
+  async function submitEmailLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setEmailLoading(true);
+    setEmailError("");
+    try {
+      const data = await request("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
+      });
+      onToken(data.token);
+    } catch (err) {
+      setEmailError((err as Error).message);
+    } finally {
+      setEmailLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -171,6 +192,23 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
         )}
       </div>
       <div className="mt-4 text-center text-xs text-stone-500">家庭数据仅当前家庭的管理者可见</div>
+      {emailOpen ? (
+        <form onSubmit={submitEmailLogin} className="mt-4 space-y-3 border-t border-stone-100 pt-4">
+          <input name="email" type="text" required className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="邮箱" />
+          <input name="password" type="password" required className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="密码" />
+          <button type="submit" disabled={emailLoading} className="w-full rounded-lg border border-teal px-4 py-2 text-sm text-teal disabled:opacity-60">
+            {emailLoading ? "登录中…" : "登录"}
+          </button>
+          {emailError && <p className="text-sm text-accent">{emailError}</p>}
+          <button type="button" onClick={() => { setEmailOpen(false); setEmailError(""); }} className="w-full text-center text-xs text-stone-500">
+            返回微信扫码
+          </button>
+        </form>
+      ) : (
+        <button type="button" onClick={() => setEmailOpen(true)} className="mt-4 w-full text-center text-xs text-stone-500 underline">
+          邮箱登录
+        </button>
+      )}
     </div>
   );
 }

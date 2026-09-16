@@ -235,15 +235,15 @@
   line-height: 1.7;
 }
 
-.attach-entry {
-  margin-top: 22rpx;
+.email-entry {
+  margin-top: 24rpx;
   color: #8b989a;
   font-size: 22rpx;
   text-align: center;
   text-decoration: underline;
 }
 
-.attach-back {
+.email-back {
   margin-top: 20rpx;
   color: #0f766e;
   font-size: 24rpx;

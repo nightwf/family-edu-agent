@@ -14,7 +14,6 @@ const api = {
   wechatLogin: (data) => request({ url: "/api/auth/wechat/login", method: "POST", data, auth: false }),
   wechatBind: (data) => request({ url: "/api/auth/wechat/bind", method: "POST", data, auth: false }),
   bindCurrentWechat: (data) => request({ url: "/api/auth/wechat/bind-current", method: "POST", data }),
-  attachWechatAccount: (data) => request({ url: "/api/auth/wechat/attach", method: "POST", data, auth: false }),
   onboarding: () => request({ url: "/api/onboarding/state" }),
   createFamily: (data) => request({ url: "/api/onboarding/family", method: "POST", data }),
   applyFamilyJoin: (data) => request({ url: "/api/onboarding/family/join-request", method: "POST", data }),
