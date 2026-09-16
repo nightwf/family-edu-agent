@@ -91,3 +91,33 @@ export async function revokeFamilyMcpToken(tokenId: string) {
     data: { status: "revoked", revokedAt: new Date() },
   });
 }
+
+/** Legacy token-mode connections, listed for management after the OAuth rollout. */
+export async function listLegacyMcpConnections(familyId: string) {
+  const tokens = await prisma.mcpToken.findMany({
+    where: { familyId, status: "active", revokedAt: null },
+    include: {
+      user: { select: { id: true, email: true, wechatNickname: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return tokens.map((token) => ({
+    id: token.id,
+    kind: "legacy" as const,
+    name: token.name || "workbuddy",
+    created_at: token.createdAt,
+    last_used_at: token.lastUsedAt,
+    authorized_by: token.user
+      ? token.user.wechatNickname || token.user.email || "微信用户"
+      : "家庭级凭证",
+    blocked: Boolean(token.user && !token.familyMemberId),
+  }));
+}
+
+export async function revokeLegacyMcpConnection(familyId: string, tokenId: string) {
+  const result = await prisma.mcpToken.updateMany({
+    where: { id: tokenId, familyId, status: "active", revokedAt: null },
+    data: { status: "revoked", revokedAt: new Date() },
+  });
+  return result.count > 0;
+}

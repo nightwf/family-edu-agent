@@ -50,6 +50,7 @@ Page({
     memberships: [],
     joinCode: "",
     connections: [],
+    legacyConnections: [],
     joinRequests: [],
     joinCodeInput: "",
     joinSubmitting: false,
@@ -88,6 +89,13 @@ Page({
         joinCode: settings.join_code || "",
         connections: (settings.connections || []).map((item) => ({
           ...item,
+          tag: "扫码授权",
+          createdText: format.formatDate(item.created_at),
+          usedText: item.last_used_at ? format.formatDate(item.last_used_at) : "尚未调用"
+        })),
+        legacyConnections: (settings.legacy_connections || []).map((item) => ({
+          ...item,
+          tag: "旧版 Token",
           createdText: format.formatDate(item.created_at),
           usedText: item.last_used_at ? format.formatDate(item.last_used_at) : "尚未调用"
         })),

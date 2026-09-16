@@ -12,7 +12,7 @@ import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken 
 import { registerMcpHttp } from "./mcp.js";
 import { buildDoubaoPrompt, buildWorkbuddyOpenPlatformConfig, buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
-import { getOrCreateFamilyMcpToken } from "./mcp-token.js";
+import { getOrCreateFamilyMcpToken, listLegacyMcpConnections, revokeLegacyMcpConnection } from "./mcp-token.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 import { listQuestions, listQuestionTypes, listStudentMastery } from "./question-bank.js";
@@ -446,23 +446,32 @@ export async function buildApp() {
         }
     });
     app.get("/api/connections", { preHandler: requireAuth }, async (request) => {
-        const connections = await listOAuthConnections(getAuth(request).familyId);
-        return connections.map((item) => ({
-            id: item.id,
-            client_name: item.oauthClient.clientName,
-            client_id: item.oauthClient.clientId,
-            scope: item.scope,
-            created_at: item.createdAt,
-            last_used_at: item.lastUsedAt,
-            expires_at: item.expiresAt,
-            authorized_by: item.user.wechatNickname || item.user.email || "微信用户",
-        }));
+        const familyId = getAuth(request).familyId;
+        const [oauth, legacy] = await Promise.all([
+            listOAuthConnections(familyId),
+            listLegacyMcpConnections(familyId),
+        ]);
+        return [
+            ...oauth.map((item) => ({
+                id: item.id,
+                kind: "oauth",
+                client_name: item.oauthClient.clientName,
+                client_id: item.oauthClient.clientId,
+                scope: item.scope,
+                created_at: item.createdAt,
+                last_used_at: item.lastUsedAt,
+                expires_at: item.expiresAt,
+                authorized_by: item.user.wechatNickname || item.user.email || "微信用户",
+            })),
+            ...legacy,
+        ];
     });
     app.delete("/api/connections/:connectionId", { preHandler: requireAuth }, async (request, reply) => {
         const auth = getAuth(request);
         const { connectionId } = request.params;
-        const ok = await revokeOAuthConnection(auth.familyId, String(connectionId));
-        if (!ok)
+        const revokedOAuth = await revokeOAuthConnection(auth.familyId, String(connectionId));
+        const revokedLegacy = revokedOAuth ? false : await revokeLegacyMcpConnection(auth.familyId, String(connectionId));
+        if (!revokedOAuth && !revokedLegacy)
             return reply.code(404).send({ error: "连接不存在或已解除" });
         return { ok: true };
     });
@@ -941,7 +950,7 @@ export async function buildApp() {
     });
     app.get("/api/settings", { preHandler: requireAuth }, async (request) => {
         const auth = getAuth(request);
-        const [user, family, childCount, mcpToken, member, members, invites, educationSettings, policyChanges, joinCode, connections, joinRequests] = await Promise.all([
+        const [user, family, childCount, mcpToken, member, members, invites, educationSettings, policyChanges, joinCode, connections, legacyConnections, joinRequests] = await Promise.all([
             prisma.user.findUnique({ where: { id: auth.id } }),
             prisma.family.findUnique({ where: { id: auth.familyId } }),
             prisma.child.count({ where: { familyId: auth.familyId } }),
@@ -953,6 +962,7 @@ export async function buildApp() {
             getPolicyHistory(auth.familyId),
             ensureFamilyJoinCode(auth.familyId),
             listOAuthConnections(auth.familyId),
+            listLegacyMcpConnections(auth.familyId),
             listFamilyJoinRequests(auth.familyId),
         ]);
         const educationMethods = {
@@ -970,12 +980,14 @@ export async function buildApp() {
             join_code: joinCode,
             connections: connections.map((item) => ({
                 id: item.id,
+                kind: "oauth",
                 client_name: item.oauthClient.clientName,
                 scope: item.scope,
                 created_at: item.createdAt,
                 last_used_at: item.lastUsedAt,
                 authorized_by: item.user.wechatNickname || item.user.email || "微信用户",
             })),
+            legacy_connections: legacyConnections,
             join_requests: joinRequests.map((item) => ({
                 id: item.id,
                 created_at: item.createdAt,

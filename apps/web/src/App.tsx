@@ -52,6 +52,7 @@ type SettingsData = {
   mcp_token?: string;
   join_code?: string;
   connections?: any[];
+  legacy_connections?: any[];
   join_requests?: any[];
   user?: any;
   family?: any;
@@ -742,17 +743,37 @@ function App() {
                 </ol>
                 <div className="mt-4 border-t border-stone-100 pt-4">
                   <div className="text-sm font-semibold text-stone-600">已连接的 WorkBuddy</div>
-                  {(settings?.connections || []).length === 0 ? (
+                  {(settings?.connections || []).length + (settings?.legacy_connections || []).length === 0 ? (
                     <p className="mt-2 text-sm text-stone-500">还没有设备完成授权。</p>
                   ) : (
                     <div className="mt-3 space-y-2">
                       {(settings?.connections || []).map((connection: any) => (
                         <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
                           <div>
-                            <div className="font-semibold">{connection.client_name || "WorkBuddy"}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{connection.client_name || "WorkBuddy"}</span>
+                              <span className="rounded-full bg-teal/10 px-2 py-0.5 text-xs text-teal">扫码授权</span>
+                            </div>
                             <div className="mt-1 text-xs text-stone-500">
                               {connection.authorized_by} 授权 · {connection.created_at?.slice(0, 10)} · {connection.last_used_at ? `最近使用 ${connection.last_used_at.slice(0, 10)}` : "尚未调用"}
                             </div>
+                          </div>
+                          <button type="button" onClick={() => revokeWorkbuddyConnection(connection.id)} className="rounded-lg border border-accent px-3 py-1 text-accent">
+                            解除授权
+                          </button>
+                        </div>
+                      ))}
+                      {(settings?.legacy_connections || []).map((connection: any) => (
+                        <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">WorkBuddy</span>
+                              <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs text-stone-600">旧版 Token 连接</span>
+                            </div>
+                            <div className="mt-1 text-xs text-stone-500">
+                              {connection.authorized_by} 授权 · {connection.created_at?.slice(0, 10)} · {connection.last_used_at ? `最近使用 ${connection.last_used_at.slice(0, 10)}` : "尚未调用"}
+                            </div>
+                            <div className="mt-1 text-xs text-stone-400">建议重新用微信扫码连接一次，之后会自动续期</div>
                           </div>
                           <button type="button" onClick={() => revokeWorkbuddyConnection(connection.id)} className="rounded-lg border border-accent px-3 py-1 text-accent">
                             解除授权

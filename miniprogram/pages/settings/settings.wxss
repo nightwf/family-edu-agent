@@ -192,6 +192,7 @@
 .connection-row-main { flex: 1; min-width: 0; }
 .connection-row-name { color: #203238; font-size: 26rpx; font-weight: 700; }
 .connection-row-meta { margin-top: 6rpx; color: #8b989a; font-size: 21rpx; }
+.connection-row-hint { margin-top: 6rpx; color: #b3a98f; font-size: 20rpx; line-height: 1.5; }
 .connection-row-action { flex-shrink: 0; padding: 10rpx 22rpx; border-radius: 12rpx; border: 1rpx solid #f0c7bc; color: #c9503a; font-size: 23rpx; font-weight: 700; }
 .request-actions { display: flex; gap: 10rpx; flex-shrink: 0; }
 .mini-action { padding: 10rpx 20rpx; border-radius: 12rpx; background: #e4f3ef; color: #0f766e; font-size: 23rpx; font-weight: 700; }
