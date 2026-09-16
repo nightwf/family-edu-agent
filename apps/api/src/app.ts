@@ -357,6 +357,42 @@ export async function buildApp() {
     }
   });
 
+  /**
+   * One-time bridge for existing email accounts created before WeChat-only login.
+   * The account keeps its family and data; afterwards it signs in with WeChat only.
+   */
+  app.post("/api/auth/wechat/attach", async (request, reply) => {
+    try {
+      const { code } = request.body as any;
+      const email = normalizeEmail((request.body as any)?.email);
+      const password = String((request.body as any)?.password || "");
+      if (!code || !email || !password) return reply.code(400).send({ error: "请填写完整账号信息" });
+      const wechat = await exchangeWechatCode(String(code));
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user || !(await verifyPassword(password, user.passwordHash))) {
+        return reply.code(401).send({ error: "邮箱或密码错误" });
+      }
+      if (!user.familyId) return reply.code(400).send({ error: "该账号还没有家庭，请直接使用微信登录" });
+      if (user.wechatOpenId && user.wechatOpenId !== wechat.openid) {
+        return reply.code(409).send({ error: "该账号已绑定其他微信" });
+      }
+      const claimed = await prisma.user.findUnique({ where: { wechatOpenId: wechat.openid } });
+      if (claimed && claimed.id !== user.id) return reply.code(409).send({ error: "该微信已绑定其他账号" });
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          wechatOpenId: wechat.openid,
+          wechatUnionId: wechat.unionid || user.wechatUnionId,
+          lastWechatLoginAt: new Date(),
+        },
+      });
+      return createSessionResponse(app, updated);
+    } catch (error) {
+      if (error instanceof WechatError) return reply.code(error.statusCode).send({ error: error.message });
+      throw error;
+    }
+  });
+
   app.post("/api/auth/logout", { preHandler: requireAuth as any }, async (request) => {
     await prisma.session.updateMany({
       where: { userId: getAuth(request).id, revokedAt: null },

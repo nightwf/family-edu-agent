@@ -2,6 +2,9 @@ const api = require("../../utils/api");
 
 Page({
   data: {
+    attachStep: false,
+    attachEmail: "",
+    attachPassword: "",
     error: "",
     errorDetail: "",
     serviceState: "idle",
@@ -104,6 +107,46 @@ Page({
         error: "微信登录没有成功",
         errorDetail: "无法获取微信登录凭证"
       })
+    });
+  },
+
+  openAttach() {
+    this.setData({ attachStep: true, error: "", errorDetail: "" });
+  },
+
+  closeAttach() {
+    this.setData({ attachStep: false, error: "", errorDetail: "", attachEmail: "", attachPassword: "" });
+  },
+
+  onAttachField(event) {
+    this.setData({ [event.currentTarget.dataset.field]: event.detail.value, error: "", errorDetail: "" });
+  },
+
+  attachAccount() {
+    if (this.data.wechatLoading) return;
+    const email = String(this.data.attachEmail || "").trim();
+    const password = String(this.data.attachPassword || "");
+    if (!email || !password) {
+      this.setData({ error: "请填写邮箱和密码", errorDetail: "" });
+      return;
+    }
+    this.setData({ wechatLoading: true, error: "", errorDetail: "" });
+    wx.login({
+      success: async (res) => {
+        if (!res.code) {
+          this.setData({ wechatLoading: false, error: "没有获取到微信登录凭证", errorDetail: "" });
+          return;
+        }
+        try {
+          const data = await api.attachWechatAccount({ code: res.code, email, password });
+          this.saveSession(data);
+          wx.showToast({ title: "已绑定微信", icon: "success" });
+          wx.switchTab({ url: "/pages/home/home" });
+        } catch (error) {
+          this.setData({ wechatLoading: false, error: "绑定没有成功", errorDetail: error.message });
+        }
+      },
+      fail: () => this.setData({ wechatLoading: false, error: "无法获取微信登录凭证", errorDetail: "" })
     });
   },
 
