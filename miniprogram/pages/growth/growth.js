@@ -8,9 +8,12 @@ const TYPE_LABELS = {
   parent_note: "家长备注"
 };
 
+const PAGE_SIZE = 20;
+
 Page({
   data: {
     loading: true,
+    loadingMore: false,
     error: "",
     children: [],
     childNames: [],
@@ -20,8 +23,17 @@ Page({
     records: [],
     reports: [],
     growth: [],
+    totalRecords: 0,
+    totalReports: 0,
+    recordsHasMore: false,
+    reportsHasMore: false,
+    pageSize: PAGE_SIZE,
     detail: null,
     detailType: ""
+  },
+
+  onReachBottom() {
+    this.loadMore();
   },
 
   async onShow() {
@@ -31,7 +43,7 @@ Page({
   async loadChildren() {
     try {
       const savedChildId = wx.getStorageSync("familyEduSelectedChildId");
-      const data = await api.mobileGrowth({ child_id: savedChildId });
+      const data = await api.mobileGrowth({ child_id: savedChildId, limit: PAGE_SIZE, offset: 0 });
       const children = data.children || [];
       const activeChildId = data.active_child ? data.active_child.id : savedChildId;
       const savedIndex = children.findIndex((child) => child.id === activeChildId);
@@ -48,19 +60,31 @@ Page({
     }
   },
 
-  setGrowthData(data, extra = {}) {
+  setGrowthData(data, extra = {}, append = false) {
+    const nextRecords = (data.records || []).map((item) => ({
+      ...item,
+      dateText: format.formatDate(item.date),
+      typeLabel: TYPE_LABELS[item.type] || item.type || "记录"
+    }));
+    const nextReports = (data.reports || []).map((item) => ({
+      ...item,
+      dateText: format.formatDate(item.createdAt),
+      typeLabel: item.type === "weekly" ? "周报" : "月报"
+    }));
+    // 接口对成长记录和报告使用同一个 offset，追加时只合并当前页签的数据
+    const records = append ? [...this.data.records, ...nextRecords] : nextRecords;
+    const reports = append ? [...this.data.reports, ...nextReports] : nextReports;
+    const page = data.page || {};
+    const totalRecords = typeof page.total_records === "number" ? page.total_records : records.length;
+    const totalReports = typeof page.total_reports === "number" ? page.total_reports : reports.length;
     this.setData({
       ...extra,
-      records: (data.records || []).map((item) => ({
-        ...item,
-        dateText: format.formatDate(item.date),
-        typeLabel: TYPE_LABELS[item.type] || item.type || "记录"
-      })),
-      reports: (data.reports || []).map((item) => ({
-        ...item,
-        dateText: format.formatDate(item.createdAt),
-        typeLabel: item.type === "weekly" ? "周报" : "月报"
-      })),
+      records,
+      reports,
+      totalRecords,
+      totalReports,
+      recordsHasMore: records.length < totalRecords,
+      reportsHasMore: reports.length < totalReports,
       growth: (data.growth || []).map((item, index) => ({
         ...item,
         dateText: format.formatDate(item.date),
@@ -86,15 +110,33 @@ Page({
   async loadData() {
     const { childId } = this.data;
     if (!childId) {
-      this.setData({ records: [], reports: [], growth: [], loading: false });
+      this.setData({ records: [], reports: [], growth: [], totalRecords: 0, totalReports: 0, loading: false });
       return;
     }
     this.setData({ loading: true, error: "" });
     try {
-      const data = await api.mobileGrowth({ child_id: childId });
+      const data = await api.mobileGrowth({ child_id: childId, limit: PAGE_SIZE, offset: 0 });
       this.setGrowthData(data);
     } catch (error) {
       this.setData({ error: error.message, loading: false });
+    }
+  },
+
+  async loadMore() {
+    const { tab, childId, loading, loadingMore } = this.data;
+    if (!childId || loading || loadingMore) return;
+    if (tab === "growth") return;
+    const loaded = tab === "records" ? this.data.records.length : this.data.reports.length;
+    const total = tab === "records" ? this.data.totalRecords : this.data.totalReports;
+    if (!total || loaded >= total) return;
+    this.setData({ loadingMore: true });
+    try {
+      const data = await api.mobileGrowth({ child_id: childId, limit: PAGE_SIZE, offset: loaded });
+      this.setGrowthData(data, {}, true);
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: "none" });
+    } finally {
+      this.setData({ loadingMore: false });
     }
   },
 

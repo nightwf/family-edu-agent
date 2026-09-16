@@ -67,6 +67,8 @@ const VOID_TAGS = new Set([
 for (const file of wxmlFiles) {
   const source = fs.readFileSync(file, "utf8").replace(/<!--[\s\S]*?-->/g, "");
   const stack = [];
+  // 记录每个层级上"刚刚闭合的兄弟元素"，用于校验 wx:else / wx:elif 的配对
+  const lastClosedSibling = new Map();
   let line = 1;
   const tagPattern = /<(\/?)([A-Za-z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>|\n/g;
   let match;
@@ -75,17 +77,30 @@ for (const file of wxmlFiles) {
       line += 1;
       continue;
     }
-    const [, closing, name, , selfClosing] = match;
+    const [, closing, name, attrs = "", selfClosing] = match;
     line += (match[0].match(/\n/g) || []).length;
     if (selfClosing || VOID_TAGS.has(name)) continue;
+    const depth = stack.length;
+    const conditional = /\swx:if=/.test(attrs) || /\swx:elif=/.test(attrs);
+    const chained = /\swx:else\b/.test(attrs) || /\swx:elif=/.test(attrs);
+    if (chained && depth > 0) {
+      const previous = lastClosedSibling.get(depth);
+      if (!previous || !previous.conditional) {
+        throw new Error(
+          `${file}:${line} 的 <${name}> 使用了 wx:else / wx:elif，`
+          + `但它前面没有带 wx:if 或 wx:elif 的同级元素，条件链会失效`,
+        );
+      }
+    }
     if (closing) {
       const open = stack.pop();
       if (!open) throw new Error(`${file}:${line} 出现了多余的 </${name}>`);
       if (open.name !== name) {
         throw new Error(`${file}:${line} 标签错嵌套，第 ${open.line} 行的 <${open.name}> 与 </${name}> 不匹配`);
       }
+      lastClosedSibling.set(stack.length, { name, line, conditional: open.conditional });
     } else {
-      stack.push({ name, line });
+      stack.push({ name, line, conditional });
     }
   }
   if (stack.length) {

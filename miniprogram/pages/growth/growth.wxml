@@ -44,6 +44,11 @@
       </view>
     </view>
     <view wx:else class="empty">还没有成长记录，WorkBuddy 同步后会出现在这里</view>
+    <view wx:if="{{records.length && (recordsHasMore || loadingMore || records.length > pageSize)}}" class="list-footer">
+      <text wx:if="{{loadingMore}}">正在加载更多…</text>
+      <text wx:elif="{{recordsHasMore}}">上拉加载更多（{{records.length}}/{{totalRecords}}）</text>
+      <text wx:else>已显示全部 {{totalRecords}} 条</text>
+    </view>
   </block>
 
   <block wx:if="{{tab === 'reports'}}">
@@ -59,6 +64,11 @@
       </view>
     </view>
     <view wx:else class="empty">暂无阶段报告</view>
+    <view wx:if="{{reports.length && (reportsHasMore || loadingMore || reports.length > pageSize)}}" class="list-footer">
+      <text wx:if="{{loadingMore}}">正在加载更多…</text>
+      <text wx:elif="{{reportsHasMore}}">上拉加载更多（{{reports.length}}/{{totalReports}}）</text>
+      <text wx:else>已显示全部 {{totalReports}} 条</text>
+    </view>
   </block>
 
   <block wx:if="{{tab === 'growth'}}">

@@ -117,3 +117,10 @@
 .report-body-block { background: #ffffff; }
 .detail-label { margin-bottom: 10rpx; color: #0f766e; font-size: 24rpx; font-weight: 800; }
 .detail-text { display: block; color: #34474d; font-size: 28rpx; line-height: 1.85; white-space: pre-wrap; word-break: break-all; }
+
+.list-footer {
+  padding: 28rpx 0 8rpx;
+  color: #8b9899;
+  font-size: 23rpx;
+  text-align: center;
+}
