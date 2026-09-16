@@ -10,7 +10,6 @@ function qs(params) {
 const api = {
   health: () => request({ url: "/api/health", auth: false, retry: 3 }),
   login: (data) => request({ url: "/api/auth/login", method: "POST", data, auth: false }),
-  register: (data) => request({ url: "/api/auth/register", method: "POST", data, auth: false }),
   wechatLogin: (data) => request({ url: "/api/auth/wechat/login", method: "POST", data, auth: false }),
   wechatBind: (data) => request({ url: "/api/auth/wechat/bind", method: "POST", data, auth: false }),
   bindCurrentWechat: (data) => request({ url: "/api/auth/wechat/bind-current", method: "POST", data }),
@@ -34,9 +33,6 @@ const api = {
   familyMembers: () => request({ url: "/api/family/members" }),
   familyMemberships: () => request({ url: "/api/family/memberships" }),
   switchFamily: (data) => request({ url: "/api/family/switch", method: "POST", data }),
-  createFamilyInvite: (data) => request({ url: "/api/family/invites", method: "POST", data }),
-  acceptFamilyInvite: (data) => request({ url: "/api/family/invites/accept", method: "POST", data }),
-  cancelFamilyInvite: (id) => request({ url: `/api/family/invites/${id}`, method: "DELETE" }),
   removeFamilyMember: (id) => request({ url: `/api/family/members/${id}`, method: "DELETE" }),
 
   listChildren: () => request({ url: "/api/children" }),

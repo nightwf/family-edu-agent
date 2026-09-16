@@ -13,10 +13,7 @@ Page({
     wechatLoading: false
   },
 
-  onLoad(options = {}) {
-    if (options.family_invite) {
-      wx.setStorageSync("pendingFamilyInvite", options.family_invite);
-    }
+  onLoad() {
     if (wx.getStorageSync("familyEduToken")) {
       const family = wx.getStorageSync("familyEduFamily");
       if (family && family.id) wx.switchTab({ url: "/pages/home/home" });

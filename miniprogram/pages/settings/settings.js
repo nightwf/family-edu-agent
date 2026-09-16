@@ -39,11 +39,6 @@ Page({
     memberRole: "admin",
     isOwner: false,
     members: [],
-    pendingInvites: [],
-    inviteEmail: "",
-    joinInviteCode: "",
-    inviteLoading: false,
-    joinLoading: false,
     networkTesting: false,
     networkTestResult: "",
     familyPolicy: null,
@@ -145,11 +140,6 @@ Page({
           initial: ((item.user && (item.user.wechatNickname || item.user.email)) || "管").slice(0, 1),
           canRemove: settings.member && settings.member.role === "owner" && item.role !== "owner"
         })),
-        pendingInvites: (settings.invites || []).map((item) => ({
-          ...item,
-          expiresText: format.formatDate(item.expiresAt),
-          targetText: item.inviteEmail || "未限定邮箱"
-        })),
         loading: false,
         error: ""
       });
@@ -211,14 +201,6 @@ Page({
     } catch (error) {
       wx.showToast({ title: error.message, icon: "none" });
     }
-  },
-
-  onInviteEmail(event) {
-    this.setData({ inviteEmail: event.detail.value });
-  },
-
-  onJoinInviteCode(event) {
-    this.setData({ joinInviteCode: event.detail.value });
   },
 
   testNetwork() {
@@ -388,52 +370,6 @@ Page({
     }
   },
 
-  async createInvite() {
-    if (!this.data.isOwner || this.data.inviteLoading) return;
-    this.setData({ inviteLoading: true });
-    try {
-      const invite = await api.createFamilyInvite({ email: this.data.inviteEmail });
-      wx.setClipboardData({
-        data: invite.inviteCode,
-        success: () => wx.showToast({ title: "邀请码已复制", icon: "success" })
-      });
-      this.setData({ inviteEmail: "" });
-      await this.load();
-    } catch (error) {
-      wx.showToast({ title: error.message, icon: "none" });
-    } finally {
-      this.setData({ inviteLoading: false });
-    }
-  },
-
-  copyInvite(event) {
-    const code = event.currentTarget.dataset.code;
-    if (!code) return;
-    wx.setClipboardData({
-      data: code,
-      success: () => wx.showToast({ title: "已复制", icon: "success" })
-    });
-  },
-
-  cancelInvite(event) {
-    const id = event.currentTarget.dataset.id;
-    if (!id || !this.data.isOwner) return;
-    wx.showModal({
-      title: "取消邀请",
-      content: "确定取消这个家庭邀请吗？",
-      success: async (res) => {
-        if (!res.confirm) return;
-        try {
-          await api.cancelFamilyInvite(id);
-          wx.showToast({ title: "已取消", icon: "success" });
-          await this.load();
-        } catch (error) {
-          wx.showToast({ title: error.message, icon: "none" });
-        }
-      }
-    });
-  },
-
   removeMember(event) {
     const id = event.currentTarget.dataset.id;
     if (!id || !this.data.isOwner) return;
@@ -452,26 +388,6 @@ Page({
         }
       }
     });
-  },
-
-  async acceptInvite() {
-    const code = this.data.joinInviteCode.trim();
-    if (!code || this.data.joinLoading) return;
-    this.setData({ joinLoading: true });
-    try {
-      const data = await api.acceptFamilyInvite({ inviteCode: code });
-      wx.setStorageSync("familyEduToken", data.token);
-      wx.setStorageSync("familyEduUser", data.user || {});
-      wx.setStorageSync("familyEduFamily", data.family || {});
-      getApp().globalData.user = data.user || null;
-      getApp().globalData.family = data.family || null;
-      wx.showToast({ title: "已加入家庭", icon: "success" });
-      wx.switchTab({ url: "/pages/home/home" });
-    } catch (error) {
-      wx.showToast({ title: error.message, icon: "none" });
-    } finally {
-      this.setData({ joinLoading: false });
-    }
   },
 
   async reviewPolicy(event) {

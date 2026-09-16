@@ -118,18 +118,6 @@
 .member-meta { margin-top: 3rpx; color: #728186; font-size: 22rpx; }
 .member-status { flex-shrink: 0; color: #0f766e; font-size: 22rpx; font-weight: 700; }
 .danger-link { flex-shrink: 0; min-height: 58rpx; display: flex; align-items: center; padding: 0 12rpx; color: #c9503a; font-size: 23rpx; font-weight: 800; }
-.invite-panel, .join-panel, .pending-panel { margin-top: 22rpx; padding-top: 22rpx; border-top: 1rpx solid #eee5d3; }
-.invite-btn, .join-btn { margin-top: 14rpx; }
-.pending-title { margin-bottom: 12rpx; color: #52636a; font-size: 23rpx; font-weight: 800; }
-.invite-row { display: flex; align-items: center; gap: 14rpx; padding: 18rpx; border-radius: 18rpx; background: #f8f4e9; }
-.invite-row + .invite-row { margin-top: 12rpx; }
-.invite-main { flex: 1; min-width: 0; }
-.invite-code { overflow: hidden; color: #203238; font-size: 24rpx; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
-.invite-meta { margin-top: 4rpx; overflow: hidden; color: #728186; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
-.invite-actions { display: flex; align-items: center; gap: 8rpx; flex-shrink: 0; }
-.copy-mini, .danger-mini { min-height: 54rpx; display: flex; align-items: center; padding: 0 12rpx; border-radius: 12rpx; font-size: 22rpx; font-weight: 800; }
-.copy-mini { background: #e4f3ef; color: #0f766e; }
-.danger-mini { background: #fff0eb; color: #c9503a; }
 .connection-card { padding: 24rpx; }
 .connection-card + .connection-card { margin-top: 18rpx; }
 .connection-head { display: flex; align-items: flex-start; justify-content: space-between; }

@@ -127,12 +127,6 @@ Page({
     const pending = wx.getStorageSync("pendingOnboarding") || { kind: "app" };
     wx.removeStorageSync("pendingOnboarding");
     if (message) wx.showToast({ title: message, icon: "success" });
-    const pendingInvite = wx.getStorageSync("pendingFamilyInvite");
-    if (pendingInvite) {
-      wx.removeStorageSync("pendingFamilyInvite");
-      wx.navigateTo({ url: `/pages/onboarding/onboarding?invite=${pendingInvite}` });
-      return;
-    }
     if (pending.kind === "workbuddy" && pending.scene) {
       wx.redirectTo({ url: `/pages/workbuddy-bind/workbuddy-bind?scene=${encodeURIComponent(pending.scene)}` });
       return;

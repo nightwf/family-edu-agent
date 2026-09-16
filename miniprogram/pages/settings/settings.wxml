@@ -75,31 +75,6 @@
         </view>
       </view>
 
-      <view wx:if="{{isOwner}}" class="invite-panel">
-        <view class="form-label">邀请其他管理者</view>
-        <input class="input" value="{{inviteEmail}}" bindinput="onInviteEmail" placeholder="对方邮箱，可不填" />
-        <button class="btn btn-primary invite-btn" loading="{{inviteLoading}}" bindtap="createInvite">生成家庭邀请码</button>
-      </view>
-
-      <view wx:if="{{pendingInvites.length}}" class="pending-panel">
-        <view class="pending-title">待接受邀请</view>
-        <view wx:for="{{pendingInvites}}" wx:key="id" class="invite-row">
-          <view class="invite-main">
-            <view class="invite-code">{{item.inviteCode}}</view>
-            <view class="invite-meta">{{item.targetText}} · {{item.expiresText}} 到期</view>
-          </view>
-          <view class="invite-actions">
-            <view class="copy-mini" data-code="{{item.inviteCode}}" bindtap="copyInvite">复制</view>
-            <view wx:if="{{isOwner}}" class="danger-mini" data-id="{{item.id}}" bindtap="cancelInvite">取消</view>
-          </view>
-        </view>
-      </view>
-
-      <view class="join-panel">
-        <view class="form-label">接受家庭邀请</view>
-        <input class="input" value="{{joinInviteCode}}" bindinput="onJoinInviteCode" placeholder="输入别人发来的家庭邀请码" />
-        <button class="btn btn-outline join-btn" loading="{{joinLoading}}" bindtap="acceptInvite">加入对方家庭</button>
-      </view>
     </view>
   </view>
 
