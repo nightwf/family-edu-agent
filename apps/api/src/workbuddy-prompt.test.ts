@@ -31,6 +31,7 @@ describe("WorkBuddy integration", () => {
     expect(config.token).toBe(token);
     expect(config.install_steps.join(" ")).toContain("只需配置一次");
     expect(prompt).toContain("get_agent_bootstrap");
+    expect(prompt).toContain("save_knowledge_relations_batch");
     expect(prompt).toContain(`X-MCP-Token: ${token}`);
   });
 });

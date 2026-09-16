@@ -11,6 +11,7 @@
 - 孩子结构化证据、当前状态、亲子关系、阶段目标、周计划和复测；
 - 教材、知识节点、题库、错题、作业和成长报告；
 - 家庭边界、教育方法库和方法效果记录；
+- 教材知识节点支持掌握证据、评估问句、常见错误和 hard/soft 前置关系；
 - WorkBuddy / 豆包工作录题、生成变式练习、同步作答与查询掌握度；
 - 学生错题本、严格掌握证据、针对性练习试卷和错题教学规划；
 - 明亮学堂 Web 管理端，支持桌面端和手机端。
@@ -110,7 +111,7 @@ PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
 
 设置页仍保留完整手动连接提示词，供开放平台资产尚未发布、豆包工作接入或排障时使用。详细提交方式见 [WorkBuddy 开放平台接入](docs/workbuddy-open-platform.md)。
 
-远程 MCP 地址：`https://edu.skillstores.com/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
+远程 MCP 地址：`https://heyaagent.top/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
 
 题库工作流：
 

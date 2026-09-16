@@ -1,5 +1,5 @@
 module.exports = {
-  baseUrl: "https://edu.skillstores.com/family-edu",
+  baseUrl: "https://heyaagent.top/family-edu",
   devMode: true,
   defaultInviteCode: "HE-2026"
 };

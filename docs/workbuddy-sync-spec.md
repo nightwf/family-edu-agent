@@ -19,6 +19,8 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 | 家庭作业 | `save_homework`、`update_homework_status`、`complete_homework` |
 | 总结 / 报告 / 建议 | `save_knowledge_item`、`list_knowledge_items` |
 | 教材 | `import_textbook`、`list_textbooks`、`update_textbook` |
+| 知识图谱 | `import_source_document`、`save_knowledge_nodes_batch`、`save_knowledge_relations_batch` |
+| 教学上下文 | `get_knowledge_context` |
 | 题型 | `list_question_types`、`create_question_type`、`update_question_type` |
 | 题目 | `save_question`、`save_questions_batch`、`list_questions` |
 | 同题型练习 | `get_question_generation_context`、`save_questions_batch` |
@@ -56,6 +58,15 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 3. 生成题必须包含答案、解析、难度、变式类型、来源题和规则版本；先通过 `save_questions_batch` 写入题库，再调用 `create_practice_paper`。
 4. 教学规划包含诊断、目标、策略、日期和任务，使用 `save_remediation_plan` 保存；任务执行后调用 `update_remediation_task_status`。
 5. 完成试卷或教学任务不等于掌握，仍以真实作答证据和延迟复测为准。
+
+## 教材知识图谱流程
+
+1. 上传教材或材料后先调用 `import_source_document` 保存来源文档。
+2. 通过 `save_knowledge_nodes_batch` 写回章节、知识点、概念、例题和常见错误。
+3. 每个知识点尽可能补充 `evidence`（掌握证据）、`assessment_prompt`（评估问句）和 `common_errors`（常见错误）。
+4. 保存知识点后调用 `save_knowledge_relations_batch` 建立前置关系；只写“相关”不算完整关系。
+5. 前置关系默认使用 `PREREQUISITE_OF`，必须区分 `hard`（必须先掌握）和 `soft`（建议掌握），并用 `reason` 说明原因。
+6. 后续规划、讲解和掌握判定先调用 `get_knowledge_context`，不要绕过已知证据和前置关系。
 
 ## 安全与删除
 

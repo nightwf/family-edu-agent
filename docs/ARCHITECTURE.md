@@ -55,6 +55,8 @@ React Web 家长管理端 / 微信小程序
 - `RemediationPlan` / `RemediationTask`：错题诊断后的教学规划、阶段任务和完成证据；
 - `QuestionAttempt` 扩展关联错题和试卷，并记录原题订正、独立作答、变式类型和练习会话。
 
+V2 知识模型：`SourceDocument`、`KnowledgeNode`、`KnowledgeRelation`、`ChildKnowledgeState`。知识节点可附带掌握证据、评估问句和常见错误；前置关系可标记 `hard/soft` 强度和原因，用于生成可靠的学习顺序与掌握判定上下文。
+
 ## 掌握度
 
 自动掌握分由正确率、独立作答、变式覆盖、迁移题和延迟复测组成。默认达到 80 分、至少 5 次有效练习、3 种变式，并通过迁移题和 24 小时后的复测才可标记“已掌握”。人工调整必须保留原因和来源，自动重算不会覆盖人工结论。

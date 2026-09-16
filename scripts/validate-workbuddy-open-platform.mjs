@@ -25,7 +25,7 @@ assert(connectorMeta.minWorkbuddyVersion === "4.24.0", "connector minimum WorkBu
 assert(connectorMeta.examples_zh?.length >= 2 && connectorMeta.examples_en?.length >= 2, "connector needs bilingual examples");
 
 const connectorServer = connectorMcp.mcpServers?.["heyah-family-education"];
-assert(connectorServer?.url === "https://edu.skillstores.com/family-edu/mcp", "connector MCP URL is incorrect");
+assert(connectorServer?.url === "https://heyaagent.top/family-edu/mcp", "connector MCP URL is incorrect");
 assert(connectorServer?.headers?.["X-MCP-Token"] === "${HEYA_FAMILY_TOKEN}", "connector must inject the family token through X-MCP-Token");
 assert(tokenSchema.fields?.length === 1, "token form must contain exactly one family token field");
 assert(tokenSchema.fields[0].key === "HEYA_FAMILY_TOKEN", "token form key must match mcp.json placeholder");
@@ -73,4 +73,7 @@ const packageText = [
 ].join("\n");
 assert(!/AKID[A-Za-z0-9]{20,}|SecretKey\s*[:=]\s*[^$\s]/i.test(packageText), "package appears to contain a real credential");
 
-console.log(`WorkBuddy packages validated: connector 1.0.0, expert 1.0.0, avatar ${avatar.length} bytes`);
+const skillVersion = connectorSkill.match(/^version:\s*(.+)$/m)?.[1] || "unknown";
+console.log(
+  `WorkBuddy packages validated: connector ${connectorMeta.version}, expert ${expertPlugin.version}, skill ${skillVersion}, avatar ${avatar.length} bytes`,
+);

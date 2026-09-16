@@ -944,6 +944,9 @@ model KnowledgeNode {
   title               String
   description         String?
   content             Json?
+  evidence            Json?
+  assessmentPrompt    String?
+  commonErrors        Json?
   sourcePage          String?
   version             String
   status              ResourceStatus       @default(ACTIVE)
@@ -968,6 +971,8 @@ model KnowledgeRelation {
   targetNodeId String
   targetNode   KnowledgeNode         @relation("RelationTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
   relationType KnowledgeRelationType
+  strength     String?
+  reason       String?
   metadata     Json?
   version      String
   validFrom    DateTime              @default(now())

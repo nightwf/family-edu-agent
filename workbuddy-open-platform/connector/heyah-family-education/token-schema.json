@@ -3,7 +3,7 @@
   "title_en": "Connect Heyah Family Education",
   "description": "输入禾芽设置页中的家庭专属 Token。凭证只保存在 WorkBuddy 本机，用于访问该 Token 对应家庭的数据。",
   "description_en": "Enter the family token from Heyah Settings. It is stored locally by WorkBuddy and only grants access to the linked family.",
-  "docUrl": "https://edu.skillstores.com/family-edu/",
+  "docUrl": "https://heyaagent.top/family-edu/",
   "docLabel": "在哪里复制家庭 Token？",
   "fields": [
     {

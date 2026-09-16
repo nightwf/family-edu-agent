@@ -18,6 +18,7 @@ import {
   importSourceDocument,
   listKnowledgeNodes,
   listSourceDocuments,
+  saveKnowledgeRelationsBatch,
   saveKnowledgeNodesBatch,
   upsertChildKnowledgeState,
 } from "./knowledge.js";
@@ -217,6 +218,14 @@ export function registerV2Routes(
     const body = request.body as any;
     return respond(reply.code(201), () =>
       saveKnowledgeNodesBatch(familyId, body.source_document_id, body.nodes, { type: "workbuddy", id }),
+    );
+  });
+
+  app.post("/api/v2/knowledge-nodes/relations", auth, async (request, reply) => {
+    const { familyId, id } = getAuth(request);
+    const body = request.body as any;
+    return respond(reply.code(201), () =>
+      saveKnowledgeRelationsBatch(familyId, body.source_document_id, body.relations, { type: "workbuddy", id }),
     );
   });
 

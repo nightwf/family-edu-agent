@@ -2,7 +2,7 @@ import { getFamilyPolicy, updateFamilyPolicy } from "./family-policy.js";
 import { createEvidenceRecord, listEvidence, reviewEvidenceRecord } from "./evidence.js";
 import { confirmStageGoal, confirmWeeklyPlan, createAssessment, createWeeklyPlan, getStageGoal, getWeeklyPlan, listStageGoals, proposeStageGoals, updatePlanItemStatus, } from "./goal-plan.js";
 import { ensureEducationMethods, listEducationMethods, saveMethodEffect } from "./education-methods-v2.js";
-import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
+import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeRelationsBatch, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
 import { getLatestRelationship, listRelationshipHistory, saveRelationshipSnapshot, } from "./relationship.js";
 async function respond(reply, action) {
     try {
@@ -152,6 +152,11 @@ export function registerV2Routes(app, requireAuth, getAuth) {
         const { familyId, id } = getAuth(request);
         const body = request.body;
         return respond(reply.code(201), () => saveKnowledgeNodesBatch(familyId, body.source_document_id, body.nodes, { type: "workbuddy", id }));
+    });
+    app.post("/api/v2/knowledge-nodes/relations", auth, async (request, reply) => {
+        const { familyId, id } = getAuth(request);
+        const body = request.body;
+        return respond(reply.code(201), () => saveKnowledgeRelationsBatch(familyId, body.source_document_id, body.relations, { type: "workbuddy", id }));
     });
     app.get("/api/v2/children/:childId/knowledge/:nodeId/context", auth, async (request) => {
         const { familyId } = getAuth(request);

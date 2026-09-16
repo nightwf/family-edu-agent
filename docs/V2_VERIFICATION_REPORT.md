@@ -52,7 +52,7 @@
 
 ### 部署
 
-- 已部署到 `http://49.234.4.212/family-edu/`。
+- 已部署到 `https://heyaagent.top/family-edu/`。
 - `GET /family-edu/api/health`：200。
 - `GET /family-edu/`：200。
 - 部署只重建本项目 `api` 容器，未触碰其他系统。

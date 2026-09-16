@@ -2,7 +2,7 @@
   "mcpServers": {
     "heyah-family-education": {
       "type": "http",
-      "url": "https://edu.skillstores.com/family-edu/mcp",
+      "url": "https://heyaagent.top/family-edu/mcp",
       "headers": {
         "X-MCP-Token": "${HEYA_FAMILY_TOKEN}"
       },
@@ -27,7 +27,7 @@
               "zh": "输入禾芽设置页中的家庭专属 Token。凭证只保存在 WorkBuddy 本机。",
               "en": "Enter the family token from Heyah Settings. It is stored locally by WorkBuddy."
             },
-            "docUrl": "https://edu.skillstores.com/family-edu/",
+            "docUrl": "https://heyaagent.top/family-edu/",
             "docLabel": {
               "zh": "在哪里复制家庭 Token？",
               "en": "Where can I copy the family token?"

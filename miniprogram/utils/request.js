@@ -17,7 +17,7 @@ function buildNetworkError(prefix, detail) {
   } else if (/^request:fail$/i.test(detail)) {
     hint = "。微信网络层没有返回具体原因，通常是开发者工具或当前网络链路临时失败，请稍后重试";
   } else if (/domain|url not in domain|合法域名/i.test(detail)) {
-    hint = "。请确认微信公众平台 request 合法域名已配置 https://edu.skillstores.com，并在开发者工具刷新域名";
+    hint = "。请确认微信公众平台 request 合法域名已配置 https://heyaagent.top，并在开发者工具刷新域名";
   } else if (/timeout/i.test(detail)) {
     hint = "。请求超时，请切换网络后重试";
   }

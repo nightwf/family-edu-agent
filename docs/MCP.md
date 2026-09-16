@@ -1,6 +1,6 @@
 # Family Education MCP 工具说明
 
-MCP 地址为 `https://edu.skillstores.com/family-edu/mcp`。每个家庭使用独立 `X-MCP-Token`，服务端只从 Token 获取 `familyId`，所有资源 ID 还会再次校验家庭归属。
+MCP 地址为 `https://heyaagent.top/family-edu/mcp`。每个家庭使用独立 `X-MCP-Token`，服务端只从 Token 获取 `familyId`，所有资源 ID 还会再次校验家庭归属。
 
 ## Agent 启动工具
 
@@ -50,6 +50,27 @@ MCP 地址为 `https://edu.skillstores.com/family-edu/mcp`。每个家庭使用�
 | `delete_remediation_plan` | `remediation_plan_id` | 无完成证据时删除，否则归档 |
 
 任务状态：`pending`、`in_progress`、`completed`、`skipped`。
+
+## 教材知识图谱工具
+
+| 工具 | 关键参数 | 用途 |
+| --- | --- | --- |
+| `import_source_document` | 标题、类型、学科、年级、`nodes[]` | 保存教材或来源文件，可同时写入结构化知识节点 |
+| `save_knowledge_nodes_batch` | `source_document_id`、`nodes[]` | 批量写回章节、知识点、概念、例题和常见错误 |
+| `save_knowledge_relations_batch` | `source_document_id`、`relations[]` | 保存知识节点关系，常用 `PREREQUISITE_OF` 表达前置依赖 |
+| `get_knowledge_context` | `child_id`、`knowledge_node_id` | 获取知识点、掌握证据、评估问句和带强度的前置知识点 |
+
+知识节点字段：
+
+- `evidence`：判断孩子是否掌握该知识点的具体证据；
+- `assessment_prompt`：一句可用于口头或书面评估的问句；
+- `common_errors`：常见错误和对应纠错提示。
+
+前置关系字段：
+
+- `relation_type`：默认 `PREREQUISITE_OF`；
+- `strength`：`hard` 表示必须先掌握，`soft` 表示建议先了解；
+- `reason`：一句话解释为什么存在该前置关系。
 
 ## 作答扩展参数
 

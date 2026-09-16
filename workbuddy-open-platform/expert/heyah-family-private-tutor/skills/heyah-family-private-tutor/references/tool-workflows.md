@@ -61,9 +61,12 @@
 
 - 来源：`import_source_document`
 - 结构化知识：`save_knowledge_nodes_batch`
+- 知识节点应尽量包含掌握证据 `evidence`、评估问句 `assessment_prompt`、常见错误 `common_errors`，不能只保存标题和简介
+- 前置关系：`save_knowledge_relations_batch`，优先保存为 `PREREQUISITE_OF`
+- 每个前置关系必须区分 `strength: hard|soft`，并写清 `reason`，不能只写“相关”
 - 教学上下文：`get_knowledge_context`
 
-知识必须带来源、年级、学科和版本，不能只保存一段总结。
+知识必须带来源、年级、学科和版本，不能只保存一段总结。`get_knowledge_context` 会返回当前节点的证据字段和带 `relation_strength` / `relation_reason` 的前置知识点，规划和讲解时应优先使用这些信息。
 
 ## 亲子关系
 

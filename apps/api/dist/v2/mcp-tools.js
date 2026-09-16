@@ -5,7 +5,7 @@ import { getChildState } from "./child-state.js";
 import { getPlanningContext } from "./planning-context.js";
 import { confirmStageGoal, createAssessment, createWeeklyPlan, getStageGoal, getWeeklyPlan, listStageGoals, proposeStageGoals, updatePlanItemStatus, } from "./goal-plan.js";
 import { ensureEducationMethods, listEducationMethods, saveMethodEffect } from "./education-methods-v2.js";
-import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
+import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeRelationsBatch, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
 import { getLatestRelationship, listRelationshipHistory, saveRelationshipSnapshot, } from "./relationship.js";
 function textResult(payload) {
     return {
@@ -169,6 +169,9 @@ export function registerV2McpTools(server, familyId) {
             grade: z.string().optional(),
             description: z.string().optional(),
             content: z.record(z.any()).optional(),
+            evidence: z.array(z.any()).or(z.record(z.any())).optional(),
+            assessment_prompt: z.string().optional(),
+            common_errors: z.array(z.any()).or(z.record(z.any())).optional(),
             source_page: z.string().optional(),
         }))
             .optional(),
@@ -192,9 +195,28 @@ export function registerV2McpTools(server, familyId) {
             grade: z.string().optional(),
             description: z.string().optional(),
             content: z.record(z.any()).optional(),
+            evidence: z.array(z.any()).or(z.record(z.any())).optional(),
+            assessment_prompt: z.string().optional(),
+            common_errors: z.array(z.any()).or(z.record(z.any())).optional(),
             source_page: z.string().optional(),
         })),
     }, async (input) => safe(() => saveKnowledgeNodesBatch(familyId, input.source_document_id, input.nodes)));
+    server.tool("save_knowledge_relations_batch", "保存同一来源文档中知识点之间的关系，推荐使用 PREREQUISITE_OF 表达前置依赖，并补充 hard/soft 强度与原因。", {
+        source_document_id: z.string(),
+        relations: z.array(z.object({
+            prerequisite_title: z.string(),
+            dependent_title: z.string(),
+            relation_type: z.string().optional(),
+            strength: z.enum(["hard", "soft"]).optional(),
+            reason: z.string().optional(),
+        })),
+    }, async (input) => safe(() => saveKnowledgeRelationsBatch(familyId, input.source_document_id, input.relations.map((relation) => ({
+        prerequisiteTitle: relation.prerequisite_title,
+        dependentTitle: relation.dependent_title,
+        relationType: relation.relation_type,
+        strength: relation.strength,
+        reason: relation.reason,
+    })))));
     server.tool("get_knowledge_context", { child_id: z.string(), knowledge_node_id: z.string() }, async (input) => safe(() => getKnowledgeContext(familyId, input.child_id, input.knowledge_node_id)));
     server.tool("update_child_knowledge_state", {
         child_id: z.string(),

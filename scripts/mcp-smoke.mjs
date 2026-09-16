@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
-const base = process.env.BASE_URL || "http://49.234.4.212/family-edu";
+const base = process.env.BASE_URL || "https://heyaagent.top/family-edu";
 const token = process.env.MCP_SMOKE_TOKEN;
 
 if (!token) {

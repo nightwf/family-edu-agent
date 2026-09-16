@@ -105,7 +105,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
             stage_goal: ["get_planning_context", "propose_stage_goals", "confirm_stage_goal"],
             weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
             evidence: ["save_evidence_record", "review_evidence_record"],
-            knowledge_v2: ["import_source_document", "save_knowledge_nodes_batch", "get_knowledge_context"],
+            knowledge_v2: ["import_source_document", "save_knowledge_nodes_batch", "save_knowledge_relations_batch", "get_knowledge_context"],
             writing: ["get_child_context", "get_education_skill(writing-coach)", "save_writing_record"],
             reading: ["get_child_context", "get_education_skill(reading-coach)", "save_reading_record"],
             homework: ["save_homework", "update_homework_status", "complete_homework"],

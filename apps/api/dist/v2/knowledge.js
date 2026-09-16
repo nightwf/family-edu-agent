@@ -1,5 +1,20 @@
 import { prisma } from "../prisma.js";
 import { writeAudit } from "./audit.js";
+function normalizeKnowledgeNodeInput(node) {
+    const raw = node;
+    return {
+        type: node.type,
+        title: node.title,
+        subject: node.subject,
+        grade: node.grade,
+        description: node.description,
+        content: (node.content ?? undefined),
+        evidence: (raw.evidence ?? undefined),
+        assessmentPrompt: (node.assessmentPrompt ?? raw.assessment_prompt ?? undefined),
+        commonErrors: (raw.commonErrors ?? raw.common_errors ?? undefined),
+        sourcePage: (node.sourcePage ?? raw.source_page ?? undefined),
+    };
+}
 export async function importSourceDocument(familyId, input, actor = { type: "workbuddy" }) {
     const document = await prisma.sourceDocument.create({
         data: {
@@ -15,13 +30,7 @@ export async function importSourceDocument(familyId, input, actor = { type: "wor
                 ? {
                     create: input.nodes.map((node) => ({
                         familyId,
-                        type: node.type,
-                        title: node.title,
-                        subject: node.subject,
-                        grade: node.grade,
-                        description: node.description,
-                        content: (node.content ?? undefined),
-                        sourcePage: node.sourcePage,
+                        ...normalizeKnowledgeNodeInput(node),
                         version: input.version || "1.0.0",
                     })),
                 }
@@ -72,13 +81,7 @@ export async function saveKnowledgeNodesBatch(familyId, sourceDocumentId, nodes,
         data: {
             familyId,
             sourceDocumentId: source.id,
-            type: node.type,
-            title: node.title,
-            subject: node.subject,
-            grade: node.grade,
-            description: node.description,
-            content: (node.content ?? undefined),
-            sourcePage: node.sourcePage,
+            ...normalizeKnowledgeNodeInput(node),
             version: source.version || "1.0.0",
         },
     })));
@@ -144,9 +147,90 @@ export async function getKnowledgeContext(familyId, childId, nodeId) {
             subjects: child.subjects,
         },
         node,
-        prerequisites: prerequisites.map((item) => item.sourceNode),
+        prerequisites: prerequisites.map((item) => ({
+            ...item.sourceNode,
+            relationId: item.id,
+            relationType: item.relationType,
+            relationStrength: item.strength,
+            relationReason: item.reason,
+        })),
         childState,
     };
+}
+export async function saveKnowledgeRelationsBatch(familyId, sourceDocumentId, relations, actor = { type: "workbuddy" }) {
+    const source = await prisma.sourceDocument.findFirst({
+        where: { id: sourceDocumentId, familyId },
+    });
+    if (!source)
+        throw new Error("教材或来源不存在或不属于当前家庭");
+    if (relations.length === 0)
+        throw new Error("知识关系不能为空");
+    const saved = [];
+    for (const relation of relations) {
+        if (relation.prerequisiteTitle === relation.dependentTitle) {
+            throw new Error("知识节点不能成为自己的前置知识点");
+        }
+        const relationType = relation.relationType || "PREREQUISITE_OF";
+        const prerequisite = await prisma.knowledgeNode.findFirst({
+            where: {
+                familyId,
+                sourceDocumentId: source.id,
+                title: relation.prerequisiteTitle,
+                status: "ACTIVE",
+            },
+            orderBy: { createdAt: "asc" },
+        });
+        const dependent = await prisma.knowledgeNode.findFirst({
+            where: {
+                familyId,
+                sourceDocumentId: source.id,
+                title: relation.dependentTitle,
+                status: "ACTIVE",
+            },
+            orderBy: { createdAt: "asc" },
+        });
+        if (!prerequisite || !dependent) {
+            throw new Error(`知识关系中的知识点不存在：${relation.prerequisiteTitle} -> ${relation.dependentTitle}`);
+        }
+        const existing = await prisma.knowledgeRelation.findFirst({
+            where: {
+                familyId,
+                sourceNodeId: prerequisite.id,
+                targetNodeId: dependent.id,
+                relationType: relationType,
+            },
+        });
+        const item = existing
+            ? await prisma.knowledgeRelation.update({
+                where: { id: existing.id },
+                data: {
+                    strength: relation.strength ?? existing.strength ?? "hard",
+                    reason: relation.reason ?? existing.reason,
+                },
+            })
+            : await prisma.knowledgeRelation.create({
+                data: {
+                    familyId,
+                    sourceNodeId: prerequisite.id,
+                    targetNodeId: dependent.id,
+                    relationType: relationType,
+                    strength: relation.strength ?? "hard",
+                    reason: relation.reason,
+                    version: source.version || "1.0.0",
+                },
+            });
+        saved.push(item);
+    }
+    await writeAudit({
+        familyId,
+        actorType: actor.type,
+        actorId: actor.id,
+        action: "knowledge_relations.import",
+        entityType: "KnowledgeRelation",
+        entityId: saved.map((item) => item.id).join(","),
+        after: saved,
+    });
+    return saved;
 }
 export async function upsertChildKnowledgeState(familyId, input, actor = { type: "workbuddy" }) {
     const child = await prisma.child.findFirst({ where: { id: input.childId, familyId } });

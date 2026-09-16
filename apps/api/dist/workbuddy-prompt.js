@@ -1,4 +1,4 @@
-export const WORKBUDDY_MCP_URL = "https://edu.skillstores.com/family-edu/mcp";
+export const WORKBUDDY_MCP_URL = "https://heyaagent.top/family-edu/mcp";
 export function buildAgentBootstrap(input) {
     return {
         version: "1.0",
@@ -26,7 +26,7 @@ export function buildAgentBootstrap(input) {
             stage_goal: ["get_planning_context", "propose_stage_goals", "list_stage_goals", "confirm_stage_goal"],
             weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
             evidence: ["save_evidence_record", "review_evidence_record"],
-            knowledge: ["import_source_document", "save_knowledge_nodes_batch", "get_knowledge_context"],
+            knowledge: ["import_source_document", "save_knowledge_nodes_batch", "save_knowledge_relations_batch", "get_knowledge_context"],
             daily_plan: ["get_child_state", "list_homework", "list_wrong_questions", "list_student_mastery"],
             homework: ["get_child_context", "save_homework", "update_homework_status or complete_homework"],
             growth: ["get_child_context", "get_growth_summary", "create_report or save_knowledge_item"],
@@ -172,7 +172,9 @@ MCP 连接信息：
 - 教材或材料导入先调用 import_source_document 保存来源
 - 结构化的章节、知识点、概念、例题和常见错误通过 save_knowledge_nodes_batch 写回
 - 每项知识都要带来源、年级、学科和版本，不能只保存一段总结
-- 需要具体教学上下文时调用 get_knowledge_context
+- 知识点优先补充 evidence（掌握证据）、assessment_prompt（评估问句）和 common_errors（常见错误），不能只保存标题
+- 保存知识点后调用 save_knowledge_relations_batch 建立前置关系；前置关系应区分 hard（必须先掌握）和 soft（建议掌握），并写清原因
+- 涉及学习顺序、掌握判定或后续规划时调用 get_knowledge_context，读取该知识点的证据、评估问句和带强度/原因的前置知识点
 
 教育方法：
 - 推荐教育方法前调用 list_education_methods，优先使用有证据支持的核心方法

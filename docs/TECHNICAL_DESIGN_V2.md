@@ -151,8 +151,10 @@ family-edu-agent/
 1. WorkBuddy 上传教材文件或材料；
 2. 禾芽保存原始文件到对象存储；
 3. WorkBuddy 提取章节、知识点、定义、例题、常见错误；
-4. 通过 MCP 写回结构化知识节点和关系；
-5. Web 和小程序只查看和修正，不承担直接导入。
+4. WorkBuddy 为知识点补充掌握证据、评估问句和常见错误；
+5. 通过 MCP 写回结构化知识节点和带 hard/soft 强度的前置关系；
+6. 规划和讲解前读取 `get_knowledge_context`，以证据和前置关系为依据；
+7. Web 和小程序只查看和修正，不承担直接导入。
 
 ## 6. 目标数据模型
 
@@ -657,6 +659,9 @@ model KnowledgeNode {
   title            String
   description      String?
   content          Json?
+  evidence         Json?
+  assessmentPrompt String?
+  commonErrors     Json?
   sourcePage       String?
   version          String
   status           ResourceStatus    @default(ACTIVE)
@@ -681,6 +686,8 @@ model KnowledgeRelation {
   targetNodeId   String
   targetNode     KnowledgeNode         @relation("RelationTarget", fields: [targetNodeId], references: [id], onDelete: Cascade)
   relationType   KnowledgeRelationType
+  strength       String?
+  reason         String?
   metadata       Json?
   version        String
   validFrom      DateTime              @default(now())
@@ -928,6 +935,7 @@ model AuditLog {
 | `GET` | `/api/knowledge-nodes/:nodeId` | 获取知识节点详情 |
 | `GET` | `/api/children/:childId/knowledge-state` | 获取孩子知识掌握状态 |
 | `POST` | `/api/knowledge-nodes/import` | 批量导入结构化知识 |
+| `POST` | `/api/knowledge-nodes/relations` | 批量保存知识关系（前置依赖） |
 
 ### 8.5 教育与报告
 
@@ -977,6 +985,7 @@ model AuditLog {
 | `list_source_documents` | 获取家庭来源 | `subject`、`grade`、`status` |
 | `get_knowledge_context` | 获取某知识点的上下文包 | `child_id`、`knowledge_node_id` |
 | `save_knowledge_nodes_batch` | 批量写回结构化知识 | `source_document_id`、`nodes[]` |
+| `save_knowledge_relations_batch` | 批量保存知识关系 | `source_document_id`、`relations[]` |
 | `get_weekly_review_draft` | 获取周回顾草稿 | `child_id`、`week_start` |
 | `confirm_weekly_review` | 家长确认周回顾 | `review_id`、`adjustments` |
 
