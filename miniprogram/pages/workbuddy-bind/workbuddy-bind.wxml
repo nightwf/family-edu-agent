@@ -1,0 +1,45 @@
+<view class="page">
+  <block wx:if="{{step === 'loading'}}">
+    <view class="card center">
+      <view class="title">正在确认微信身份</view>
+      <view class="sub">请稍等，正在准备连接 WorkBuddy</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{step === 'confirm'}}">
+    <view class="card">
+      <view class="eyebrow">WORKBUDDY 授权</view>
+      <view class="title">{{clientName}} 请求访问禾芽家庭数据</view>
+      <view class="sub">选择一个家庭授权给 WorkBuddy。授权后它会读取该家庭的学生档案、作业、错题、题库和成长记录。</view>
+
+      <view class="section-label">选择家庭</view>
+      <view wx:for="{{memberships}}" wx:key="id" class="family-row {{selectedFamilyId === item.familyId ? 'active' : ''}}" data-id="{{item.familyId}}" bindtap="selectFamily">
+        <view class="check">{{selectedFamilyId === item.familyId ? '✓' : ''}}</view>
+        <view class="family-main">
+          <view class="family-name">{{item.family.name}}</view>
+          <view class="family-meta">{{item.role === 'owner' ? '家庭创建者' : '共同管理者'}}</view>
+        </view>
+      </view>
+
+      <button class="btn primary" loading="{{loading}}" bindtap="approve">确认授权</button>
+      <view class="fineprint">可以在禾芽“我的 → 已连接的 WorkBuddy”里随时解除授权。</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{step === 'done'}}">
+    <view class="card center">
+      <view class="ok-icon">✓</view>
+      <view class="title">已连接 WorkBuddy</view>
+      <view class="sub">请回到电脑上的 WorkBuddy 页面，它会自动完成连接。</view>
+      <button class="btn ghost" bindtap="openHome">回到禾芽首页</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="card center">
+      <view class="title">连接没有完成</view>
+      <view class="sub">{{error}}</view>
+      <button class="btn ghost" bindtap="startLogin">重试</button>
+    </view>
+  </block>
+</view>

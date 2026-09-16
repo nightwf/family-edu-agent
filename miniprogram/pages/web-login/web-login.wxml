@@ -1,0 +1,44 @@
+<view class="page">
+  <block wx:if="{{step === 'loading'}}">
+    <view class="card center">
+      <view class="title">正在确认微信身份</view>
+      <view class="sub">请稍等，正在准备网页登录</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{step === 'confirm'}}">
+    <view class="card">
+      <view class="eyebrow">禾芽网页版</view>
+      <view class="title">确认登录这个家庭</view>
+      <view class="sub">选择要进入的家庭，网页版会立即完成登录。</view>
+
+      <view class="section-label">选择家庭</view>
+      <view wx:for="{{memberships}}" wx:key="id" class="family-row {{selectedFamilyId === item.familyId ? 'active' : ''}}" data-id="{{item.familyId}}" bindtap="selectFamily">
+        <view class="check">{{selectedFamilyId === item.familyId ? '✓' : ''}}</view>
+        <view class="family-main">
+          <view class="family-name">{{item.family.name}}</view>
+          <view class="family-meta">{{item.role === 'owner' ? '家庭创建者' : '共同管理者'}}</view>
+        </view>
+      </view>
+
+      <button class="btn primary" loading="{{loading}}" bindtap="approve">确认登录</button>
+    </view>
+  </block>
+
+  <block wx:elif="{{step === 'done'}}">
+    <view class="card center">
+      <view class="ok-icon">✓</view>
+      <view class="title">网页已登录</view>
+      <view class="sub">请回到电脑浏览器，禾芽网页版会自动进入。</view>
+      <button class="btn ghost" bindtap="openHome">在微信里继续使用</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="card center">
+      <view class="title">登录没有完成</view>
+      <view class="sub">{{error}}</view>
+      <button class="btn ghost" bindtap="startLogin">重试</button>
+    </view>
+  </block>
+</view>

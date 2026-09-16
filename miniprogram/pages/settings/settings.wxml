@@ -109,29 +109,55 @@
       <view class="connection-head">
         <view>
           <view class="connection-title">WorkBuddy 开放平台</view>
-          <view class="connection-status"><view class="status-dot"></view>连接器接入已就绪</view>
+          <view class="connection-status"><view class="status-dot"></view>微信扫码授权，不需要 Token</view>
         </view>
-        <view class="copy-button" bindtap="copyMcpToken">{{tokenCopyText}}</view>
       </view>
-      <view class="connection-note">安装“禾芽家庭教务”连接器后，只需粘贴一次家庭 Token。以后召唤“禾芽家庭私教”，它会自动读取家庭和学生规范。</view>
-      <view wx:if="{{mcpToken}}" class="token-box">
-        <view class="token-label">家庭专属 Token</view>
-        <text class="token-text" user-select="{{true}}">{{mcpToken}}</text>
-      </view>
+      <view class="connection-note">在 WorkBuddy 安装“禾芽家庭教务”连接器后点击连接，会自动打开禾芽授权网页；用微信扫码选择家庭即可。</view>
       <view wx:if="{{openPlatformSteps.length}}" class="platform-steps">
         <view wx:for="{{openPlatformSteps}}" wx:key="*this" class="platform-step">
           <view class="step-index">{{index + 1}}</view>
           <view class="step-text">{{item}}</view>
         </view>
       </view>
-      <view class="backup-head">
-        <view class="backup-title">手动连接备用</view>
-        <view class="backup-copy" bindtap="copyPrompt">{{copyText}}</view>
+      <view class="join-code-block">
+        <view class="join-code-head">
+          <view class="backup-title">家庭编码</view>
+          <view class="backup-copy" bindtap="copyJoinCode">复制</view>
+        </view>
+        <view class="join-code-value">{{joinCode || '生成中'}}</view>
+        <view class="connection-note">把 6 位编码发给要共同管理这个家庭的家长，对方提交申请后需要你审核通过。</view>
       </view>
-      <view class="prompt-box {{promptExpanded ? 'expanded' : ''}}">
-        <text class="prompt-text" user-select="{{true}}">{{workbuddyPrompt || '连接提示词尚未生成'}}</text>
+      <view wx:if="{{connections.length}}" class="connection-list">
+        <view class="backup-title">已连接的 WorkBuddy</view>
+        <view wx:for="{{connections}}" wx:key="id" class="connection-row">
+          <view class="connection-row-main">
+            <view class="connection-row-name">{{item.client_name || 'WorkBuddy'}}</view>
+            <view class="connection-row-meta">{{item.authorized_by}} 授权 · 最近使用 {{item.usedText}}</view>
+          </view>
+          <view class="connection-row-action" data-id="{{item.id}}" bindtap="revokeConnection">解除</view>
+        </view>
       </view>
-      <view class="prompt-toggle" bindtap="togglePrompt">{{promptExpanded ? '收起提示词' : '展开完整提示词'}} {{promptExpanded ? '⌃' : '⌄'}}</view>
+      <view wx:if="{{joinRequests.length}}" class="connection-list">
+        <view class="backup-title">待审核的加入申请</view>
+        <view wx:for="{{joinRequests}}" wx:key="id" class="connection-row">
+          <view class="connection-row-main">
+            <view class="connection-row-name">{{item.nameText}}</view>
+            <view class="connection-row-meta">{{item.createdText}} 提交</view>
+          </view>
+          <view class="request-actions">
+            <view class="mini-action danger" data-id="{{item.id}}" data-action="rejected" bindtap="reviewJoinRequest">拒绝</view>
+            <view class="mini-action" data-id="{{item.id}}" data-action="approved" bindtap="reviewJoinRequest">通过</view>
+          </view>
+        </view>
+      </view>
+      <view class="join-apply">
+        <view class="backup-title">加入其他家庭</view>
+        <view class="backup-desc">输入别人发给你的 6 位家庭编码，提交申请</view>
+        <view class="join-apply-row">
+          <input class="join-input" type="number" maxlength="6" placeholder="6 位家庭编码" value="{{joinCodeInput}}" bindinput="onJoinCodeInput" />
+          <view class="join-apply-btn" bindtap="submitJoinRequest">{{joinSubmitting ? '提交中' : '申请加入'}}</view>
+        </view>
+      </view>
     </view>
     <view class="connection-card">
       <view class="connection-head">
@@ -141,7 +167,7 @@
         </view>
         <view class="copy-button" bindtap="copyDoubaoPrompt">{{doubaoCopyText}}</view>
       </view>
-      <view class="connection-note">复制后发给豆包工作，用同一个家庭 Token 读取和同步孩子数据。</view>
+      <view class="connection-note">豆包工作暂不支持扫码授权，这里提供家庭备用凭证和规范，注意不要分享给家庭管理者以外的人。</view>
       <view class="prompt-box {{doubaoPromptExpanded ? 'expanded' : ''}}">
         <text class="prompt-text" user-select="{{true}}">{{doubaoPrompt || '连接提示词尚未生成'}}</text>
       </view>

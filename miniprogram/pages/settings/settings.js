@@ -48,6 +48,11 @@ Page({
     networkTestResult: "",
     familyPolicy: null,
     memberships: [],
+    joinCode: "",
+    connections: [],
+    joinRequests: [],
+    joinCodeInput: "",
+    joinSubmitting: false,
     methodLibrary: [],
     policyWeeklyTimeBudget: "",
     policyPrioritySubjects: "",
@@ -80,6 +85,17 @@ Page({
         userInitial: ((settings.family && settings.family.name) || (settings.user && settings.user.email) || "家").slice(0, 1),
         childCount: settings.child_count || 0,
         mcpToken: settings.mcp_token || "",
+        joinCode: settings.join_code || "",
+        connections: (settings.connections || []).map((item) => ({
+          ...item,
+          createdText: format.formatDate(item.created_at),
+          usedText: item.last_used_at ? format.formatDate(item.last_used_at) : "尚未调用"
+        })),
+        joinRequests: (settings.join_requests || []).map((item) => ({
+          ...item,
+          createdText: format.formatDate(item.created_at),
+          nameText: (item.user && item.user.wechatNickname) || "微信用户"
+        })),
         openPlatformSteps: (settings.workbuddy_open_platform && settings.workbuddy_open_platform.install_steps) || [],
         workbuddyPrompt: settings.workbuddy_prompt || "",
         doubaoPrompt: settings.doubao_prompt || "",
@@ -239,6 +255,68 @@ Page({
 
   copyPrompt() {
     this.copyAgentPrompt("workbuddyPrompt", "copyText");
+  },
+
+  copyJoinCode() {
+    if (!this.data.joinCode) return;
+    wx.setClipboardData({
+      data: this.data.joinCode,
+      success: () => wx.showToast({ title: "家庭编码已复制", icon: "success" })
+    });
+  },
+
+  onJoinCodeInput(event) {
+    this.setData({ joinCodeInput: event.detail.value });
+  },
+
+  async submitJoinRequest() {
+    if (this.data.joinSubmitting) return;
+    const joinCode = String(this.data.joinCodeInput || "").trim();
+    if (!/^[0-9]{6}$/.test(joinCode)) {
+      wx.showToast({ title: "请输入 6 位家庭编码", icon: "none" });
+      return;
+    }
+    this.setData({ joinSubmitting: true });
+    try {
+      await api.applyFamilyJoin({ join_code: joinCode });
+      wx.showModal({ title: "申请已提交", content: "等家庭创建者审核通过后即可进入该家庭。", showCancel: false });
+      this.setData({ joinCodeInput: "" });
+      await this.load();
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: "none" });
+    } finally {
+      this.setData({ joinSubmitting: false });
+    }
+  },
+
+  async reviewJoinRequest(event) {
+    const id = event.currentTarget.dataset.id;
+    const action = event.currentTarget.dataset.action;
+    try {
+      await api.reviewFamilyJoinRequest(id, { action });
+      wx.showToast({ title: action === "approved" ? "已通过" : "已拒绝", icon: "success" });
+      await this.load();
+    } catch (error) {
+      wx.showToast({ title: error.message, icon: "none" });
+    }
+  },
+
+  revokeConnection(event) {
+    const id = event.currentTarget.dataset.id;
+    wx.showModal({
+      title: "解除授权",
+      content: "解除后 WorkBuddy 需要重新扫码授权才能访问本家庭数据。",
+      success: async (res) => {
+        if (!res.confirm) return;
+        try {
+          await api.revokeConnection(id);
+          wx.showToast({ title: "已解除", icon: "success" });
+          await this.load();
+        } catch (error) {
+          wx.showToast({ title: error.message, icon: "none" });
+        }
+      }
+    });
   },
 
   copyMcpToken() {

@@ -182,3 +182,22 @@
 
 .logout-row { width: 100%; min-height: 86rpx; margin-top: 34rpx; border: 1rpx solid #f0c7bc; border-radius: 18rpx; background: #fff0eb; color: #c9503a; font-size: 27rpx; font-weight: 700; line-height: 86rpx; }
 .family-id { margin-top: 18rpx; color: #9aa4a6; font-size: 20rpx; text-align: center; word-break: break-all; }
+
+.join-code-block { margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid #eee5d3; }
+.join-code-head { display: flex; align-items: center; justify-content: space-between; }
+.join-code-value { margin-top: 14rpx; padding: 18rpx 20rpx; border-radius: 18rpx; background: #e4f3ef; color: #0f766e; font-size: 44rpx; font-weight: 800; letter-spacing: 10rpx; text-align: center; }
+.connection-list { margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid #eee5d3; }
+.connection-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 16rpx 0; border-bottom: 1rpx solid #f2ebdb; }
+.connection-row:last-child { border-bottom: none; }
+.connection-row-main { flex: 1; min-width: 0; }
+.connection-row-name { color: #203238; font-size: 26rpx; font-weight: 700; }
+.connection-row-meta { margin-top: 6rpx; color: #8b989a; font-size: 21rpx; }
+.connection-row-action { flex-shrink: 0; padding: 10rpx 22rpx; border-radius: 12rpx; border: 1rpx solid #f0c7bc; color: #c9503a; font-size: 23rpx; font-weight: 700; }
+.request-actions { display: flex; gap: 10rpx; flex-shrink: 0; }
+.mini-action { padding: 10rpx 20rpx; border-radius: 12rpx; background: #e4f3ef; color: #0f766e; font-size: 23rpx; font-weight: 700; }
+.mini-action.danger { background: #fff0eb; color: #c9503a; }
+.join-apply { margin-top: 22rpx; padding-top: 20rpx; border-top: 1rpx solid #eee5d3; }
+.backup-desc { margin-top: 8rpx; color: #8b989a; font-size: 21rpx; line-height: 1.6; }
+.join-apply-row { display: flex; gap: 14rpx; margin-top: 16rpx; }
+.join-input { flex: 1; height: 78rpx; padding: 0 20rpx; border-radius: 14rpx; background: #ffffff; border: 1rpx solid #e8ddc5; font-size: 26rpx; letter-spacing: 6rpx; }
+.join-apply-btn { flex-shrink: 0; padding: 0 28rpx; height: 78rpx; display: flex; align-items: center; border-radius: 14rpx; background: #0f766e; color: #ffffff; font-size: 25rpx; font-weight: 700; }

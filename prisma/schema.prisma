@@ -11,6 +11,7 @@ model Family {
   id                  String                       @id @default(cuid())
   name                String
   inviteCode          String
+  joinCode            String?                      @unique
   educationPhilosophy String?
   communicationStyle  String?
   strictness          String?
@@ -35,14 +36,19 @@ model Family {
   wrongQuestions      WrongQuestionEntry[]
   practicePapers      PracticePaper[]
   remediationPlans    RemediationPlan[]
+  oauthBindingSessions OAuthBindingSession[]
+  oauthAuthorizationCodes OAuthAuthorizationCode[]
+  oauthAccessTokens    OAuthAccessToken[]
+  wechatWebLoginSessions WechatWebLoginSession[]
+  joinRequests        FamilyJoinRequest[]
 }
 
 model User {
   id                String    @id @default(cuid())
-  familyId          String
-  family            Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  email             String    @unique
-  passwordHash      String
+  familyId          String?
+  family            Family?   @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  email             String?   @unique
+  passwordHash      String?
   role              String    @default("parent")
   status            String    @default("active")
   wechatOpenId      String?   @unique
@@ -57,6 +63,12 @@ model User {
   mcpTokens         McpToken[]
   sentInvites       FamilyInvite[] @relation("FamilyInviteInviter")
   acceptedInvites   FamilyInvite[] @relation("FamilyInviteAcceptor")
+  oauthBindingSessions OAuthBindingSession[]
+  oauthAuthorizationCodes OAuthAuthorizationCode[]
+  oauthAccessTokens OAuthAccessToken[]
+  wechatWebLoginSessions WechatWebLoginSession[]
+  familyJoinRequests FamilyJoinRequest[] @relation("FamilyJoinApplicant")
+  reviewedFamilyJoinRequests FamilyJoinRequest[] @relation("FamilyJoinReviewer")
 }
 
 model FamilyMember {
@@ -96,6 +108,24 @@ model FamilyInvite {
 
   @@index([familyId, status])
   @@index([inviteCode, status])
+}
+
+model FamilyJoinRequest {
+  id               String    @id @default(cuid())
+  familyId         String
+  family           Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User      @relation("FamilyJoinApplicant", fields: [userId], references: [id], onDelete: Cascade)
+  status           String    @default("pending")
+  reviewedByUserId String?
+  reviewedBy       User?     @relation("FamilyJoinReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([familyId, userId])
+  @@index([familyId, status, createdAt])
+  @@index([userId, status])
 }
 
 model Child {
@@ -297,6 +327,112 @@ model McpToken {
 
   @@index([familyId, userId, status])
   @@index([familyMemberId])
+}
+
+model OAuthClient {
+  id                      String    @id @default(cuid())
+  clientId                String    @unique
+  clientName              String?
+  redirectUris            String[]
+  grantTypes              String[]  @default(["authorization_code", "refresh_token"])
+  responseTypes           String[]  @default(["code"])
+  tokenEndpointAuthMethod String    @default("none")
+  status                  String    @default("active")
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  bindingSessions         OAuthBindingSession[]
+  authorizationCodes      OAuthAuthorizationCode[]
+  accessTokens            OAuthAccessToken[]
+}
+
+model OAuthBindingSession {
+  id                      String      @id @default(cuid())
+  publicId                String      @unique
+  browserSecretHash       String
+  oauthClientId           String
+  oauthClient             OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  redirectUri             String
+  state                   String?
+  scope                   String
+  codeChallenge           String
+  codeChallengeMethod     String      @default("S256")
+  familyId                String?
+  family                  Family?     @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId                  String?
+  user                    User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authorizationCodeCipher String?
+  status                  String      @default("pending")
+  expiresAt               DateTime
+  approvedAt              DateTime?
+  consumedAt              DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  @@index([publicId, status, expiresAt])
+  @@index([userId, status])
+}
+
+model OAuthAuthorizationCode {
+  id            String      @id @default(cuid())
+  codeHash      String      @unique
+  oauthClientId String
+  oauthClient   OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  familyId      String
+  family        Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri   String
+  scope         String
+  codeChallenge String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([oauthClientId, expiresAt])
+  @@index([familyId, userId])
+}
+
+model OAuthAccessToken {
+  id               String      @id @default(cuid())
+  accessTokenHash  String      @unique
+  refreshTokenHash String?     @unique
+  oauthClientId    String
+  oauthClient      OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  familyId         String
+  family           Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope            String
+  status           String      @default("active")
+  expiresAt        DateTime
+  refreshExpiresAt DateTime?
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([familyId, userId, status])
+  @@index([oauthClientId, status])
+}
+
+model WechatWebLoginSession {
+  id                String    @id @default(cuid())
+  publicId          String    @unique
+  browserSecretHash String
+  userId            String?
+  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId          String?
+  family            Family?   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  loginCodeCipher   String?
+  status            String    @default("pending")
+  expiresAt         DateTime
+  approvedAt        DateTime?
+  consumedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([publicId, status, expiresAt])
+  @@index([userId, status])
 }
 
 model QuestionType {

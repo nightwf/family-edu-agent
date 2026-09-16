@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentBootstrap, buildWorkbuddyOpenPlatformConfig, buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
+import { buildAgentBootstrap, buildDoubaoPrompt, buildWorkbuddyOpenPlatformConfig, buildWorkbuddyPrompt, WORKBUDDY_MCP_URL } from "./workbuddy-prompt.js";
 describe("WorkBuddy integration", () => {
     it("builds a family-scoped agent bootstrap", () => {
         const bootstrap = buildAgentBootstrap({
@@ -15,19 +15,22 @@ describe("WorkBuddy integration", () => {
             },
         });
         expect(bootstrap.agent_role).toBe("禾芽家庭私教");
-        expect(bootstrap.family.identity_source).toBe("X-MCP-Token");
+        expect(bootstrap.family.identity_source).toBe("OAuth");
         expect(bootstrap.children[0]).toMatchObject({ child_id: "child-1", name: "JOJO" });
         expect(bootstrap.next_action).toContain("JOJO");
     });
-    it("keeps the family token in runtime connection data only", () => {
+    it("uses OAuth for WorkBuddy and keeps the legacy token only for Doubao backup", () => {
         const token = "family-test-token";
         const config = buildWorkbuddyOpenPlatformConfig(token);
-        const prompt = buildWorkbuddyPrompt(token);
-        expect(config.auth_mode).toBe("token");
-        expect(config.token).toBe(token);
-        expect(config.install_steps.join(" ")).toContain("只需配置一次");
+        const prompt = buildWorkbuddyPrompt();
+        const doubaoPrompt = buildDoubaoPrompt(token);
+        expect(config.auth_mode).toBe("oauth");
+        expect(config.token).toBeNull();
+        expect(config.mcp_url).toBe(WORKBUDDY_MCP_URL);
+        expect(config.install_steps.join(" ")).toContain("微信扫码");
         expect(prompt).toContain("get_agent_bootstrap");
         expect(prompt).toContain("save_knowledge_relations_batch");
-        expect(prompt).toContain(`X-MCP-Token: ${token}`);
+        expect(prompt).not.toContain("X-MCP-Token");
+        expect(doubaoPrompt).toContain(`X-MCP-Token: ${token}`);
     });
 });

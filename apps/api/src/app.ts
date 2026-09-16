@@ -2,6 +2,7 @@ import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
+import formbody from "@fastify/formbody";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -28,6 +29,15 @@ import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { registerV2Routes } from "./v2/routes.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
+import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
+import {
+  applyToFamilyByJoinCode,
+  createFamilyForUser,
+  ensureFamilyJoinCode,
+  findOrCreateWechatUser,
+  listFamilyJoinRequests,
+  reviewFamilyJoinRequest,
+} from "./family-onboarding.js";
 import {
   createInviteCode,
   ensureFamilyMember,
@@ -75,6 +85,64 @@ async function createSessionResponse(app: FastifyInstance, user: any) {
   return { token, refreshToken: refresh.token, user, family, member };
 }
 
+/**
+ * WeChat-first accounts may exist before they belong to a family.
+ * This response keeps them authenticated so onboarding can finish.
+ */
+async function createWechatSessionResponse(app: FastifyInstance, user: any, familyId: string | null) {
+  const token = app.jwt.sign({ sub: user.id, familyId: familyId || "" });
+  if (!familyId) {
+    return {
+      token,
+      user,
+      family: null,
+      member: null,
+      needs_family_setup: true,
+      needs_family_onboarding: true,
+    };
+  }
+  await ensureFamilyMember(familyId, user.id, "owner");
+  const refresh = createRefreshTokenHash();
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshTokenHash: refresh.hash,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+  });
+  const [family, member, joinCode] = await Promise.all([
+    prisma.family.findUnique({ where: { id: familyId } }),
+    getActiveFamilyMember(familyId, user.id),
+    ensureFamilyJoinCode(familyId),
+  ]);
+  return {
+    token,
+    refreshToken: refresh.token,
+    user,
+    family: family ? { ...family, join_code: joinCode } : family,
+    member,
+    needs_family_setup: false,
+  };
+}
+
+async function requireUserAuth(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    await request.jwtVerify();
+    const payload = (request as any).user as { sub?: string };
+    if (!payload?.sub) return reply.code(401).send({ error: "未登录或登录已过期" });
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user || user.status !== "active") return reply.code(403).send({ error: "账号不可用" });
+  } catch (_error) {
+    return reply.code(401).send({ error: "未登录或登录已过期" });
+  }
+}
+
+function getUserAuth(request: FastifyRequest) {
+  const payload = (request as any).user as { sub?: string; familyId?: string } | undefined;
+  if (!payload?.sub) return null;
+  return { id: payload.sub, familyId: payload.familyId || null };
+}
+
 function getAuth(request: FastifyRequest) {
   const payload = (request as any).user as { sub: string; familyId: string };
   return { id: payload.sub, familyId: payload.familyId };
@@ -120,6 +188,7 @@ export async function buildApp() {
 
   await app.register(cors, { origin: true });
   await app.register(jwt, { secret: env.JWT_SECRET });
+  await app.register(formbody);
   await app.register(multipart, { attachFieldsToBody: true });
   await app.register(fastifyStatic, { root: path.resolve(process.cwd(), env.WEB_DIST), prefix: "/" });
 
@@ -172,22 +241,20 @@ export async function buildApp() {
       const { code } = request.body as any;
       if (!code) return reply.code(400).send({ error: "缺少微信登录 code" });
       const wechat = await exchangeWechatCode(String(code));
-      const user = await prisma.user.findUnique({ where: { wechatOpenId: wechat.openid } });
-      if (!user) {
-        const bindToken = app.jwt.sign(
-          { bind: "wechat", openid: wechat.openid, unionid: wechat.unionid || null },
-          { expiresIn: "10m" },
-        );
-        return { need_bind: true, bind_token: bindToken, has_wechat_login: true };
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          lastWechatLoginAt: new Date(),
-          wechatUnionId: wechat.unionid || user.wechatUnionId,
-        },
-      });
-      return createSessionResponse(app, user);
+      const user = await findOrCreateWechatUser(wechat.openid, wechat.unionid);
+      const session = await createWechatSessionResponse(app, user, user.familyId);
+      const [memberships, pendingRequests] = await Promise.all([
+        prisma.familyMember.findMany({
+          where: { userId: user.id, status: "active" },
+          include: { family: { select: { id: true, name: true, joinCode: true } } },
+          orderBy: [{ joinedAt: "asc" }, { createdAt: "asc" }],
+        }),
+        prisma.familyJoinRequest.findMany({
+          where: { userId: user.id, status: "pending" },
+          include: { family: { select: { id: true, name: true } } },
+        }),
+      ]);
+      return { ...session, memberships, pending_join_requests: pendingRequests };
     } catch (error) {
       if (error instanceof WechatError) return reply.code(error.statusCode).send({ error: error.message });
       throw error;
@@ -310,8 +377,8 @@ export async function buildApp() {
       include: { user: true },
     });
     if (!session) return reply.code(401).send({ error: "refreshToken 无效或已过期" });
-    await ensureFamilyMember(session.user.familyId, session.user.id, "owner");
-    const token = app.jwt.sign({ sub: session.user.id, familyId: session.user.familyId });
+    if (session.user.familyId) await ensureFamilyMember(session.user.familyId, session.user.id, "owner");
+    const token = app.jwt.sign({ sub: session.user.id, familyId: session.user.familyId || "" });
     return { token };
   });
 
@@ -323,6 +390,95 @@ export async function buildApp() {
     ]);
     const member = await getActiveFamilyMember(auth.familyId, auth.id);
     return { user, family, member };
+  });
+
+  app.get("/api/onboarding/state", { preHandler: requireUserAuth as any }, async (request, reply) => {
+    const auth = getUserAuth(request);
+    if (!auth) return reply.code(401).send({ error: "未登录或登录已过期" });
+    const [memberships, pendingRequests, receivedRequests] = await Promise.all([
+      prisma.familyMember.findMany({
+        where: { userId: auth.id, status: "active" },
+        include: { family: { select: { id: true, name: true, joinCode: true, createdAt: true } } },
+        orderBy: [{ joinedAt: "asc" }, { createdAt: "asc" }],
+      }),
+      prisma.familyJoinRequest.findMany({
+        where: { userId: auth.id, status: "pending" },
+        include: { family: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.familyJoinRequest.findMany({
+        where: { familyId: auth.familyId || "", status: "pending" },
+        include: { user: { select: { id: true, wechatNickname: true, wechatAvatarUrl: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+    return { memberships, pending_join_requests: pendingRequests, received_join_requests: receivedRequests };
+  });
+
+  app.post("/api/onboarding/family", { preHandler: requireUserAuth as any }, async (request, reply) => {
+    const auth = getUserAuth(request);
+    if (!auth) return reply.code(401).send({ error: "未登录或登录已过期" });
+    const existingCount = await prisma.familyMember.count({ where: { userId: auth.id, status: "active" } });
+    if (existingCount > 0) return reply.code(409).send({ error: "该账号已经有家庭，不能重复创建" });
+    const { family, user } = await createFamilyForUser(auth.id, (request.body as any)?.name);
+    return reply.code(201).send(await createWechatSessionResponse(app, user, family.id));
+  });
+
+  app.post("/api/onboarding/family/join-request", { preHandler: requireUserAuth as any }, async (request, reply) => {
+    const auth = getUserAuth(request);
+    if (!auth) return reply.code(401).send({ error: "未登录或登录已过期" });
+    try {
+      const result = await applyToFamilyByJoinCode(auth.id, (request.body as any)?.join_code);
+      if (result.already_member) return reply.code(409).send({ error: "你已经是该家庭的成员" });
+      return reply.code(201).send({
+        ok: true,
+        family: { id: result.family.id, name: result.family.name },
+        request_id: result.request?.id,
+        status: "pending",
+      });
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "提交加入申请失败" });
+    }
+  });
+
+  app.get("/api/onboarding/family/join-requests", { preHandler: requireAuth as any }, async (request) => {
+    return listFamilyJoinRequests(getAuth(request).familyId);
+  });
+
+  app.post("/api/onboarding/family/join-requests/:requestId/review", { preHandler: requireAuth as any }, async (request, reply) => {
+    const auth = getAuth(request);
+    const { requestId } = request.params as any;
+    const action = (request.body as any)?.action;
+    if (!["approved", "rejected"].includes(action)) return reply.code(400).send({ error: "action 只能是 approved 或 rejected" });
+    const isOwner = await requireOwner(auth.familyId, auth.id);
+    if (!isOwner) return reply.code(403).send({ error: "只有家庭创建者可以审核加入申请" });
+    try {
+      return await reviewFamilyJoinRequest(auth.familyId, String(requestId), auth.id, action);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : "审核失败" });
+    }
+  });
+
+  app.get("/api/connections", { preHandler: requireAuth as any }, async (request) => {
+    const connections = await listOAuthConnections(getAuth(request).familyId);
+    return connections.map((item) => ({
+      id: item.id,
+      client_name: item.oauthClient.clientName,
+      client_id: item.oauthClient.clientId,
+      scope: item.scope,
+      created_at: item.createdAt,
+      last_used_at: item.lastUsedAt,
+      expires_at: item.expiresAt,
+      authorized_by: item.user.wechatNickname || item.user.email || "微信用户",
+    }));
+  });
+
+  app.delete("/api/connections/:connectionId", { preHandler: requireAuth as any }, async (request, reply) => {
+    const auth = getAuth(request);
+    const { connectionId } = request.params as any;
+    const ok = await revokeOAuthConnection(auth.familyId, String(connectionId));
+    if (!ok) return reply.code(404).send({ error: "连接不存在或已解除" });
+    return { ok: true };
   });
 
   app.get("/api/family/members", { preHandler: requireAuth as any }, async (request) => {
@@ -796,7 +952,7 @@ export async function buildApp() {
 
   app.get("/api/settings", { preHandler: requireAuth as any }, async (request) => {
     const auth = getAuth(request);
-    const [user, family, childCount, mcpToken, member, members, invites, educationSettings, policyChanges] = await Promise.all([
+    const [user, family, childCount, mcpToken, member, members, invites, educationSettings, policyChanges, joinCode, connections, joinRequests] = await Promise.all([
       prisma.user.findUnique({ where: { id: auth.id } }),
       prisma.family.findUnique({ where: { id: auth.familyId } }),
       prisma.child.count({ where: { familyId: auth.familyId } }),
@@ -806,6 +962,9 @@ export async function buildApp() {
       listPendingInvites(auth.familyId),
       getFamilyEducationSettings(auth.familyId),
       getPolicyHistory(auth.familyId),
+      ensureFamilyJoinCode(auth.familyId),
+      listOAuthConnections(auth.familyId),
+      listFamilyJoinRequests(auth.familyId),
     ]);
     const educationMethods = {
       available: EDUCATION_METHODS,
@@ -817,8 +976,22 @@ export async function buildApp() {
     };
     return {
       user,
-      family,
+      family: family ? { ...family, join_code: joinCode } : family,
       member,
+      join_code: joinCode,
+      connections: connections.map((item) => ({
+        id: item.id,
+        client_name: item.oauthClient.clientName,
+        scope: item.scope,
+        created_at: item.createdAt,
+        last_used_at: item.lastUsedAt,
+        authorized_by: item.user.wechatNickname || item.user.email || "微信用户",
+      })),
+      join_requests: joinRequests.map((item) => ({
+        id: item.id,
+        created_at: item.createdAt,
+        user: item.user,
+      })),
       members,
       invites,
       education_settings: educationSettings,
@@ -894,6 +1067,12 @@ export async function buildApp() {
   registerQuestionBankRoutes(app, requireAuth, (request) => getAuth(request).familyId);
   registerWrongBookRoutes(app, requireAuth, (request) => getAuth(request).familyId);
   registerV2Routes(app, requireAuth, (request) => getAuth(request));
+
+  await registerOAuthRoutes(app, {
+    requireUserAuth: requireUserAuth as any,
+    getUserAuth,
+    createWechatSessionResponse: (user, familyId) => createWechatSessionResponse(app, user, familyId),
+  });
 
   await registerMcpHttp(app);
 

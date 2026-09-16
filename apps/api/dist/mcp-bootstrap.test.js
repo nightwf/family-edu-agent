@@ -36,7 +36,7 @@ describe("MCP agent bootstrap", () => {
         expect(result.structuredContent).toMatchObject({
             product: "禾芽家庭教务",
             agent_role: "禾芽家庭私教",
-            family: { authenticated: true, name: "测试家庭", identity_source: "X-MCP-Token" },
+            family: { authenticated: true, name: "测试家庭", identity_source: "OAuth" },
             children: [{ child_id: "child-1", name: "JOJO" }],
             stats: { wrong_question_count: 6 },
         });

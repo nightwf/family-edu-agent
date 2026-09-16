@@ -6,8 +6,8 @@
 
 ## 已实现能力
 
-- 邀请码注册、邮箱密码登录、微信登录和多家庭账号；
-- 单家庭多学生档案，家庭专属 MCP Token 隔离数据；
+- 微信授权登录；首个家长创建家庭或申请加入已有家庭，6 位家庭编码 + 创建者审核；
+- 单家庭多学生档案，多家长共用同一家庭，OAuth 授权按家庭隔离数据；
 - 孩子结构化证据、当前状态、亲子关系、阶段目标、周计划和复测；
 - 教材、知识节点、题库、错题、作业和成长报告；
 - 家庭边界、教育方法库和方法效果记录；
@@ -15,8 +15,8 @@
 - WorkBuddy / 豆包工作录题、生成变式练习、同步作答与查询掌握度；
 - 学生错题本、严格掌握证据、针对性练习试卷和错题教学规划；
 - 明亮学堂 Web 管理端，支持桌面端和手机端。
-- 微信小程序家长端，支持微信一键登录和家庭专属 WorkBuddy / 豆包工作提示词。
-- WorkBuddy 开放平台 Connector、Skill、Expert 提交包，支持本机填写一次家庭 Token 后自动加载家庭私教规范。
+- 微信小程序家长端，支持微信一键登录、家庭编码与加入申请审核。
+- WorkBuddy 开放平台 Connector、Skill、Expert 提交包，使用 MCP OAuth 2.1 + PKCE：首次连接自动打开禾芽授权网页，微信扫码选择家庭即可，不需要复制 Token。
 
 ## 本地启动
 
@@ -33,12 +33,12 @@ docker compose up -d --build
 小程序源码位于 `miniprogram/`，导入微信开发者工具即可调试。详细说明见 [小程序接入文档](docs/miniprogram.md)。
 
 ```text
-登录：邮箱密码 / 邀请码注册 / 微信一键登录
+登录：微信一键登录；首次登录创建家庭，或输入 6 位家庭编码申请加入
 首页：孩子当前状态、亲子关系、本周重点、最近动态
 学生：新建、编辑、删除学生档案
 成长：成长记录、报告、成长轨迹
 学习：题库、错题本、教材、作业、知识库
-我的：账号、家庭边界、多家庭、连接提示词、教育方法库
+我的：家庭编码、加入申请审核、已连接的 WorkBuddy、家庭边界、教育方法库
 ```
 
 微信登录需要后端配置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`；小程序正式版还需要配置 HTTPS 请求合法域名。
@@ -107,11 +107,11 @@ PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
 
 ## WorkBuddy / 豆包工作接入
 
-推荐方式：在 WorkBuddy 开放平台安装“禾芽家庭教务”连接器或召唤“禾芽家庭私教”Expert，连接时粘贴一次家庭专属 Token。新会话由 Agent 自动调用 `get_agent_bootstrap` 获取学生、能力范围和启动规则，不需要家长反复粘贴提示词。
+推荐方式：在 WorkBuddy 开放平台安装“禾芽家庭教务”连接器或召唤“禾芽家庭私教”Expert，点击连接后 WorkBuddy 会自动打开禾芽授权网页并显示微信小程序码；家长扫码选择家庭并确认授权即可。新会话由 Agent 自动调用 `get_agent_bootstrap` 获取学生、能力范围和启动规则，不需要家长粘贴 Token 或提示词。
 
-设置页仍保留完整手动连接提示词，供开放平台资产尚未发布、豆包工作接入或排障时使用。详细提交方式见 [WorkBuddy 开放平台接入](docs/workbuddy-open-platform.md)。
+Web 与小程序设置页仍提供豆包工作备用提示词，供豆包工作这类暂不支持扫码授权的入口使用；WorkBuddy 本身不再需要手工 Token。详细提交方式见 [WorkBuddy 开放平台接入](docs/workbuddy-open-platform.md)。
 
-远程 MCP 地址：`https://heyaagent.top/family-edu/mcp`，请求头为 `X-MCP-Token: <家庭专属 token>`。家庭身份只由 Token 决定，MCP 参数中的资源 ID 还会再次校验家庭归属。
+远程 MCP 地址：`https://heyaagent.top/family-edu/mcp`。OAuth 元数据位于 `/.well-known/oauth-protected-resource` 与 `/.well-known/oauth-authorization-server`，未授权请求返回 401 并附带 `WWW-Authenticate`。家庭身份只由连接授权决定，MCP 参数中的资源 ID 还会再次校验家庭归属。过渡期内仍兼容旧的 `X-MCP-Token` 请求头，已连接的旧客户端不会立刻中断。
 
 题库工作流：
 

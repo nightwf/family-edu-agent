@@ -1,0 +1,18 @@
+.page { min-height: 100vh; padding: 32rpx 28rpx 60rpx; background: #f7f1df; box-sizing: border-box; }
+.card { padding: 32rpx 28rpx; border-radius: 20rpx; background: #fffdf7; border: 1rpx solid #ece2cb; box-shadow: 0 10rpx 24rpx rgba(30, 80, 72, 0.06); }
+.card.center { text-align: center; }
+.eyebrow { color: #0f766e; font-size: 22rpx; font-weight: 800; letter-spacing: 2rpx; }
+.title { margin-top: 12rpx; font-size: 34rpx; font-weight: 800; color: #17464b; line-height: 1.5; }
+.sub { margin-top: 14rpx; color: #6e8084; font-size: 25rpx; line-height: 1.75; }
+.section-label { margin: 30rpx 0 12rpx; font-size: 23rpx; font-weight: 700; color: #4d6367; }
+.family-row { display: flex; align-items: center; gap: 16rpx; padding: 22rpx 20rpx; border-radius: 16rpx; border: 1rpx solid #e8ddc5; background: #ffffff; margin-bottom: 14rpx; }
+.family-row.active { border-color: #0f766e; background: #f1f8f6; }
+.check { width: 40rpx; height: 40rpx; border-radius: 50%; background: #e4f3ef; color: #0f766e; font-size: 24rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.family-name { font-size: 28rpx; font-weight: 700; color: #1d3238; }
+.family-meta { margin-top: 6rpx; color: #8b9799; font-size: 22rpx; }
+.btn { margin-top: 28rpx; height: 88rpx; border-radius: 16rpx; display: flex; align-items: center; justify-content: center; font-size: 28rpx; font-weight: 700; }
+.btn.primary { background: #0f766e; color: #ffffff; }
+.btn.ghost { background: #f4f8f6; color: #0f766e; border: 1rpx solid #cfe4df; }
+.btn::after { border: none; }
+.fineprint { margin-top: 18rpx; color: #94a1a3; font-size: 21rpx; line-height: 1.7; }
+.ok-icon { width: 104rpx; height: 104rpx; margin: 0 auto 18rpx; border-radius: 50%; background: #e4f3ef; color: #0f766e; font-size: 48rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; }

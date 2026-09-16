@@ -7,8 +7,7 @@
   "description_en": "Connect family learning records, homework, reports, questions and mastery evidence.",
   "source": "heyah-family-education",
   "type": "mcp",
-  "version": "1.3.0",
-  "auth_mode": "token",
+  "version": "2.0.0",
   "minWorkbuddyVersion": "4.24.0",
   "examples_zh": [
     "先读取 JOJO 最近的情况，帮我安排今天的学习",

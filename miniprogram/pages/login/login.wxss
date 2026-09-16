@@ -224,3 +224,13 @@
 }
 
 .login-footer { margin-top: 26rpx; color: #8b989a; font-size: 21rpx; text-align: center; }
+
+.login-notice {
+  margin-top: 20rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 14rpx;
+  background: #f4f8f6;
+  color: #5c7175;
+  font-size: 22rpx;
+  line-height: 1.7;
+}

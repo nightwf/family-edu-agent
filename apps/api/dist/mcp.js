@@ -5,6 +5,7 @@ import { prisma } from "./prisma.js";
 import { listEducationSkills, getEducationSkill, getCoachingPolicy, buildChildContext } from "./education.js";
 import { env } from "./env.js";
 import { resolveFamilyByMcpToken } from "./mcp-token.js";
+import { resolveFamilyByOAuthAccessToken } from "./oauth.js";
 import { buildAgentBootstrap } from "./workbuddy-prompt.js";
 import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, proposePolicyChange, reviewPolicyChange, getPolicyHistory, createSkillOverride, listSkillOverrides, } from "./personalization.js";
 import { createQuestion, createQuestionsBatch, createQuestionType, deleteQuestion, deleteQuestionType, getQuestion, getQuestionGenerationContext, getQuestionType, getStudentMastery, listQuestionAttempts, listQuestions, listQuestionTypes, listStudentMastery, recalculateMastery, updateMasteryOverride, updateQuestion, updateQuestionType, } from "./question-bank.js";
@@ -97,7 +98,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     server.tool("get_sync_spec", "读取禾芽最新版详细同步规范。新会话先调用 get_agent_bootstrap；工具变化、复杂任务或不确定应保存什么时再调用本工具。", {}, async () => textResult({
         version: "2.3",
         startup_rule: "新会话首次使用禾芽时先调用 get_agent_bootstrap；连接后无需让家长重复粘贴提示词。",
-        family_identity: "家庭身份只由 X-MCP-Token 决定，不传入或猜测 family_id。",
+        family_identity: "家庭身份只由连接授权（OAuth Access Token 或家庭 Token）决定，不传入或猜测 family_id。",
         child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
         save_rule: "普通闲聊不保存；家长明确要求保存、同步、写入、记录时调用对应工具。",
         workflows: {
@@ -859,14 +860,35 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     return server;
 }
 export async function registerMcpHttp(app) {
-    function getFamilyFromRequest(request) {
-        const header = request.headers["x-mcp-token"] || request.headers.authorization?.replace(/^Bearer\s+/i, "");
-        return resolveFamilyByMcpToken(header);
+    function getCredentials(request) {
+        const legacyToken = request.headers["x-mcp-token"] ? String(request.headers["x-mcp-token"]) : "";
+        const bearerToken = String(request.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+        return { legacyToken, bearerToken };
+    }
+    async function resolveFamily(request) {
+        const { legacyToken, bearerToken } = getCredentials(request);
+        if (bearerToken) {
+            const familyId = await resolveFamilyByOAuthAccessToken(bearerToken);
+            if (familyId)
+                return familyId;
+        }
+        if (legacyToken)
+            return resolveFamilyByMcpToken(legacyToken);
+        // Older clients sent the family token as a Bearer token.
+        if (bearerToken)
+            return resolveFamilyByMcpToken(bearerToken);
+        return null;
+    }
+    function unauthorized(reply) {
+        return reply
+            .code(401)
+            .header("WWW-Authenticate", `Bearer resource_metadata="${env.PUBLIC_BASE_URL}/.well-known/oauth-protected-resource"`)
+            .send({ error: "invalid_token", error_description: "需要有效的家庭授权" });
     }
     app.post("/mcp", async (request, reply) => {
-        const familyId = await getFamilyFromRequest(request);
+        const familyId = await resolveFamily(request);
         if (!familyId)
-            return reply.code(401).send({ error: "invalid MCP token" });
+            return unauthorized(reply);
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
         transport.onerror = (error) => app.log.error(error, "mcp transport error");
         const mcpServer = createEducationMcpServer(familyId);
@@ -887,9 +909,9 @@ export async function registerMcpHttp(app) {
         }
     });
     app.get("/mcp", async (request, reply) => {
-        const familyId = await getFamilyFromRequest(request);
+        const familyId = await resolveFamily(request);
         if (!familyId)
-            return reply.code(401).send({ error: "invalid MCP token" });
+            return unauthorized(reply);
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
         const mcpServer = createEducationMcpServer(familyId);
         await mcpServer.connect(transport);

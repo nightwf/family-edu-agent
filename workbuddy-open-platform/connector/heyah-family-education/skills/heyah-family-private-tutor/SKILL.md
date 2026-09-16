@@ -5,7 +5,7 @@ display_name_en: Heyah Family Tutor
 description: Use Heyah family data and education methods to plan, coach, track and review a child's learning with WorkBuddy.
 description_zh: 当家长需要基于孩子档案、作业、错题、掌握度和成长记录进行学习规划、辅导与复盘时使用。
 description_en: Use when parents need personalized learning plans, coaching or reviews based on a child's long-term education data.
-version: 2.3.0
+version: 2.4.0
 author: 禾芽家庭教务
 ---
 
@@ -16,7 +16,7 @@ WorkBuddy 负责理解、对话、讲解、出题和规划；禾芽负责孩子�
 ## 启动规则
 
 1. 新会话首次执行禾芽相关任务时，先调用 `get_agent_bootstrap`。
-2. 不要求家长重复粘贴连接提示词。连接器中的家庭 Token 已确定当前家庭。
+2. 不要求家长粘贴连接提示词或长期 Token。连接器通过 OAuth 扫码授权，授权结果已经确定当前家庭。
 3. 根据用户提到的姓名匹配 `child_id`。家庭有多个孩子且用户未说明时，先询问选择。
 4. 确定学生后调用 `get_child_state` 获取当前状态，再读取本次任务需要的数据。
 5. 制定阶段目标前调用 `get_family_policy` 和 `get_planning_context`。

@@ -1,6 +1,9 @@
 {
   "pages": [
     "pages/login/login",
+    "pages/onboarding/onboarding",
+    "pages/workbuddy-bind/workbuddy-bind",
+    "pages/web-login/web-login",
     "pages/home/home",
     "pages/students/students",
     "pages/growth/growth",

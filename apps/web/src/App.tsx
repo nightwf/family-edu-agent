@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   BookMarked,
@@ -50,6 +50,9 @@ type SettingsData = {
   workbuddy_prompt?: string;
   doubao_prompt?: string;
   mcp_token?: string;
+  join_code?: string;
+  connections?: any[];
+  join_requests?: any[];
   user?: any;
   family?: any;
   member?: any;
@@ -74,12 +77,108 @@ function childName(children: Child[], childId: string) {
   return children.find((child) => child.id === childId)?.name || "-";
 }
 
+function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
+  const [qrUrl, setQrUrl] = useState("");
+  const [status, setStatus] = useState<"loading" | "pending" | "approved" | "expired" | "error">("loading");
+  const [error, setError] = useState("");
+  const sessionRef = useRef<{ public_id: string; browser_secret: string } | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | undefined;
+    setStatus("loading");
+    setError("");
+
+    request("/api/auth/wechat/web/session", { method: "POST", body: JSON.stringify({}) })
+      .then((session) => {
+        if (cancelled) return;
+        sessionRef.current = { public_id: session.public_id, browser_secret: session.browser_secret };
+        setQrUrl(session.qr_url);
+        setStatus("pending");
+        const poll = async () => {
+          if (cancelled) return;
+          try {
+            const data = await request(
+              `/api/auth/wechat/web/${session.public_id}/status?browser_secret=${encodeURIComponent(session.browser_secret)}`,
+            );
+            if (cancelled) return;
+            if (data.status === "approved" && data.login_code) {
+              setStatus("approved");
+              const exchanged = await request("/api/auth/wechat/web/exchange", {
+                method: "POST",
+                body: JSON.stringify({
+                  public_id: session.public_id,
+                  browser_secret: session.browser_secret,
+                  login_code: data.login_code,
+                }),
+              });
+              if (!cancelled) onToken(exchanged.token);
+              return;
+            }
+            if (data.status === "expired" || data.status === "consumed") {
+              setStatus("expired");
+              return;
+            }
+          } catch (_error) {
+            // Keep polling through transient failures.
+          }
+          timer = window.setTimeout(poll, 2000);
+        };
+        timer = window.setTimeout(poll, 1500);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setStatus("error");
+        setError((err as Error).message);
+      });
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [nonce]);
+
+  return (
+    <div className="w-full max-w-md rounded-lg border border-stone-200 bg-panel p-7 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold text-xl font-black text-teal">禾</div>
+        <div>
+          <div className="text-lg font-bold">禾芽家庭教务</div>
+          <div className="text-xs text-stone-500">孩子的成长，值得被看见</div>
+        </div>
+      </div>
+      <div className="mt-6 text-base font-semibold">微信扫码登录</div>
+      <p className="mt-2 text-sm leading-6 text-stone-500">
+        用微信扫描下方小程序码，在手机上选择家庭并确认登录。
+      </p>
+      <div className="mt-5 flex h-[248px] items-center justify-center rounded-lg border border-stone-200 bg-white">
+        {status === "pending" && qrUrl ? (
+          <img src={qrUrl} alt="微信扫码登录" className="h-[228px] w-[228px]" />
+        ) : status === "loading" ? (
+          <span className="text-sm text-stone-500">正在生成小程序码…</span>
+        ) : status === "approved" ? (
+          <span className="text-sm text-teal">已确认，正在登录…</span>
+        ) : status === "expired" ? (
+          <div className="text-center">
+            <p className="text-sm text-stone-500">小程序码已过期</p>
+            <button type="button" onClick={() => setNonce((value) => value + 1)} className="mt-3 rounded-lg bg-teal px-4 py-2 text-sm text-white">
+              重新生成
+            </button>
+          </div>
+        ) : (
+          <span className="px-6 text-center text-sm text-accent">{error || "小程序码加载失败"}</span>
+        )}
+      </div>
+      <div className="mt-4 text-center text-xs text-stone-500">家庭数据仅当前家庭的管理者可见</div>
+    </div>
+  );
+}
+
 function App() {
   const [token, setToken] = useState(localStorage.getItem("familyEduToken") || "");
   const [page, setPage] = useState<PageId>("home");
   const [home, setHome] = useState<HomeData | null>(null);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [error, setError] = useState("");
   const [childDialog, setChildDialog] = useState(false);
   const [editingChild, setEditingChild] = useState<Child | null>(null);
   const [textbookDialog, setTextbookDialog] = useState(false);
@@ -136,38 +235,6 @@ function App() {
   function saveToken(next: string) {
     localStorage.setItem("familyEduToken", next);
     setToken(next);
-  }
-
-  async function login(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const data = await request("/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email: form.get("email"), password: form.get("password") }),
-      });
-      saveToken(data.token);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function register(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const data = await request("/api/auth/register", {
-        method: "POST",
-        body: JSON.stringify({
-          inviteCode: form.get("inviteCode"),
-          email: form.get("email"),
-          password: form.get("password"),
-        }),
-      });
-      saveToken(data.token);
-    } catch (err) {
-      setError((err as Error).message);
-    }
   }
 
   async function logout() {
@@ -333,6 +400,37 @@ function App() {
     await load();
   }
 
+  async function revokeWorkbuddyConnection(connectionId: string) {
+    if (!window.confirm("解除后，WorkBuddy 需要重新扫码授权才能访问本家庭数据。确定解除吗？")) return;
+    await request(`/api/connections/${connectionId}`, { method: "DELETE" }, token);
+    await load();
+  }
+
+  async function reviewJoinRequest(requestId: string, action: "approved" | "rejected") {
+    await request(`/api/onboarding/family/join-requests/${requestId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }, token);
+    await load();
+  }
+
+  async function requestJoinFamily(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const joinCode = String(form.get("joinCode") || "").trim();
+    try {
+      await request("/api/onboarding/family/join-request", {
+        method: "POST",
+        body: JSON.stringify({ join_code: joinCode }),
+      }, token);
+      window.alert("申请已提交，等家庭创建者审核通过后即可进入该家庭。");
+      event.currentTarget.reset();
+      await load();
+    } catch (err) {
+      window.alert((err as Error).message);
+    }
+  }
+
   async function acceptFamilyInvite(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -347,27 +445,7 @@ function App() {
   if (!token) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-lg border border-stone-200 bg-panel p-6 shadow-sm">
-          <div className="flex gap-2">
-            <button onClick={() => setAuthMode("login")} className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold ${authMode === "login" ? "bg-teal text-white" : "bg-stone-100"}`}>登录</button>
-            <button onClick={() => setAuthMode("register")} className={`flex-1 rounded-full px-4 py-2 text-sm font-semibold ${authMode === "register" ? "bg-teal text-white" : "bg-stone-100"}`}>邀请码注册</button>
-          </div>
-          {authMode === "login" ? (
-            <form onSubmit={login} className="mt-5 space-y-4">
-              <input name="email" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邮箱" />
-              <input name="password" type="password" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="密码" />
-              <button className="w-full rounded-lg bg-accent px-4 py-2 text-white">登录</button>
-            </form>
-          ) : (
-            <form onSubmit={register} className="mt-5 space-y-4">
-              <input name="inviteCode" defaultValue="HE-2026" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邀请码" />
-              <input name="email" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="邮箱" />
-              <input name="password" type="password" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="密码" />
-              <button className="w-full rounded-lg bg-accent px-4 py-2 text-white">注册并登录</button>
-            </form>
-          )}
-          {error && <p className="mt-3 text-sm text-accent">{error}</p>}
-        </div>
+        <WechatQrLogin onToken={saveToken} />
       </div>
     );
   }
@@ -576,65 +654,85 @@ function App() {
                     </div>
                   ))}
                 </div>
-                {settings?.member?.role === "owner" && (
-                  <form onSubmit={createFamilyInvite} className="mt-4 grid gap-2 border-t border-stone-100 pt-4 md:grid-cols-[1fr_auto]">
-                    <input name="email" className="rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="对方邮箱，可不填" />
-                    <button className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm text-white"><Plus size={16} />生成家庭邀请码</button>
-                  </form>
-                )}
-                {(settings?.invites || []).length > 0 && (
-                  <div className="mt-4 space-y-2 border-t border-stone-100 pt-4">
-                    <div className="text-sm font-semibold text-stone-500">待接受邀请</div>
-                    {(settings?.invites || []).map((invite) => (
-                      <div key={invite.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
-                        <div>
-                          <code className="font-semibold">{invite.inviteCode}</code>
-                          <div className="mt-1 text-xs text-stone-500">{invite.inviteEmail || "未限定邮箱"} · {invite.expiresAt?.slice(0, 10)} 到期</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => navigator.clipboard?.writeText(invite.inviteCode)} className="rounded-lg border border-stone-200 px-3 py-1">复制</button>
-                          {settings?.member?.role === "owner" && <button type="button" onClick={() => cancelFamilyInvite(invite.id)} className="rounded-lg border border-accent px-3 py-1 text-accent">取消</button>}
-                        </div>
-                      </div>
-                    ))}
+                <div className="mt-4 border-t border-stone-100 pt-4">
+                  <div className="text-sm font-semibold text-stone-600">家庭编码</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <code className="rounded-lg bg-stone-50 px-4 py-2 text-xl font-bold tracking-[0.35em] text-teal">{settings?.join_code || "生成中"}</code>
+                    <button type="button" onClick={() => navigator.clipboard?.writeText(settings?.join_code || "")} className="rounded-lg border border-stone-200 px-3 py-1 text-sm">复制</button>
                   </div>
-                )}
-                <form onSubmit={acceptFamilyInvite} className="mt-4 grid gap-2 border-t border-stone-100 pt-4 md:grid-cols-[1fr_auto]">
-                  <input name="inviteCode" className="rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="输入别人发来的家庭邀请码" />
-                  <button className="rounded-lg border border-teal px-4 py-2 text-sm text-teal">加入对方家庭</button>
+                  <p className="mt-2 text-xs leading-6 text-stone-500">
+                    把 6 位编码发给要共同管理这个家庭的家长。对方在禾芽输入编码提交申请后，需要你在这里审核通过。
+                  </p>
+                </div>
+                <div className="mt-4 border-t border-stone-100 pt-4">
+                  <div className="text-sm font-semibold text-stone-600">待审核的加入申请</div>
+                  {(settings?.join_requests || []).length === 0 ? (
+                    <p className="mt-2 text-sm text-stone-500">暂时没有新的申请。</p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {(settings?.join_requests || []).map((item: any) => (
+                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                          <div>
+                            <div className="font-semibold">{item.user?.wechatNickname || "微信用户"}</div>
+                            <div className="mt-1 text-xs text-stone-500">{item.created_at?.slice(0, 16).replace("T", " ")} 提交</div>
+                          </div>
+                          {settings?.member?.role === "owner" ? (
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => reviewJoinRequest(item.id, "rejected")} className="rounded-lg border border-accent px-3 py-1 text-accent">拒绝</button>
+                              <button type="button" onClick={() => reviewJoinRequest(item.id, "approved")} className="rounded-lg bg-teal px-3 py-1 text-white">通过</button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-stone-500">等待创建者审核</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <form onSubmit={requestJoinFamily} className="mt-4 grid gap-2 border-t border-stone-100 pt-4 md:grid-cols-[1fr_auto]">
+                  <input name="joinCode" maxLength={6} inputMode="numeric" className="rounded-lg border border-stone-200 px-3 py-2 text-sm tracking-[0.3em]" placeholder="输入 6 位家庭编码" />
+                  <button className="rounded-lg border border-teal px-4 py-2 text-sm text-teal">申请加入</button>
                 </form>
               </div>
               <div className="mt-5">
-                <div className="mb-2 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold">WorkBuddy 开放平台连接</h3>
-                    <p className="mt-1 text-sm text-stone-500">安装连接器后只需配置一次家庭 Token，Expert 会自动读取禾芽规范。</p>
-                  </div>
-                  <button onClick={() => copyAgentPrompt(settings?.mcp_token, "mcp-token")} className="inline-flex shrink-0 items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "mcp-token" ? "已复制" : "复制 Token"}</button>
-                </div>
-                {settings?.mcp_token && (
-                  <div className="mb-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
-                    <div className="mb-1 font-semibold text-stone-500">家庭专属 Token</div>
-                    <code className="break-all">{settings.mcp_token}</code>
-                  </div>
-                )}
+                <h3 className="font-semibold">WorkBuddy 连接</h3>
+                <p className="mt-1 text-sm text-stone-500">
+                  在 WorkBuddy 里安装“禾芽家庭教务”连接器后点击连接，会自动打开禾芽授权网页，用微信扫码选择家庭即可，不需要复制粘贴 Token。
+                </p>
                 <ol className="space-y-2 text-sm leading-6 text-stone-600">
                   {(settings?.workbuddy_open_platform?.install_steps || []).map((step, index) => <li key={step}>{index + 1}. {step}</li>)}
                 </ol>
                 <div className="mt-4 border-t border-stone-100 pt-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-stone-600">手动连接备用提示词</h4>
-                    <button onClick={() => copyAgentPrompt(settings?.workbuddy_prompt, "workbuddy")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "workbuddy" ? "已复制" : "复制备用配置"}</button>
-                  </div>
-                  <textarea readOnly value={settings?.workbuddy_prompt || ""} className="h-40 w-full rounded-lg border border-stone-200 p-3 text-sm" />
+                  <div className="text-sm font-semibold text-stone-600">已连接的 WorkBuddy</div>
+                  {(settings?.connections || []).length === 0 ? (
+                    <p className="mt-2 text-sm text-stone-500">还没有设备完成授权。</p>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {(settings?.connections || []).map((connection: any) => (
+                        <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                          <div>
+                            <div className="font-semibold">{connection.client_name || "WorkBuddy"}</div>
+                            <div className="mt-1 text-xs text-stone-500">
+                              {connection.authorized_by} 授权 · {connection.created_at?.slice(0, 10)} · {connection.last_used_at ? `最近使用 ${connection.last_used_at.slice(0, 10)}` : "尚未调用"}
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => revokeWorkbuddyConnection(connection.id)} className="rounded-lg border border-accent px-3 py-1 text-accent">
+                            解除授权
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="mt-5">
                 <div className="mb-2 flex items-center justify-between">
-                  <h3 className="font-semibold">豆包工作连接提示词</h3>
+                  <h3 className="font-semibold">豆包工作备用连接提示词</h3>
                   <button onClick={() => copyAgentPrompt(settings?.doubao_prompt, "doubao")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "doubao" ? "已复制" : "复制"}</button>
                 </div>
-                <p className="mb-3 text-sm leading-6 text-stone-500">用于在豆包工作里复用同一套家庭教育规则和家庭专属 MCP Token。</p>
+                <p className="mb-3 text-sm leading-6 text-stone-500">
+                  豆包工作暂不支持禾芽的扫码授权连接器，这里提供家庭备用凭证和规范，用于在豆包工作里复用同一套教育规则。不要让家庭管理者以外的人拿到这段内容。
+                </p>
                 <textarea readOnly value={settings?.doubao_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
               </div>
               <div className="mt-6">

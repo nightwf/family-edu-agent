@@ -1,0 +1,70 @@
+<view class="page">
+  <view class="head">
+    <view class="head-title">家庭归属</view>
+    <view class="head-sub">一个微信账号可以创建多个家庭，也可以申请加入别人创建的家庭</view>
+  </view>
+
+  <block wx:if="{{step === 'choose'}}">
+    <view class="tabs">
+      <view class="tab {{mode === 'create' ? 'active' : ''}}" data-mode="create" bindtap="chooseMode">创建新家庭</view>
+      <view class="tab {{mode === 'join' ? 'active' : ''}}" data-mode="join" bindtap="chooseMode">加入已有家庭</view>
+    </view>
+
+    <view wx:if="{{mode === 'create'}}" class="card">
+      <view class="label">家庭名称</view>
+      <input class="input" placeholder="例如：JOJO 的家" value="{{familyName}}" data-field="familyName" bindinput="onField" />
+      <view class="hint">创建后你会成为家庭创建者，可以邀请其他家长共同管理。</view>
+      <button class="btn primary" loading="{{loading}}" bindtap="submitCreate">创建家庭</button>
+    </view>
+
+    <view wx:else class="card">
+      <view class="label">6 位家庭编码</view>
+      <input class="input code" type="number" maxlength="6" placeholder="向家庭创建者获取" value="{{joinCode}}" data-field="joinCode" bindinput="onField" />
+      <view class="hint">提交后需要家庭创建者审核通过，才会看到该家庭的数据。</view>
+      <button class="btn primary" loading="{{loading}}" bindtap="submitJoin">提交加入申请</button>
+    </view>
+  </block>
+
+  <block wx:elif="{{step === 'waiting'}}">
+    <view class="card center">
+      <view class="wait-icon">待</view>
+      <view class="wait-title">申请已提交</view>
+      <view class="wait-sub">{{joinSubmitted.family.name}} 的家庭创建者审核通过后即可进入</view>
+      <button class="btn primary" bindtap="refreshStatus">刷新审核状态</button>
+    </view>
+  </block>
+
+  <block wx:else>
+    <view class="card">
+      <view class="label">选择要进入的家庭</view>
+      <view wx:for="{{memberships}}" wx:key="id" class="family-row" data-id="{{item.familyId}}" bindtap="useFamily">
+        <view class="family-main">
+          <view class="family-name">{{item.family.name}}</view>
+          <view class="family-meta">{{item.role === 'owner' ? '家庭创建者' : '共同管理者'}} · 编码 {{item.family.joinCode || '生成中'}}</view>
+        </view>
+        <view class="family-enter">进入</view>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{receivedRequests.length}}" class="card">
+    <view class="label">待审核的加入申请</view>
+    <view wx:for="{{receivedRequests}}" wx:key="id" class="request-row">
+      <view class="request-main">
+        <view class="request-name">{{item.user.wechatNickname || '微信用户'}}</view>
+        <view class="request-meta">申请加入本家庭</view>
+      </view>
+      <view class="request-actions">
+        <view class="mini-btn danger" data-id="{{item.id}}" bindtap="rejectRequest">拒绝</view>
+        <view class="mini-btn" data-id="{{item.id}}" bindtap="approveRequest">通过</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{pendingRequests.length}}" class="card">
+    <view class="label">你提交的申请</view>
+    <view wx:for="{{pendingRequests}}" wx:key="id" class="pending-row">{{item.family.name}} · 等待创建者审核</view>
+  </view>
+
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+</view>

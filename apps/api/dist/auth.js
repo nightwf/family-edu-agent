@@ -4,6 +4,8 @@ export function hashPassword(password) {
     return bcrypt.hash(password, 10);
 }
 export function verifyPassword(password, hash) {
+    if (!hash)
+        return Promise.resolve(false);
     return bcrypt.compare(password, hash);
 }
 export function createRefreshTokenHash() {

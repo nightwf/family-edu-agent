@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
+    "@fastify/formbody": "^9.0.0",
     "@fastify/jwt": "^9.0.1",
     "@fastify/multipart": "^9.0.1",
     "@fastify/static": "^8.0.3",

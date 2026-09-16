@@ -8,8 +8,8 @@ export function buildAgentBootstrap(input) {
         family: {
             authenticated: true,
             name: input.family_name || "当前家庭",
-            identity_source: "X-MCP-Token",
-            isolation_rule: "只允许访问当前 Token 绑定的家庭，不接受调用方传入或猜测 family_id。",
+            identity_source: "OAuth",
+            isolation_rule: "只允许访问当前授权绑定的家庭，不接受调用方传入或猜测 family_id。",
         },
         children: input.children,
         stats: input.stats,
@@ -54,13 +54,14 @@ export function buildWorkbuddyOpenPlatformConfig(mcpToken) {
         connector_name: "禾芽家庭教务",
         expert_name: "禾芽家庭私教",
         mcp_url: WORKBUDDY_MCP_URL,
-        auth_mode: "token",
-        token_field: "HEYA_FAMILY_TOKEN",
-        token: mcpToken,
-        minimum_workbuddy_version: "4.24.0",
+        auth_mode: "oauth",
+        token_field: null,
+        token: null,
+        minimum_workbuddy_version: "5.0.0",
         install_steps: [
             "在 WorkBuddy 安装“禾芽家庭教务”连接器或召唤“禾芽家庭私教”专家。",
-            "连接时在家庭 Token 输入框粘贴当前页面的专属 Token，只需配置一次。",
+            "点击“连接”，WorkBuddy 会自动打开禾芽授权网页并显示微信小程序码。",
+            "用微信扫码，在禾芽小程序里选择要连接的家庭并确认授权。",
             "连接成功后，Expert 会调用 get_agent_bootstrap 获取家庭、学生和工作规范。",
         ],
         quick_prompts: [
@@ -70,7 +71,7 @@ export function buildWorkbuddyOpenPlatformConfig(mcpToken) {
         ],
     };
 }
-function buildEducationAgentPrompt(platformName, mcpToken, platformNote) {
+function buildEducationAgentPrompt(platformName, connectionNote, platformNote) {
     return `你在${platformName}中担任“禾芽家庭教务”的家庭教育助手。
 
 ${platformNote}
@@ -79,9 +80,9 @@ MCP 连接信息：
 - 名称：family-edu-mcp
 - 类型：HTTP
 - 地址：${WORKBUDDY_MCP_URL}
-- 请求头：X-MCP-Token: ${mcpToken}
+${connectionNote}
 
-如果已经通过 WorkBuddy 开放平台安装“禾芽家庭教务”连接器，家庭 Token 只需在连接表单中配置一次，不要要求家长在每次对话中重复粘贴本提示词。
+通过 WorkBuddy 开放平台安装“禾芽家庭教务”连接器后，首次连接会自动打开禾芽授权网页，用微信扫码选择家庭即可；不要把长期凭证粘贴到对话里，也不要要求家长在每次对话中重复粘贴本提示词。
 
 工作流程：
 1. 新会话首次使用禾芽时，先调用 get_agent_bootstrap，确认当前家庭、学生列表、能力范围和下一步动作。
@@ -187,9 +188,9 @@ MCP 连接信息：
 - 家长没有说明孩子时先询问，不猜测
 - 只有家长明确要求“保存、同步、写入、记录”时，才保存普通对话内容`;
 }
-export function buildWorkbuddyPrompt(mcpToken) {
-    return buildEducationAgentPrompt("WorkBuddy", mcpToken, "你负责对话、识别、讲解、出题和任务规划；禾芽系统负责保存家庭长期数据、题库、错题、教材、作业和成长记录。");
+export function buildWorkbuddyPrompt(_mcpToken) {
+    return buildEducationAgentPrompt("WorkBuddy", "- 授权方式：WorkBuddy 开放平台连接器 OAuth 扫码授权，不需要手动填写 Token。", "你负责对话、识别、讲解、出题和任务规划；禾芽系统负责保存家庭长期数据、题库、错题、教材、作业和成长记录。");
 }
 export function buildDoubaoPrompt(mcpToken) {
-    return buildEducationAgentPrompt("豆包工作", mcpToken, "你负责对话、识别、讲解、出题和任务规划；禾芽系统负责保存家庭长期数据、题库、错题、教材、作业和成长记录。如果豆包工作支持 MCP 工具连接，请按下方 MCP 信息配置并调用工具；如果当前环境不能直接调用 MCP，请把这份内容作为教育工作规范，并提示家长在支持 MCP 的工作流中完成同步。");
+    return buildEducationAgentPrompt("豆包工作", `- 请求头：X-MCP-Token: ${mcpToken}\n- 说明：豆包工作暂不支持禾芽的扫码授权连接器，这里是家庭备用凭证；只在本机配置，不要分享给家庭管理者以外的人。`, "你负责对话、识别、讲解、出题和任务规划；禾芽系统负责保存家庭长期数据、题库、错题、教材、作业和成长记录。如果豆包工作支持 MCP 工具连接，请按下方 MCP 信息配置并调用工具；如果当前环境不能直接调用 MCP，请把这份内容作为教育工作规范，并提示家长在支持 MCP 的工作流中完成同步。");
 }

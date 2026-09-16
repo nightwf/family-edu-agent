@@ -15,21 +15,19 @@ function readJson(file) {
 
 const connectorMeta = readJson(path.join(connectorRoot, "connector-meta.json"));
 const connectorMcp = readJson(path.join(connectorRoot, "mcp.json"));
-const tokenSchema = readJson(path.join(connectorRoot, "token-schema.json"));
 const expertPlugin = readJson(path.join(expertRoot, ".codebuddy-plugin", "plugin.json"));
 const expertMcp = readJson(path.join(expertRoot, ".mcp.json"));
 
 assert(connectorMeta.source === "heyah-family-education", "connector source must be stable kebab-case");
-assert(connectorMeta.auth_mode === "token", "connector must use WorkBuddy local token auth");
-assert(connectorMeta.minWorkbuddyVersion === "4.24.0", "connector minimum WorkBuddy version must cover bilingual examples and token auth");
+assert(!connectorMeta.auth_mode, "connector must use the standard MCP OAuth flow, not token auth");
+assert(connectorMeta.minWorkbuddyVersion === "4.24.0", "connector minimum WorkBuddy version must cover bilingual examples");
 assert(connectorMeta.examples_zh?.length >= 2 && connectorMeta.examples_en?.length >= 2, "connector needs bilingual examples");
 
 const connectorServer = connectorMcp.mcpServers?.["heyah-family-education"];
 assert(connectorServer?.url === "https://heyaagent.top/family-edu/mcp", "connector MCP URL is incorrect");
-assert(connectorServer?.headers?.["X-MCP-Token"] === "${HEYA_FAMILY_TOKEN}", "connector must inject the family token through X-MCP-Token");
-assert(tokenSchema.fields?.length === 1, "token form must contain exactly one family token field");
-assert(tokenSchema.fields[0].key === "HEYA_FAMILY_TOKEN", "token form key must match mcp.json placeholder");
-assert(tokenSchema.fields[0].type === "password" && tokenSchema.fields[0].required === true, "family token must be a required password field");
+assert(!connectorServer?.headers, "connector must not inject a long-lived token header");
+assert(!fs.existsSync(path.join(connectorRoot, "token-schema.json")), "token-mode form must be removed from the OAuth connector");
+assert(connectorServer?.type === "streamableHttp", "connector must use the remote streamableHttp transport");
 
 assert(expertPlugin.name === expertPlugin.plugin, "expert plugin and name must match");
 assert(expertPlugin.expertType === "agent", "expertType must be agent");
@@ -43,8 +41,8 @@ assert(descriptionLength >= 40 && descriptionLength <= 50, `expert Chinese descr
 
 const expertServer = expertMcp.mcpServers?.["heyah-family-education"];
 assert(expertServer?.url === connectorServer.url, "expert and connector must use the same MCP URL");
-assert(expertServer?.headers?.["X-MCP-Token"] === "${HEYA_FAMILY_TOKEN}", "expert must inject the family token through X-MCP-Token");
-assert(expertServer?.["x-workbuddy"]?.auth?.type === "token", "expert must show the WorkBuddy token authorization card");
+assert(!expertServer?.headers, "expert must not inject a long-lived token header");
+assert(!expertServer?.["x-workbuddy"]?.auth, "expert must rely on MCP OAuth instead of a token form");
 
 for (const relative of [
   "agents/heyah-family-private-tutor.md",
@@ -67,7 +65,6 @@ assert(avatar.readUInt32BE(16) === 512 && avatar.readUInt32BE(20) === 512, "expe
 
 const packageText = [
   fs.readFileSync(path.join(connectorRoot, "mcp.json"), "utf8"),
-  fs.readFileSync(path.join(connectorRoot, "token-schema.json"), "utf8"),
   fs.readFileSync(path.join(expertRoot, ".mcp.json"), "utf8"),
   connectorSkill,
 ].join("\n");
