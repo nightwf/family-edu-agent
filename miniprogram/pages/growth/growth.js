@@ -71,9 +71,15 @@ Page({
       dateText: format.formatDate(item.createdAt),
       typeLabel: item.type === "weekly" ? "周报" : "月报"
     }));
-    // 接口对成长记录和报告使用同一个 offset，追加时只合并当前页签的数据
-    const records = append ? [...this.data.records, ...nextRecords] : nextRecords;
-    const reports = append ? [...this.data.reports, ...nextReports] : nextReports;
+    // 接口对成长记录和报告使用同一个 offset：一次请求会同时返回两者，
+    // 追加时只能合并当前页签的那一份，否则切换页签会出现重复条目。
+    const appendedTab = append ? this.data.tab : "";
+    const records = appendedTab === "records"
+      ? [...this.data.records, ...nextRecords]
+      : append ? this.data.records : nextRecords;
+    const reports = appendedTab === "reports"
+      ? [...this.data.reports, ...nextReports]
+      : append ? this.data.reports : nextReports;
     const page = data.page || {};
     const totalRecords = typeof page.total_records === "number" ? page.total_records : records.length;
     const totalReports = typeof page.total_reports === "number" ? page.total_reports : reports.length;
