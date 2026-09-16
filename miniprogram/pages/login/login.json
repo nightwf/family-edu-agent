@@ -1,4 +1,6 @@
 {
-  "navigationBarTitleText": "禾芽家庭教务",
+  "navigationBarTitleText": "",
+  "navigationBarBackgroundColor": "#0f766e",
+  "navigationBarTextStyle": "white",
   "navigationStyle": "default"
 }
