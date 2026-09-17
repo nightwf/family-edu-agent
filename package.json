@@ -17,6 +17,8 @@
     "check:workbuddy": "node scripts/validate-workbuddy-open-platform.mjs",
     "package:workbuddy": "node scripts/package-workbuddy-open-platform.mjs",
     "check:miniprogram": "node scripts/validate-miniprogram.mjs",
+    "check:miniprogram-assets": "node scripts/validate-miniprogram-assets.mjs",
+    "check:miniprogram-assets:selftest": "node scripts/validate-miniprogram-assets.mjs --self-test",
     "test:miniprogram": "node scripts/test-miniprogram-logic.mjs",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",

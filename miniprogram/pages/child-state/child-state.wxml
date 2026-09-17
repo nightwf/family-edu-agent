@@ -1,0 +1,13 @@
+<view class="page detail-page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view><view wx:if="{{loading}}" class="loading-block">正在整理状态证据...</view>
+  <block wx:else>
+    <view class="state-summary-card"><image src="{{hero.image}}" mode="aspectFit"/><view class="state-summary-copy"><view class="page-eyebrow">截至当前</view><view class="state-summary-title">{{hero.title}}</view><view class="page-subtitle">{{hero.subtitle}}</view><view class="tag-group"><view wx:for="{{hero.tags}}" wx:key="*this" class="tag tag-teal">{{item}}</view></view></view></view>
+    <view class="report-section"><view class="report-number">01</view><view class="report-main"><view class="report-label">观察证据</view><view class="report-text">{{hero.evidence}}</view></view></view>
+    <view class="report-section"><view class="report-number">02</view><view class="report-main"><view class="report-label">系统判断</view><view class="report-text">{{hero.judgment}}</view></view></view>
+    <view class="report-section action"><view class="report-number">03</view><view class="report-main"><view class="report-label">家长下一步</view><view class="report-text">{{hero.action}}</view></view></view>
+    <view wx:if="{{relationship}}" class="relationship-card"><view class="between"><view class="section-title">亲子关系状态</view><view class="pill">{{relationship.score || '-'}} 分</view></view><view class="report-text">{{relationship.communicationNote || relationship.status || '暂无补充记录'}}</view><view wx:if="{{relationship.parentAction}}" class="relationship-action">建议：{{relationship.parentAction}}</view></view>
+    <view class="section-head"><view class="section-title">最近依据</view><view class="section-link" bindtap="goGrowth">全部记录</view></view>
+    <view wx:if="{{evidence.length}}" class="evidence-list"><view wx:for="{{evidence}}" wx:key="id" class="evidence-item"><view class="evidence-date">{{item.dateText}}</view><view class="evidence-title">{{item.titleText}}</view><view class="evidence-content">{{item.contentText}}</view></view></view><view wx:else class="empty">还没有独立的状态证据，继续同步真实学习记录后再判断</view>
+    <button wx:if="{{hero.weakness}}" class="btn btn-primary bottom-action" bindtap="goWeakness">查看薄弱点与加强方案</button>
+  </block>
+</view>

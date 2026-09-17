@@ -8,7 +8,15 @@
     "pages/students/students",
     "pages/growth/growth",
     "pages/learning/learning",
-    "pages/settings/settings"
+    "pages/settings/settings",
+    "pages/child-state/child-state",
+    "pages/student-detail/student-detail",
+    "pages/weakness-detail/weakness-detail",
+    "pages/monthly-report/monthly-report",
+    "pages/wrong-book/wrong-book",
+    "pages/family-management/family-management",
+    "pages/learning-manager/learning-manager",
+    "pages/settings-detail/settings-detail"
   ],
   "window": {
     "navigationBarBackgroundColor": "#0f766e",

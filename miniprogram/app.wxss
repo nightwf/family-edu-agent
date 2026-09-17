@@ -471,3 +471,15 @@ button::after { border: none; }
 }
 
 .loading-block { padding: 60rpx; color: var(--muted); text-align: center; }
+
+.detail-page,
+.learning-page,
+.settings-home { box-sizing: border-box; }
+
+.timeline,
+.form-grid { display: block; }
+
+.detail-modal { overscroll-behavior: contain; }
+.tappable { cursor: pointer; }
+.form-note { margin-top: 8rpx; color: var(--muted); font-size: 22rpx; }
+.goals-item { margin-bottom: 24rpx; }

@@ -46,6 +46,13 @@ Page({
     });
   },
 
+  openDetail(event) {
+    const id = event.currentTarget.dataset.id;
+    if (!id) return;
+    wx.setStorageSync("familyEduSelectedChildId", id);
+    wx.navigateTo({ url: `/pages/student-detail/student-detail?childId=${id}` });
+  },
+
   openEdit(event) {
     const child = this.data.children.find((item) => item.id === event.currentTarget.dataset.id);
     if (!child) return;

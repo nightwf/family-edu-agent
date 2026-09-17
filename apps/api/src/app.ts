@@ -30,6 +30,7 @@ import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { registerV2Routes } from "./v2/routes.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
+import { loadMobileHomeInsights } from "./mobile-home.js";
 import {
   applyToFamilyByJoinCode,
   createFamilyForUser,
@@ -654,6 +655,7 @@ export async function buildApp() {
     const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
     const childRecords = activeChild ? records.filter((item) => item.childId === activeChild.id) : [];
     const childReports = activeChild ? reports.filter((item) => item.childId === activeChild.id) : [];
+    const insights = await loadMobileHomeInsights(auth.familyId, activeChild?.id || null);
     return {
       user,
       family,
@@ -662,6 +664,7 @@ export async function buildApp() {
       records: childRecords.slice(0, 8),
       reports: childReports.slice(0, 5),
       homework,
+      ...insights,
       stats: {
         records: childRecords.length,
         writing: childRecords.filter((item) => item.type === "writing").length,

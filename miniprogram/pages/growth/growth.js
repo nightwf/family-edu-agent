@@ -155,9 +155,8 @@ Page({
 
   openReport(event) {
     const id = event.currentTarget.dataset.id;
-    const item = this.data.reports.find((report) => report.id === id);
-    if (!item) return;
-    this.setData({ detail: item, detailType: "report" });
+    if (!id) return;
+    wx.navigateTo({ url: `/pages/monthly-report/monthly-report?id=${id}&childId=${this.data.childId}` });
   },
 
   closeDetail() {

@@ -49,6 +49,15 @@ function requirePage(relativePath, stubs, globals = {}) {
   return config;
 }
 
+function requireCommonJs(relativePath) {
+  const file = path.join(root, relativePath);
+  const module = new Module(file, null);
+  module.filename = file;
+  module.paths = Module._nodeModulePaths(path.dirname(file));
+  module._compile(fs.readFileSync(file, "utf8"), file);
+  return module.exports;
+}
+
 function makeContext(initial) {
   const state = { ...initial };
   return {
@@ -107,6 +116,37 @@ console.log("成长页分页合并逻辑");
     page: { limit: 20, offset: 0, total_records: 1, total_reports: 0 },
   });
   assert(context.data.records.length === 1 && context.data.records[0].id === "fresh", "首屏加载为覆盖语义，不残留旧数据");
+}
+
+console.log("\n首页每日场景与状态映射");
+{
+  const presentation = requireCommonJs("utils/presentation.js");
+  const sameA = presentation.dailyScene("child-1", new Date("2026-09-18T08:00:00+08:00"));
+  const sameB = presentation.dailyScene("child-1", new Date("2026-09-18T22:00:00+08:00"));
+  assert(sameA === sameB, "同一孩子同一天刷新时场景保持一致");
+  assert(presentation.SCENES.includes(sameA), "每日场景只从本地三套压缩背景选择");
+
+  const empty = presentation.deriveChildPresentation({ child: { id: "c1", name: "JOJO" } });
+  assert(empty.hasEvidence === false && empty.judgment.includes("不足"), "无数据时只显示证据不足，不伪造结论");
+
+  const review = presentation.deriveChildPresentation({
+    child: { id: "c1", name: "JOJO" },
+    childState: { summary: { evidence_7d: 3 } },
+    wrongQuestions: { items: [{ status: "needs_review", questionType: { name: "小数加减" } }] },
+    mastery: { items: [] },
+    homework: [],
+  });
+  assert(review.state === "review" && review.image.endsWith("child-review.png"), "待复测错题映射到待复测人物状态");
+  assert(review.weakness.name === "小数加减", "薄弱点名称来自真实题型数据");
+}
+
+console.log("\n家庭切换缓存隔离");
+{
+  const session = requireCommonJs("utils/session.js");
+  const removed = [];
+  session.clearFamilyScopedCache({ removeStorageSync: (key) => removed.push(key) });
+  assert(removed.includes("familyEduSelectedChildId"), "切换家庭清除上一个家庭的孩子选择");
+  assert(removed.includes("familyEduLearningModule"), "切换家庭清除上一个家庭的学习模块状态");
 }
 
 if (failures) {

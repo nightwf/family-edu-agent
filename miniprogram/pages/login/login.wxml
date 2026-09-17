@@ -4,9 +4,10 @@
       <view class="mark">禾<view class="leaf"></view></view>
       <view class="brand">
         <view class="brand-name">禾芽家庭教务</view>
-        <view class="brand-sub">孩子的成长，值得被看见</view>
+        <view class="brand-sub">我了解你，我来帮助你一起成长</view>
       </view>
     </view>
+    <image class="login-child" src="/assets/illustrations/child-progress.png" mode="aspectFit" />
   </view>
 
   <view class="sheet">
@@ -22,6 +23,7 @@
         <input class="field-input" password placeholder="请输入密码" placeholder-class="field-placeholder"
                value="{{password}}" data-field="password" bindinput="onEmailField" />
       </view>
+      <view class="agreement" bindtap="toggleAgreement"><view class="check {{agreed ? 'checked' : ''}}">{{agreed ? '✓' : ''}}</view><text>我已阅读并同意服务与隐私说明</text></view>
       <button class="submit-btn" loading="{{emailLoading}}" bindtap="submitEmailLogin">登录</button>
       <view class="link-center" bindtap="closeEmailLogin">返回微信登录</view>
 
@@ -32,10 +34,13 @@
     </block>
 
     <block wx:else>
+      <view class="welcome-title">欢迎回家</view>
+      <view class="welcome-sub">登录后查看孩子的成长状态</view>
       <button class="wechat-btn" loading="{{wechatLoading}}" bindtap="wechatLogin">
         <view class="wechat-mark">微</view>
         <text>微信登录</text>
       </button>
+      <view class="agreement" bindtap="toggleAgreement"><view class="check {{agreed ? 'checked' : ''}}">{{agreed ? '✓' : ''}}</view><text>我已阅读并同意服务与隐私说明</text></view>
 
       <view wx:if="{{serviceState === 'unstable'}}" class="alert">
         <view class="alert-detail">{{serviceMessage}}</view>

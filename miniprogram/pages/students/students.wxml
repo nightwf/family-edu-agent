@@ -13,9 +13,9 @@
   </view>
 
   <view wx:if="{{children.length}}" class="student-list">
-    <view wx:for="{{children}}" wx:key="id" class="student-card folder-card">
+    <view wx:for="{{children}}" wx:key="id" class="student-card folder-card" data-id="{{item.id}}" bindtap="openDetail">
       <view class="student-head">
-        <view class="student-avatar tone-{{item.colorIndex}}">{{item.initial}}</view>
+        <view class="student-avatar tone-{{item.colorIndex}}"><image src="/assets/illustrations/child-stable.png" mode="aspectFit" /></view>
         <view class="student-main">
           <view class="student-name-row">
             <view class="name">{{item.name}}</view>
@@ -41,6 +41,7 @@
         </view>
         <view class="profile-book">书</view>
       </view>
+      <view class="student-detail-link">查看孩子状态与完整档案 ›</view>
     </view>
   </view>
   <view wx:else class="empty">

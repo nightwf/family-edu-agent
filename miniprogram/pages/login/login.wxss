@@ -8,7 +8,7 @@
 /* 顶部品牌区，与导航栏同色，连成一条完整的色带 */
 .hero {
   position: relative;
-  height: 400rpx;
+  height: 470rpx;
   flex-shrink: 0;
   border-bottom-left-radius: 60rpx;
   border-bottom-right-radius: 60rpx;
@@ -24,6 +24,7 @@
   align-items: center;
   padding: 52rpx 60rpx 0;
 }
+.login-child{position:absolute;right:10rpx;bottom:-12rpx;width:270rpx;height:330rpx;filter:drop-shadow(0 14rpx 20rpx rgba(0,0,0,.12))}
 
 .mark {
   position: relative;
@@ -52,9 +53,9 @@
   transform: rotate(-24deg);
 }
 
-.brand { margin-left: 32rpx; min-width: 0; }
+.brand { position:relative;z-index:2;margin-left: 32rpx; min-width: 0; }
 .brand-name { color: #ffffff; font-size: 42rpx; font-weight: 700; }
-.brand-sub { margin-top: 12rpx; color: rgba(255, 255, 255, 0.72); font-size: 25rpx; }
+.brand-sub { width:360rpx;margin-top: 12rpx; color: rgba(255, 255, 255, 0.82); font-size: 25rpx;line-height:1.5 }
 
 /* 登录面板，向上压住色带边缘 */
 .sheet {
@@ -73,6 +74,8 @@
   font-size: 36rpx;
   font-weight: 700;
 }
+.welcome-title{font-size:38rpx;font-weight:900;color:var(--ink)}
+.welcome-sub{margin:6rpx 0 30rpx;color:var(--muted);font-size:24rpx}
 
 .wechat-btn {
   width: 100%;
@@ -133,6 +136,7 @@
   font-weight: 600;
   text-align: center;
 }
+.agreement{display:flex;align-items:center;justify-content:center;gap:10rpx;margin-top:24rpx;color:#7d898a;font-size:22rpx}.check{width:30rpx;height:30rpx;display:flex;align-items:center;justify-content:center;border:1rpx solid #b8c0bd;border-radius:8rpx;background:#fff;color:#fff;font-size:20rpx}.check.checked{border-color:var(--teal);background:var(--teal)}
 
 .field { margin-bottom: 32rpx; }
 .field-label { margin-bottom: 16rpx; color: #6d7c7e; font-size: 25rpx; font-weight: 600; }

@@ -10,7 +10,8 @@ Page({
     errorDetail: "",
     serviceState: "ok",
     serviceMessage: "",
-    wechatLoading: false
+    wechatLoading: false,
+    agreed: false
   },
 
   onLoad() {
@@ -41,6 +42,10 @@ Page({
 
   wechatLogin() {
     if (this.data.wechatLoading) return;
+    if (!this.data.agreed) {
+      wx.showToast({ title: "请先同意服务与隐私说明", icon: "none" });
+      return;
+    }
     this.setData({
       wechatLoading: true,
       error: "",
@@ -93,6 +98,10 @@ Page({
     this.setData({ emailLoginStep: true, error: "", errorDetail: "" });
   },
 
+  toggleAgreement() {
+    this.setData({ agreed: !this.data.agreed });
+  },
+
   closeEmailLogin() {
     this.setData({ emailLoginStep: false, error: "", errorDetail: "", email: "", password: "" });
   },
@@ -105,6 +114,10 @@ Page({
     if (this.data.emailLoading) return;
     const email = String(this.data.email || "").trim();
     const password = String(this.data.password || "");
+    if (!this.data.agreed) {
+      this.setData({ error: "请先同意服务与隐私说明", errorDetail: "" });
+      return;
+    }
     if (!email || !password) {
       this.setData({ error: "请填写邮箱和密码", errorDetail: "" });
       return;
