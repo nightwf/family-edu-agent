@@ -31,6 +31,7 @@ import { registerV2Routes } from "./v2/routes.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
 import { loadMobileHomeInsights } from "./mobile-home.js";
+import { buildGrowthTimeline } from "./mobile-growth.js";
 import {
   applyToFamilyByJoinCode,
   createFamilyForUser,
@@ -681,23 +682,50 @@ export async function buildApp() {
     const children = await prisma.child.findMany({ where: { familyId, status: "active" }, orderBy: { createdAt: "asc" } });
     const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
     if (!activeChild) return { children, active_child: null, records: [], reports: [], growth: [], page: { limit, offset, total_records: 0, total_reports: 0 } };
-    const [records, reports, growthRecords, totalRecords, totalReports] = await Promise.all([
+    const [records, reports, timelineRecords, timelineReports, evidenceRecords, attempts, wrongQuestions, masteries, stateSnapshots, totalRecords, totalReports] = await Promise.all([
       prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: limit, skip: offset }),
       prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: Math.min(10, limit), skip: offset }),
-      prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "asc" }, take: 80 }),
+      prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: 100 }),
+      prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: 20 }),
+      prisma.evidenceRecord.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { observedAt: "desc" }, take: 100 }),
+      prisma.questionAttempt.findMany({
+        where: { childId: activeChild.id, familyId },
+        include: { questionType: { select: { name: true, subject: true } }, question: { select: { stem: true } } },
+        orderBy: { attemptedAt: "desc" },
+        take: 100,
+      }),
+      prisma.wrongQuestionEntry.findMany({
+        where: { childId: activeChild.id, familyId },
+        include: { questionType: { select: { name: true } }, question: { select: { stem: true } } },
+        orderBy: { lastWrongAt: "desc" },
+        take: 100,
+      }),
+      prisma.studentQuestionTypeMastery.findMany({
+        where: { childId: activeChild.id, familyId },
+        include: { questionType: { select: { name: true, subject: true } } },
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+      }),
+      prisma.childStateSnapshot.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { asOf: "desc" }, take: 20 }),
       prisma.record.count({ where: { childId: activeChild.id, familyId } }),
       prisma.report.count({ where: { childId: activeChild.id, familyId } }),
     ]);
+    const timeline = buildGrowthTimeline({
+      records: timelineRecords,
+      reports: timelineReports,
+      evidenceRecords,
+      attempts,
+      wrongQuestions,
+      masteries,
+      stateSnapshots,
+    });
     return {
       children,
       active_child: activeChild,
       records,
       reports,
-      growth: growthRecords.map((record) => ({
-        date: record.date.toISOString().slice(0, 10),
-        type: record.type,
-        score: record.score,
-      })),
+      growth: timeline.events,
+      growth_summary: timeline.summary,
       page: { limit, offset, total_records: totalRecords, total_reports: totalReports },
     };
   });

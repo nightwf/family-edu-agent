@@ -9,6 +9,16 @@ const TYPE_LABELS = {
 };
 
 const PAGE_SIZE = 20;
+const GROWTH_ICONS = {
+  record: "记",
+  evidence: "证",
+  attempt: "练",
+  wrong_question: "错",
+  mastery: "掌",
+  milestone: "成",
+  report: "报",
+  state: "态"
+};
 
 Page({
   data: {
@@ -23,6 +33,12 @@ Page({
     records: [],
     reports: [],
     growth: [],
+    growthSummary: {
+      evidence_count: 0,
+      open_wrong: 0,
+      mastered_types: 0,
+      last_activity_at: null
+    },
     totalRecords: 0,
     totalReports: 0,
     recordsHasMore: false,
@@ -91,12 +107,21 @@ Page({
       totalReports,
       recordsHasMore: records.length < totalRecords,
       reportsHasMore: reports.length < totalReports,
-      growth: (data.growth || []).map((item, index) => ({
+      growth: (data.growth || []).map((item) => ({
         ...item,
         dateText: format.formatDate(item.date),
-        scorePercent: Math.min(100, Number(item.score || 0)),
-        row: index + 1
+        icon: GROWTH_ICONS[item.category] || "记",
+        hasScore: item.score !== undefined && item.score !== null,
+        scoreText: item.score !== undefined && item.score !== null ? Math.round(Number(item.score) * 10) / 10 : "",
+        scoreLabel: item.category === "mastery" || item.category === "milestone" ? "掌握分" : "得分"
       })),
+      growthSummary: {
+        evidence_count: Number(data.growth_summary?.evidence_count || 0),
+        open_wrong: Number(data.growth_summary?.open_wrong || 0),
+        mastered_types: Number(data.growth_summary?.mastered_types || 0),
+        last_activity_at: data.growth_summary?.last_activity_at || null,
+        lastActivityText: data.growth_summary?.last_activity_at ? format.formatDate(data.growth_summary.last_activity_at) : "暂无"
+      },
       loading: false
     });
   },
@@ -116,7 +141,11 @@ Page({
   async loadData() {
     const { childId } = this.data;
     if (!childId) {
-      this.setData({ records: [], reports: [], growth: [], totalRecords: 0, totalReports: 0, loading: false });
+      this.setData({
+        records: [], reports: [], growth: [],
+        growthSummary: { evidence_count: 0, open_wrong: 0, mastered_types: 0, last_activity_at: null, lastActivityText: "暂无" },
+        totalRecords: 0, totalReports: 0, loading: false
+      });
       return;
     }
     this.setData({ loading: true, error: "" });

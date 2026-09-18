@@ -112,10 +112,23 @@ console.log("成长页分页合并逻辑");
   growth.setGrowthData.call(context, {
     records: [record("fresh")],
     reports: [],
-    growth: [],
+    growth: [{
+      id: "record:fresh",
+      date: "2026-09-01",
+      category: "record",
+      category_label: "阅读",
+      title: "阅读记录",
+      summary: "能够完成复述",
+      score: null,
+      status_label: "已记录",
+      tone: "neutral",
+    }],
+    growth_summary: { evidence_count: 1, open_wrong: 0, mastered_types: 0, last_activity_at: "2026-09-01" },
     page: { limit: 20, offset: 0, total_records: 1, total_reports: 0 },
   });
   assert(context.data.records.length === 1 && context.data.records[0].id === "fresh", "首屏加载为覆盖语义，不残留旧数据");
+  assert(context.data.growth.length === 1 && context.data.growth[0].hasScore === false, "无评分记录仍进入成长轨迹");
+  assert(context.data.growthSummary.evidence_count === 1, "成长轨迹统计使用服务端真实汇总");
 }
 
 console.log("\n首页每日场景与状态映射");

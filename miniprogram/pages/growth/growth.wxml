@@ -72,23 +72,53 @@
   </block>
 
   <block wx:if="{{tab === 'growth'}}">
-    <view wx:if="{{growth.length}}" class="trajectory-panel folder-card">
+    <view class="trajectory-overview folder-card">
       <view class="trajectory-intro">
-        <view class="trajectory-title">能力变化</view>
-        <view class="muted">按记录时间由新到旧排列</view>
-      </view>
-      <view wx:for="{{growth}}" wx:key="index" class="growth-row">
-        <view class="growth-info">
-          <view class="growth-name">{{item.type || '成长记录'}}</view>
-          <view class="growth-date">{{item.dateText}}</view>
+        <view>
+          <view class="trajectory-title">成长轨迹</view>
+          <view class="muted">由学习记录、作答、错题和掌握度自动汇总</view>
         </view>
-        <view class="growth-meter">
-          <view class="progress"><view class="progress-fill" style="width: {{item.scorePercent}}%;"></view></view>
-          <view class="growth-score">{{item.score !== undefined && item.score !== null ? item.score : '-'}}</view>
+        <view class="trajectory-update">更新至 {{growthSummary.lastActivityText}}</view>
+      </view>
+      <view class="trajectory-stats">
+        <view class="trajectory-stat">
+          <view class="trajectory-stat-value">{{growthSummary.evidence_count}}</view>
+          <view class="trajectory-stat-label">学习证据</view>
+        </view>
+        <view class="trajectory-stat">
+          <view class="trajectory-stat-value attention-value">{{growthSummary.open_wrong}}</view>
+          <view class="trajectory-stat-label">待处理错题</view>
+        </view>
+        <view class="trajectory-stat">
+          <view class="trajectory-stat-value positive-value">{{growthSummary.mastered_types}}</view>
+          <view class="trajectory-stat-label">已掌握题型</view>
         </view>
       </view>
     </view>
-    <view wx:else class="empty">积累两次以上记录后，可以在这里查看变化</view>
+
+    <view wx:if="{{growth.length}}" class="growth-event-list">
+      <view wx:for="{{growth}}" wx:key="id" class="growth-event">
+        <view class="growth-event-rail">
+          <view class="growth-event-icon tone-{{item.tone}}">{{item.icon}}</view>
+        </view>
+        <view class="growth-event-card folder-card">
+          <view class="growth-event-meta">
+            <view class="growth-event-category">{{item.category_label}}</view>
+            <view class="growth-date">{{item.dateText}}</view>
+          </view>
+          <view class="growth-event-title">{{item.title}}</view>
+          <view wx:if="{{item.summary}}" class="growth-event-summary">{{item.summary}}</view>
+          <view class="growth-event-footer">
+            <view class="event-status tone-text-{{item.tone}}">{{item.status_label}}</view>
+            <view wx:if="{{item.hasScore}}" class="event-score">{{item.scoreLabel}} {{item.scoreText}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty growth-empty">
+      <view class="empty-title">还没有可展示的成长事件</view>
+      <view class="empty-copy">WorkBuddy 保存学习记录、错题或作答结果后，会自动形成时间轴，不需要额外填写总分。</view>
+    </view>
   </block>
 
   <view wx:if="{{detail}}" class="modal-mask" catchtap="closeDetail">
