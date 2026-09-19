@@ -52,13 +52,13 @@ export default function GoalPlan({ token, children, request }: Props) {
         <button onClick={() => {
           const data = request(`/api/v2/children/${selectedChildId}/goals`, {}, token);
           data.then((result) => setGoals(result.items || []));
-        }} className="ml-auto inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-sm">
+        }} className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line px-3 py-2 text-sm">
           <RefreshCw size={15} />刷新
         </button>
       </div>
 
       {loading ? (
-        <p className="text-stone-500">加载中...</p>
+        <p className="text-muted">加载中...</p>
       ) : goals.length === 0 ? (
         <Panel className="border-dashed">
           暂无阶段目标。阶段目标由 WorkBuddy 读取孩子状态后生成，家长在这里确认。
@@ -69,8 +69,8 @@ export default function GoalPlan({ token, children, request }: Props) {
             <Panel key={goal.id} title={goal.title} actions={<Badge tone={goal.status === "PROPOSED" ? "warn" : "teal"}>{goal.status}</Badge>}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="mt-1 text-sm text-stone-600">{goal.objective}</p>
-                  <div className="mt-2 text-xs text-stone-500">{goal.startDate?.slice(0, 10)} 至 {goal.endDate?.slice(0, 10)}</div>
+                  <p className="mt-1 text-sm text-ink-soft">{goal.objective}</p>
+                  <div className="mt-2 text-xs text-muted">{goal.startDate?.slice(0, 10)} 至 {goal.endDate?.slice(0, 10)}</div>
                 </div>
               </div>
               {goal.status === "PROPOSED" && (
@@ -78,7 +78,7 @@ export default function GoalPlan({ token, children, request }: Props) {
                   <button onClick={() => confirmGoal(goal.id, "confirm")} className="inline-flex items-center gap-1 rounded-lg bg-teal px-3 py-2 text-sm text-white">
                     <Check size={15} />确认目标
                   </button>
-                  <button onClick={() => confirmGoal(goal.id, "reject")} className="rounded-lg border border-stone-200 px-3 py-2 text-sm">
+                  <button onClick={() => confirmGoal(goal.id, "reject")} className="rounded-lg border border-line px-3 py-2 text-sm">
                     拒绝
                   </button>
                 </div>

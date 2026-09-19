@@ -51,7 +51,7 @@ export default function ChildStateDetail({ token, children, request }: Props) {
       </div>
 
       <Panel title="学习状态趋势" description="正确率、独立完成率、任务完成度">
-        <div className="grid h-44 place-items-center rounded-xl bg-gradient-to-br from-teal/10 to-gold/20 text-sm text-stone-500">
+        <div className="grid h-44 place-items-center rounded-xl bg-gradient-to-br from-teal/10 to-gold/20 text-sm text-muted">
           趋势图区域：数据接入后展示
         </div>
       </Panel>
@@ -59,15 +59,15 @@ export default function ChildStateDetail({ token, children, request }: Props) {
       <Panel title="证据明细" description="按时间倒序查看结构化证据">
         <div className="space-y-3">
           {evidence.length === 0 ? (
-            <p className="text-sm text-stone-500">暂无结构化证据。</p>
+            <p className="text-sm text-muted">暂无结构化证据。</p>
           ) : (
             evidence.map((item) => (
-              <div key={item.id} className="rounded-xl border border-stone-100 bg-white p-3">
+              <div key={item.id} className="rounded-xl border border-line-soft bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-bold">{item.type}</div>
-                    <p className="mt-1 text-sm text-stone-600">{item.observedBehavior || item.taskDescription || "-"}</p>
-                    {item.effectiveStrategy && <p className="mt-1 text-xs text-stone-500">有效策略：{item.effectiveStrategy}</p>}
+                    <p className="mt-1 text-sm text-ink-soft">{item.observedBehavior || item.taskDescription || "-"}</p>
+                    {item.effectiveStrategy && <p className="mt-1 text-xs text-muted">有效策略：{item.effectiveStrategy}</p>}
                   </div>
                   <Badge tone={item.reviewStatus === "CONFIRMED" ? "teal" : item.reviewStatus === "CORRECTED" ? "warn" : "muted"}>
                     {item.reviewStatus}

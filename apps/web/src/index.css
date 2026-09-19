@@ -5,9 +5,29 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: #f6f0dc;
-  color: #26343b;
-  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #f7f1df;
+  color: #203238;
+  font-family: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+/* 系统页面统一底色，和手机端保持同一套米色到米白的过渡 */
+.app-bg {
+  background: linear-gradient(180deg, #f8f2df 0%, #fffaf0 60%, #f7f1df 100%);
+}
+
+/* 与小程序一致的卡片：浅边框、圆角、轻阴影 */
+.card {
+  border: 1px solid #e8ddc5;
+  border-radius: 18px;
+  background: #fffdf7;
+  box-shadow: 0 12px 32px rgba(38, 52, 59, 0.06);
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
 }
 
 @media print {

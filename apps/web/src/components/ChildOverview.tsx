@@ -103,13 +103,13 @@ export default function ChildOverview({ token, children, home, request }: Props)
             <div>
               <div className="text-xs font-bold text-amber-700">亲子关系状态</div>
               <div className="mt-2 text-xl font-black">{relationship?.status || "暂无记录"}</div>
-              <p className="mt-2 text-sm leading-6 text-stone-600">{relationship?.communicationNote || "还没有亲子关系记录。"}</p>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">{relationship?.communicationNote || "还没有亲子关系记录。"}</p>
             </div>
             <Badge tone="coral">评分 {relationship?.score ?? "-"}</Badge>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <div><div className="text-xs text-stone-500">本周冲突</div><div className="text-2xl font-black">{relationship?.conflictCount ?? 0}</div></div>
-            <div><div className="text-xs text-stone-500">家长行动</div><div className="text-2xl font-black">{relationship?.parentAction ? 1 : 0}</div></div>
+            <div><div className="text-xs text-muted">本周冲突</div><div className="text-2xl font-black">{relationship?.conflictCount ?? 0}</div></div>
+            <div><div className="text-xs text-muted">家长行动</div><div className="text-2xl font-black">{relationship?.parentAction ? 1 : 0}</div></div>
           </div>
         </section>
       </div>
@@ -121,14 +121,14 @@ export default function ChildOverview({ token, children, home, request }: Props)
           actions={<button onClick={() => setLoading(true)} className="inline-flex items-center gap-1 text-sm text-teal"><RefreshCw size={15} />刷新</button>}
         >
           {homework.length === 0 ? (
-            <p className="text-sm text-stone-500">本周暂无作业或计划任务。</p>
+            <p className="text-sm text-muted">本周暂无作业或计划任务。</p>
           ) : (
             <div className="space-y-3">
               {homework.slice(0, 4).map((item: any) => (
-                <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 bg-white p-3">
+                <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-line-soft bg-white p-3">
                   <div className="min-w-0">
                     <div className="font-bold">{item.title}</div>
-                    <div className="mt-1 text-xs text-stone-500">{item.subject || "学习任务"} · {item.dueDate?.slice(0, 10) || "未设置截止时间"}</div>
+                    <div className="mt-1 text-xs text-muted">{item.subject || "学习任务"} · {item.dueDate?.slice(0, 10) || "未设置截止时间"}</div>
                   </div>
                   <Badge tone={item.status === "done" ? "teal" : "warn"}>{item.status === "done" ? "已完成" : "待完成"}</Badge>
                 </div>
@@ -143,17 +143,17 @@ export default function ChildOverview({ token, children, home, request }: Props)
           actions={<Badge tone={pendingEvidence.length ? "coral" : "muted"}>{pendingEvidence.length} 条</Badge>}
         >
           {pendingEvidence.length === 0 ? (
-            <p className="text-sm text-stone-500">暂时没有需要确认的推断。</p>
+            <p className="text-sm text-muted">暂时没有需要确认的推断。</p>
           ) : (
             <div className="space-y-3">
               {pendingEvidence.map((item) => (
                 <div key={item.id} className="rounded-xl border border-amber-100 bg-white p-3">
                   <div className="font-bold">{item.type}</div>
-                  <p className="mt-1 text-sm text-stone-600">{item.observedBehavior || item.taskDescription || "-"}</p>
-                  {item.effectiveStrategy && <p className="mt-1 text-xs text-stone-500">有效策略：{item.effectiveStrategy}</p>}
+                  <p className="mt-1 text-sm text-ink-soft">{item.observedBehavior || item.taskDescription || "-"}</p>
+                  {item.effectiveStrategy && <p className="mt-1 text-xs text-muted">有效策略：{item.effectiveStrategy}</p>}
                   <div className="mt-2 flex gap-2">
                     <button onClick={() => reviewEvidence(item.id, "confirm")} className="inline-flex items-center gap-1 rounded-lg bg-teal px-3 py-1.5 text-xs font-bold text-white"><Check size={14} />确认</button>
-                    <button onClick={() => reviewEvidence(item.id, "correct")} className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-bold"><X size={14} />纠正</button>
+                    <button onClick={() => reviewEvidence(item.id, "correct")} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold"><X size={14} />纠正</button>
                   </div>
                 </div>
               ))}
@@ -164,18 +164,18 @@ export default function ChildOverview({ token, children, home, request }: Props)
 
       <Panel title="最近动态" description="最近确认的学习证据，按时间倒序">
         {loading ? (
-          <p className="text-sm text-stone-500">加载中...</p>
+          <p className="text-sm text-muted">加载中...</p>
         ) : confirmedEvidence.length === 0 ? (
-          <p className="text-sm text-stone-500">暂无已确认的动态。</p>
+          <p className="text-sm text-muted">暂无已确认的动态。</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {confirmedEvidence.slice(0, 6).map((item) => (
-              <div key={item.id} className="rounded-xl border border-stone-100 bg-white p-3">
+              <div key={item.id} className="rounded-xl border border-line-soft bg-white p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-bold">{item.type}</div>
                   <Badge tone="teal">已确认</Badge>
                 </div>
-                <p className="mt-1 text-sm text-stone-600">{item.observedBehavior || item.taskDescription || "-"}</p>
+                <p className="mt-1 text-sm text-ink-soft">{item.observedBehavior || item.taskDescription || "-"}</p>
               </div>
             ))}
           </div>

@@ -24,6 +24,7 @@ import ChildOverview from "./components/ChildOverview";
 import GoalPlan from "./components/GoalPlan";
 import ChildStateDetail from "./components/ChildStateDetail";
 import ParentRelation from "./components/ParentRelation";
+import { Landing } from "./components/Landing";
 import {
   Badge,
   ChildTabs,
@@ -162,28 +163,28 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
   }, [nonce]);
 
   return (
-    <div className="w-full max-w-md rounded-lg border border-stone-200 bg-panel p-7 shadow-sm">
+    <div className="w-full max-w-md rounded-lg border border-line bg-panel p-7 shadow-sm">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold text-xl font-black text-teal">禾</div>
         <div>
           <div className="text-lg font-bold">禾芽家庭教务</div>
-          <div className="text-xs text-stone-500">孩子的成长，值得被看见</div>
+          <div className="text-xs text-muted">孩子的成长，值得被看见</div>
         </div>
       </div>
       <div className="mt-6 text-base font-semibold">微信扫码登录</div>
-      <p className="mt-2 text-sm leading-6 text-stone-500">
+      <p className="mt-2 text-sm leading-6 text-muted">
         用微信扫描下方小程序码，在手机上选择家庭并确认登录。
       </p>
-      <div className="mt-5 flex h-[248px] items-center justify-center rounded-lg border border-stone-200 bg-white">
+      <div className="mt-5 flex h-[248px] items-center justify-center rounded-lg border border-line bg-white">
         {status === "pending" && qrUrl ? (
           <img src={qrUrl} alt="微信扫码登录" className="h-[228px] w-[228px]" />
         ) : status === "loading" ? (
-          <span className="text-sm text-stone-500">正在生成小程序码…</span>
+          <span className="text-sm text-muted">正在生成小程序码…</span>
         ) : status === "approved" ? (
           <span className="text-sm text-teal">已确认，正在登录…</span>
         ) : status === "expired" ? (
           <div className="text-center">
-            <p className="text-sm text-stone-500">小程序码已过期</p>
+            <p className="text-sm text-muted">小程序码已过期</p>
             <button type="button" onClick={() => setNonce((value) => value + 1)} className="mt-3 rounded-lg bg-teal px-4 py-2 text-sm text-white">
               重新生成
             </button>
@@ -192,21 +193,21 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
           <span className="px-6 text-center text-sm text-accent">{error || "小程序码加载失败"}</span>
         )}
       </div>
-      <div className="mt-4 text-center text-xs text-stone-500">家庭数据仅当前家庭的管理者可见</div>
+      <div className="mt-4 text-center text-xs text-muted">家庭数据仅当前家庭的管理者可见</div>
       {emailOpen ? (
-        <form onSubmit={submitEmailLogin} className="mt-4 space-y-3 border-t border-stone-100 pt-4">
-          <input name="email" type="text" required className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="邮箱" />
-          <input name="password" type="password" required className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm" placeholder="密码" />
+        <form onSubmit={submitEmailLogin} className="mt-4 space-y-3 border-t border-line-soft pt-4">
+          <input name="email" type="text" required className="w-full rounded-lg border border-line px-3 py-2 text-sm" placeholder="邮箱" />
+          <input name="password" type="password" required className="w-full rounded-lg border border-line px-3 py-2 text-sm" placeholder="密码" />
           <button type="submit" disabled={emailLoading} className="w-full rounded-lg border border-teal px-4 py-2 text-sm text-teal disabled:opacity-60">
             {emailLoading ? "登录中…" : "登录"}
           </button>
           {emailError && <p className="text-sm text-accent">{emailError}</p>}
-          <button type="button" onClick={() => { setEmailOpen(false); setEmailError(""); }} className="w-full text-center text-xs text-stone-500">
+          <button type="button" onClick={() => { setEmailOpen(false); setEmailError(""); }} className="w-full text-center text-xs text-muted">
             返回微信扫码
           </button>
         </form>
       ) : (
-        <button type="button" onClick={() => setEmailOpen(true)} className="mt-4 w-full text-center text-xs text-stone-500 underline">
+        <button type="button" onClick={() => setEmailOpen(true)} className="mt-4 w-full text-center text-xs text-muted underline">
           邮箱登录
         </button>
       )}
@@ -216,6 +217,7 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("familyEduToken") || "");
+  const [entryView, setEntryView] = useState<"landing" | "login">("landing");
   const [page, setPage] = useState<PageId>("home");
   const [home, setHome] = useState<HomeData | null>(null);
   const [childDialog, setChildDialog] = useState(false);
@@ -280,6 +282,7 @@ function App() {
     await request("/api/auth/logout", { method: "POST" }, token).catch(() => {});
     localStorage.removeItem("familyEduToken");
     setToken("");
+    setEntryView("landing");
   }
 
   async function copyAgentPrompt(prompt?: string, source = "workbuddy") {
@@ -483,15 +486,21 @@ function App() {
   }
 
   if (!token) {
+    if (entryView === "landing") {
+      return <Landing onLogin={() => setEntryView("login")} />;
+    }
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center p-4">
+      <div className="app-bg flex min-h-screen flex-col items-center justify-center gap-5 p-4">
         <WechatQrLogin onToken={saveToken} />
+        <button type="button" onClick={() => setEntryView("landing")} className="text-xs text-muted underline">
+          返回首页
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-cream">
+    <div className="app-bg flex min-h-screen">
       <Sidebar page={page} onNavigate={setPage} onLogout={logout} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
@@ -539,7 +548,7 @@ function App() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
                   <thead>
-                    <tr className="text-left text-stone-500">
+                    <tr className="text-left text-muted">
                       <th className="px-2 py-2">孩子</th>
                       <th className="px-2 py-2">年龄 / 年级</th>
                       <th className="px-2 py-2">学科</th>
@@ -549,7 +558,7 @@ function App() {
                   </thead>
                   <tbody>
                     {home.children.map((child) => (
-                      <tr key={child.id} className="border-t border-stone-200">
+                      <tr key={child.id} className="border-t border-line">
                         <td className="px-2 py-3 font-semibold">{child.name}</td>
                         <td className="px-2 py-3">{child.gender === "female" ? "女生" : "男生"} · {child.age} 岁 / {child.grade}</td>
                         <td className="px-2 py-3">{child.subjects.join("、")}</td>
@@ -588,10 +597,10 @@ function App() {
             >
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[680px] text-sm">
-                  <thead><tr className="text-left text-stone-500"><th className="px-2 py-2">教材</th><th className="px-2 py-2">孩子</th><th className="px-2 py-2">状态</th><th className="px-2 py-2">操作</th></tr></thead>
+                  <thead><tr className="text-left text-muted"><th className="px-2 py-2">教材</th><th className="px-2 py-2">孩子</th><th className="px-2 py-2">状态</th><th className="px-2 py-2">操作</th></tr></thead>
                   <tbody>
                     {home.textbooks.map((item) => (
-                      <tr key={item.id} className="border-t border-stone-200">
+                      <tr key={item.id} className="border-t border-line">
                         <td className="px-2 py-3 font-semibold">{item.title}</td>
                         <td className="px-2 py-3">{childName(home.children, item.childId)}</td>
                         <td className="px-2 py-3">{item.status === "ready" ? "已就绪" : "识别中"}</td>
@@ -605,11 +614,11 @@ function App() {
           )}
 
           {page === "homework" && home && (
-            <Panel title="家庭作业" description="查看 WorkBuddy 同步的作业和完成状态" actions={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>}>
+            <Panel title="家庭作业" description="查看 WorkBuddy 同步的作业和完成状态" actions={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>}>
               <div className="space-y-3">
                 {home.homework.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-stone-100 bg-white p-3">
-                    <div><div className="font-semibold">{item.title}</div><div className="text-sm text-stone-500">{childName(home.children, item.childId)} · {item.dueDate || "-"}</div></div>
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-line-soft bg-white p-3">
+                    <div><div className="font-semibold">{item.title}</div><div className="text-sm text-muted">{childName(home.children, item.childId)} · {item.dueDate || "-"}</div></div>
                     <div className="flex items-center gap-2">
                       <span className={`rounded-full px-3 py-1 text-xs ${item.status === "done" ? "bg-teal/10 text-teal" : "bg-amber-100 text-amber-700"}`}>{item.status === "done" ? "已完成" : "待完成"}</span>
                       {item.status !== "done" && <button onClick={() => completeHomework(item.id)} className="text-teal">完成</button>}
@@ -621,12 +630,12 @@ function App() {
           )}
 
           {page === "knowledge" && home && (
-            <Panel title="知识库" description="家庭积累的结构化知识和来源" actions={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-stone-200 px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>}>
+            <Panel title="知识库" description="家庭积累的结构化知识和来源" actions={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm"><RefreshCw size={16} />刷新</button>}>
               <div className="space-y-4">
                 {home.knowledge.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-stone-100 bg-white p-3">
+                  <div key={item.id} className="rounded-xl border border-line-soft bg-white p-3">
                     <div className="flex items-center justify-between"><div className="font-semibold">{item.title}</div><span className="text-xs text-teal">{childName(home.children, item.childId)}</span></div>
-                    <p className="mt-2 text-sm text-stone-600">{item.content}</p>
+                    <p className="mt-2 text-sm text-ink-soft">{item.content}</p>
                   </div>
                 ))}
               </div>
@@ -636,30 +645,30 @@ function App() {
           {page === "settings" && (
             <Panel title="账号设置" description="管理家庭、连接和数据边界">
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-stone-500">登录邮箱</span><span>{settings?.user?.email || "-"}</span></div>
-                <div className="flex justify-between"><span className="text-stone-500">家庭编号</span><span>{settings?.family?.id || "-"}</span></div>
-                <div className="flex justify-between"><span className="text-stone-500">家庭角色</span><span>{settings?.member?.role === "owner" ? "创建者" : "管理者"}</span></div>
-                <div className="flex justify-between"><span className="text-stone-500">孩子数量</span><span>{settings?.child_count || 0} 个</span></div>
+                <div className="flex justify-between"><span className="text-muted">登录邮箱</span><span>{settings?.user?.email || "-"}</span></div>
+                <div className="flex justify-between"><span className="text-muted">家庭编号</span><span>{settings?.family?.id || "-"}</span></div>
+                <div className="flex justify-between"><span className="text-muted">家庭角色</span><span>{settings?.member?.role === "owner" ? "创建者" : "管理者"}</span></div>
+                <div className="flex justify-between"><span className="text-muted">孩子数量</span><span>{settings?.child_count || 0} 个</span></div>
               </div>
-              <div className="mt-6 rounded-lg border border-stone-200 bg-white p-4">
+              <div className="mt-6 rounded-lg border border-line bg-white p-4">
                 <h3 className="font-semibold">家庭边界</h3>
                 <form onSubmit={saveFamilyPolicy} className="mt-4 space-y-3">
-                  <input name="weekly_time_budget" type="number" defaultValue={familyPolicy.weeklyTimeBudget ?? ""} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="每周学习时间预算（分钟）" />
-                  <input name="priority_subjects" defaultValue={(familyPolicy.prioritySubjects || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="优先学科，多个用顿号分隔" />
-                  <input name="pressure_boundary" defaultValue={familyPolicy.pressureBoundary || ""} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="压力边界，例如：不通过催促完成学习" />
-                  <input name="parent_goals" defaultValue={(familyPolicy.parentGoals || []).join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
+                  <input name="weekly_time_budget" type="number" defaultValue={familyPolicy.weeklyTimeBudget ?? ""} className="w-full rounded-lg border border-line px-3 py-2" placeholder="每周学习时间预算（分钟）" />
+                  <input name="priority_subjects" defaultValue={(familyPolicy.prioritySubjects || []).join("、")} className="w-full rounded-lg border border-line px-3 py-2" placeholder="优先学科，多个用顿号分隔" />
+                  <input name="pressure_boundary" defaultValue={familyPolicy.pressureBoundary || ""} className="w-full rounded-lg border border-line px-3 py-2" placeholder="压力边界，例如：不通过催促完成学习" />
+                  <input name="parent_goals" defaultValue={(familyPolicy.parentGoals || []).join("、")} className="w-full rounded-lg border border-line px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
                   <button className="rounded-lg bg-teal px-4 py-2 text-white">保存家庭边界</button>
                 </form>
               </div>
               {memberships.memberships?.length > 1 && (
-                <div className="mt-5 rounded-lg border border-stone-200 bg-white p-4">
+                <div className="mt-5 rounded-lg border border-line bg-white p-4">
                   <h3 className="font-semibold">我的家庭</h3>
                   <div className="mt-3 space-y-2">
                     {memberships.memberships.map((item: any) => (
-                      <div key={item.family.id} className="flex items-center justify-between gap-3 rounded-lg bg-stone-50 p-3">
+                      <div key={item.family.id} className="flex items-center justify-between gap-3 rounded-lg bg-cream/60 p-3">
                         <div>
                           <div className="font-medium">{item.family.name}</div>
-                          <div className="text-xs text-stone-500">{item.role === "owner" ? "创建者" : "管理者"}</div>
+                          <div className="text-xs text-muted">{item.role === "owner" ? "创建者" : "管理者"}</div>
                         </div>
                         {memberships.current_family_id === item.family.id ? (
                           <span className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">当前家庭</span>
@@ -671,50 +680,50 @@ function App() {
                   </div>
                 </div>
               )}
-              <div className="mt-6 rounded-lg border border-stone-200 bg-white p-4">
+              <div className="mt-6 rounded-lg border border-line bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="font-semibold">家庭管理者</h3>
-                    <p className="mt-1 text-sm text-stone-500">多个账号可以共同查看和管理同一个家庭数据。</p>
+                    <p className="mt-1 text-sm text-muted">多个账号可以共同查看和管理同一个家庭数据。</p>
                   </div>
                   <span className="rounded-full bg-teal/10 px-3 py-1 text-xs text-teal">{settings?.members?.length || 0} 人</span>
                 </div>
-                <div className="mt-4 divide-y divide-stone-100">
+                <div className="mt-4 divide-y divide-line-soft">
                   {(settings?.members || []).map((member) => (
                     <div key={member.id} className="flex items-center justify-between gap-4 py-3">
                       <div className="min-w-0">
                         <div className="truncate font-medium">{member.user?.wechatNickname || member.user?.email || "未命名账号"}</div>
-                        <div className="mt-1 text-xs text-stone-500">{member.role === "owner" ? "创建者" : "管理者"} · {member.joinedAt ? member.joinedAt.slice(0, 10) : "待同步"}</div>
+                        <div className="mt-1 text-xs text-muted">{member.role === "owner" ? "创建者" : "管理者"} · {member.joinedAt ? member.joinedAt.slice(0, 10) : "待同步"}</div>
                       </div>
                       {settings?.member?.role === "owner" && member.role !== "owner" ? (
                         <button onClick={() => removeFamilyMember(member)} className="shrink-0 rounded-lg border border-accent px-3 py-1 text-sm text-accent">移除</button>
                       ) : (
-                        <span className="shrink-0 rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-500">{member.role === "owner" ? "创建者" : "管理者"}</span>
+                        <span className="shrink-0 rounded-full bg-line-soft px-3 py-1 text-xs text-muted">{member.role === "owner" ? "创建者" : "管理者"}</span>
                       )}
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 border-t border-stone-100 pt-4">
-                  <div className="text-sm font-semibold text-stone-600">家庭编码</div>
+                <div className="mt-4 border-t border-line-soft pt-4">
+                  <div className="text-sm font-semibold text-ink-soft">家庭编码</div>
                   <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <code className="rounded-lg bg-stone-50 px-4 py-2 text-xl font-bold tracking-[0.35em] text-teal">{settings?.join_code || "生成中"}</code>
-                    <button type="button" onClick={() => navigator.clipboard?.writeText(settings?.join_code || "")} className="rounded-lg border border-stone-200 px-3 py-1 text-sm">复制</button>
+                    <code className="rounded-lg bg-cream/60 px-4 py-2 text-xl font-bold tracking-[0.35em] text-teal">{settings?.join_code || "生成中"}</code>
+                    <button type="button" onClick={() => navigator.clipboard?.writeText(settings?.join_code || "")} className="rounded-lg border border-line px-3 py-1 text-sm">复制</button>
                   </div>
-                  <p className="mt-2 text-xs leading-6 text-stone-500">
+                  <p className="mt-2 text-xs leading-6 text-muted">
                     把 6 位编码发给要共同管理这个家庭的家长。对方在禾芽输入编码提交申请后，需要你在这里审核通过。
                   </p>
                 </div>
-                <div className="mt-4 border-t border-stone-100 pt-4">
-                  <div className="text-sm font-semibold text-stone-600">待审核的加入申请</div>
+                <div className="mt-4 border-t border-line-soft pt-4">
+                  <div className="text-sm font-semibold text-ink-soft">待审核的加入申请</div>
                   {(settings?.join_requests || []).length === 0 ? (
-                    <p className="mt-2 text-sm text-stone-500">暂时没有新的申请。</p>
+                    <p className="mt-2 text-sm text-muted">暂时没有新的申请。</p>
                   ) : (
                     <div className="mt-3 space-y-2">
                       {(settings?.join_requests || []).map((item: any) => (
-                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-cream/60 p-3 text-sm">
                           <div>
                             <div className="font-semibold">{item.user?.wechatNickname || "微信用户"}</div>
-                            <div className="mt-1 text-xs text-stone-500">{item.created_at?.slice(0, 16).replace("T", " ")} 提交</div>
+                            <div className="mt-1 text-xs text-muted">{item.created_at?.slice(0, 16).replace("T", " ")} 提交</div>
                           </div>
                           {settings?.member?.role === "owner" ? (
                             <div className="flex gap-2">
@@ -722,40 +731,40 @@ function App() {
                               <button type="button" onClick={() => reviewJoinRequest(item.id, "approved")} className="rounded-lg bg-teal px-3 py-1 text-white">通过</button>
                             </div>
                           ) : (
-                            <span className="text-xs text-stone-500">等待创建者审核</span>
+                            <span className="text-xs text-muted">等待创建者审核</span>
                           )}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                <form onSubmit={requestJoinFamily} className="mt-4 grid gap-2 border-t border-stone-100 pt-4 md:grid-cols-[1fr_auto]">
-                  <input name="joinCode" maxLength={6} inputMode="numeric" className="rounded-lg border border-stone-200 px-3 py-2 text-sm tracking-[0.3em]" placeholder="输入 6 位家庭编码" />
+                <form onSubmit={requestJoinFamily} className="mt-4 grid gap-2 border-t border-line-soft pt-4 md:grid-cols-[1fr_auto]">
+                  <input name="joinCode" maxLength={6} inputMode="numeric" className="rounded-lg border border-line px-3 py-2 text-sm tracking-[0.3em]" placeholder="输入 6 位家庭编码" />
                   <button className="rounded-lg border border-teal px-4 py-2 text-sm text-teal">申请加入</button>
                 </form>
               </div>
               <div className="mt-5">
                 <h3 className="font-semibold">WorkBuddy 连接</h3>
-                <p className="mt-1 text-sm text-stone-500">
+                <p className="mt-1 text-sm text-muted">
                   在 WorkBuddy 里安装“禾芽家庭教务”连接器后点击连接，会自动打开禾芽授权网页，用微信扫码选择家庭即可，不需要复制粘贴 Token。
                 </p>
-                <ol className="space-y-2 text-sm leading-6 text-stone-600">
+                <ol className="space-y-2 text-sm leading-6 text-ink-soft">
                   {(settings?.workbuddy_open_platform?.install_steps || []).map((step, index) => <li key={step}>{index + 1}. {step}</li>)}
                 </ol>
-                <div className="mt-4 border-t border-stone-100 pt-4">
-                  <div className="text-sm font-semibold text-stone-600">已连接的 WorkBuddy</div>
+                <div className="mt-4 border-t border-line-soft pt-4">
+                  <div className="text-sm font-semibold text-ink-soft">已连接的 WorkBuddy</div>
                   {(settings?.connections || []).length + (settings?.legacy_connections || []).length === 0 ? (
-                    <p className="mt-2 text-sm text-stone-500">还没有设备完成授权。</p>
+                    <p className="mt-2 text-sm text-muted">还没有设备完成授权。</p>
                   ) : (
                     <div className="mt-3 space-y-2">
                       {(settings?.connections || []).map((connection: any) => (
-                        <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                        <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-cream/60 p-3 text-sm">
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold">{connection.client_name || "WorkBuddy"}</span>
                               <span className="rounded-full bg-teal/10 px-2 py-0.5 text-xs text-teal">扫码授权</span>
                             </div>
-                            <div className="mt-1 text-xs text-stone-500">
+                            <div className="mt-1 text-xs text-muted">
                               {connection.authorized_by} 授权 · {connection.created_at?.slice(0, 10)} · {connection.last_used_at ? `最近使用 ${connection.last_used_at.slice(0, 10)}` : "尚未调用"}
                             </div>
                           </div>
@@ -765,16 +774,16 @@ function App() {
                         </div>
                       ))}
                       {(settings?.legacy_connections || []).map((connection: any) => (
-                        <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-stone-50 p-3 text-sm">
+                        <div key={connection.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-cream/60 p-3 text-sm">
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold">WorkBuddy</span>
-                              <span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs text-stone-600">旧版 Token 连接</span>
+                              <span className="rounded-full bg-line px-2 py-0.5 text-xs text-ink-soft">旧版 Token 连接</span>
                             </div>
-                            <div className="mt-1 text-xs text-stone-500">
+                            <div className="mt-1 text-xs text-muted">
                               {connection.authorized_by} 授权 · {connection.created_at?.slice(0, 10)} · {connection.last_used_at ? `最近使用 ${connection.last_used_at.slice(0, 10)}` : "尚未调用"}
                             </div>
-                            <div className="mt-1 text-xs text-stone-400">建议重新用微信扫码连接一次，之后会自动续期</div>
+                            <div className="mt-1 text-xs text-muted">建议重新用微信扫码连接一次，之后会自动续期</div>
                           </div>
                           <button type="button" onClick={() => revokeWorkbuddyConnection(connection.id)} className="rounded-lg border border-accent px-3 py-1 text-accent">
                             解除授权
@@ -790,23 +799,23 @@ function App() {
                   <h3 className="font-semibold">豆包工作备用连接提示词</h3>
                   <button onClick={() => copyAgentPrompt(settings?.doubao_prompt, "doubao")} className="inline-flex items-center gap-1 text-teal"><Copy size={16} />{copyStatus === "doubao" ? "已复制" : "复制"}</button>
                 </div>
-                <p className="mb-3 text-sm leading-6 text-stone-500">
+                <p className="mb-3 text-sm leading-6 text-muted">
                   豆包工作暂不支持禾芽的扫码授权连接器，这里提供家庭备用凭证和规范，用于在豆包工作里复用同一套教育规则。不要让家庭管理者以外的人拿到这段内容。
                 </p>
-                <textarea readOnly value={settings?.doubao_prompt || ""} className="h-56 w-full rounded-lg border border-stone-200 p-3 text-sm" />
+                <textarea readOnly value={settings?.doubao_prompt || ""} className="h-56 w-full rounded-lg border border-line p-3 text-sm" />
               </div>
               <div className="mt-6">
                 <h3 className="font-semibold">教育方法库</h3>
-                <p className="mt-1 text-sm text-stone-500">公共方法由禾芽统一维护，家庭只设置边界；这里只展示方法用途和证据强度。</p>
+                <p className="mt-1 text-sm text-muted">公共方法由禾芽统一维护，家庭只设置边界；这里只展示方法用途和证据强度。</p>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {v2EducationMethods.map((method: any) => (
-                    <div key={method.id} className="rounded-lg border border-stone-200 bg-white p-4">
+                    <div key={method.id} className="rounded-lg border border-line bg-white p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="font-semibold">{method.name}</div>
                         <span className="rounded-full bg-teal/10 px-2 py-1 text-xs text-teal">{method.category}</span>
                       </div>
-                      <p className="mt-2 text-sm text-stone-600">{method.description}</p>
-                      <div className="mt-2 text-xs text-stone-500">证据强度：{method.evidenceLevel} · 版本 {method.version}</div>
+                      <p className="mt-2 text-sm text-ink-soft">{method.description}</p>
+                      <div className="mt-2 text-xs text-muted">证据强度：{method.evidenceLevel} · 版本 {method.version}</div>
                     </div>
                   ))}
                 </div>
@@ -815,12 +824,12 @@ function App() {
                 <h3 className="font-semibold">优化建议</h3>
                 <div className="mt-3 space-y-3">
                   {policyChanges.filter((item) => item.status === "proposed").map((item) => (
-                    <div key={item.id} className="rounded-lg border border-stone-200 p-3">
+                    <div key={item.id} className="rounded-lg border border-line p-3">
                       <div className="font-medium">{item.summary || item.type}</div>
-                      {item.reason && <p className="mt-1 text-sm text-stone-500">{item.reason}</p>}
+                      {item.reason && <p className="mt-1 text-sm text-muted">{item.reason}</p>}
                       <div className="mt-2 flex gap-2">
                         <button onClick={() => reviewPolicy(item.id, "approved")} className="rounded-lg bg-teal px-3 py-1 text-sm text-white">采纳</button>
-                        <button onClick={() => reviewPolicy(item.id, "ignored")} className="rounded-lg border border-stone-200 px-3 py-1 text-sm">忽略</button>
+                        <button onClick={() => reviewPolicy(item.id, "ignored")} className="rounded-lg border border-line px-3 py-1 text-sm">忽略</button>
                       </div>
                     </div>
                   ))}
@@ -837,23 +846,23 @@ function App() {
                   <div>
                     <h3 className="mb-2 font-semibold">成长记录</h3>
                     {reportData.records.map((record) => (
-                      <button key={record.id} type="button" onClick={() => setSelectedRecord(record)} className="block w-full border-b border-dashed border-stone-200 py-2 text-left">
+                      <button key={record.id} type="button" onClick={() => setSelectedRecord(record)} className="block w-full border-b border-dashed border-line py-2 text-left">
                         <div className="font-medium">{record.title}</div>
-                        <div className="text-sm text-stone-500">{record.date?.slice(0, 10)} · {record.type} · {record.score}</div>
+                        <div className="text-sm text-muted">{record.date?.slice(0, 10)} · {record.type} · {record.score}</div>
                       </button>
                     ))}
                   </div>
                   <div>
                     <h3 className="mb-2 font-semibold">报告</h3>
                     {reportData.reports.map((report) => (
-                      <div key={report.id} className="border-b border-dashed border-stone-200 py-2">
+                      <div key={report.id} className="border-b border-dashed border-line py-2">
                         <div className="font-medium">{report.title}</div>
-                        <p className="text-sm text-stone-600">{report.summary}</p>
+                        <p className="text-sm text-ink-soft">{report.summary}</p>
                       </div>
                     ))}
                   </div>
                 </div>
-              ) : <p className="text-stone-500">暂无数据。</p>}
+              ) : <p className="text-muted">暂无数据。</p>}
             </Panel>
           )}
           </div>
@@ -864,17 +873,17 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form onSubmit={submitChild} className="w-full max-w-md space-y-3 rounded-lg bg-panel p-5">
             <h2 className="font-bold">{editingChild ? "编辑孩子档案" : "新建孩子"}</h2>
-            <input name="name" defaultValue={editingChild?.name} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="姓名" />
-            <input name="age" type="number" defaultValue={editingChild?.age} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年龄" />
-            <input name="grade" defaultValue={editingChild?.grade} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年级" />
-            <select name="gender" defaultValue={editingChild?.gender || "male"} className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2">
+            <input name="name" defaultValue={editingChild?.name} required className="w-full rounded-lg border border-line px-3 py-2" placeholder="姓名" />
+            <input name="age" type="number" defaultValue={editingChild?.age} required className="w-full rounded-lg border border-line px-3 py-2" placeholder="年龄" />
+            <input name="grade" defaultValue={editingChild?.grade} required className="w-full rounded-lg border border-line px-3 py-2" placeholder="年级" />
+            <select name="gender" defaultValue={editingChild?.gender || "male"} className="w-full rounded-lg border border-line bg-white px-3 py-2">
               <option value="male">男生</option>
               <option value="female">女生</option>
             </select>
-            <input name="subjects" defaultValue={editingChild?.subjects.join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="学科" />
-            <input name="textbook_version" defaultValue={editingChild?.textbookVersion} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教材版本" />
+            <input name="subjects" defaultValue={editingChild?.subjects.join("、")} className="w-full rounded-lg border border-line px-3 py-2" placeholder="学科" />
+            <input name="textbook_version" defaultValue={editingChild?.textbookVersion} className="w-full rounded-lg border border-line px-3 py-2" placeholder="教材版本" />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => { setChildDialog(false); setEditingChild(null); }} className="rounded-lg border border-stone-200 px-3 py-2">取消</button>
+              <button type="button" onClick={() => { setChildDialog(false); setEditingChild(null); }} className="rounded-lg border border-line px-3 py-2">取消</button>
               <button className="rounded-lg bg-accent px-4 py-2 text-white">保存</button>
             </div>
           </form>
@@ -885,17 +894,17 @@ function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form onSubmit={submitTextbook} className="w-full max-w-md space-y-3 rounded-lg bg-panel p-5">
             <h2 className="font-bold">导入教材</h2>
-            <select name="child_id" className="w-full rounded-lg border border-stone-200 px-3 py-2">
+            <select name="child_id" className="w-full rounded-lg border border-line px-3 py-2">
               {home.children.map((child) => <option key={child.id} value={child.id}>{child.name}</option>)}
             </select>
-            <input name="title" required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教材名称" />
-            <input name="subject" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="学科" />
-            <input name="grade" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年级" />
-            <input name="publisher" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="出版社" />
-            <input name="version" className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="版本" />
-            <input name="file" type="file" className="w-full rounded-lg border border-stone-200 px-3 py-2" />
+            <input name="title" required className="w-full rounded-lg border border-line px-3 py-2" placeholder="教材名称" />
+            <input name="subject" className="w-full rounded-lg border border-line px-3 py-2" placeholder="学科" />
+            <input name="grade" className="w-full rounded-lg border border-line px-3 py-2" placeholder="年级" />
+            <input name="publisher" className="w-full rounded-lg border border-line px-3 py-2" placeholder="出版社" />
+            <input name="version" className="w-full rounded-lg border border-line px-3 py-2" placeholder="版本" />
+            <input name="file" type="file" className="w-full rounded-lg border border-line px-3 py-2" />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setTextbookDialog(false)} className="rounded-lg border border-stone-200 px-3 py-2">取消</button>
+              <button type="button" onClick={() => setTextbookDialog(false)} className="rounded-lg border border-line px-3 py-2">取消</button>
               <button className="rounded-lg bg-accent px-4 py-2 text-white">导入</button>
             </div>
           </form>

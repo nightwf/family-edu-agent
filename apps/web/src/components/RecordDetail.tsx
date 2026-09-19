@@ -146,7 +146,7 @@ export default function RecordDetail({ record, childName, onClose }: RecordDetai
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-500 shadow-sm hover:text-stone-900"
+            className="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full border border-line bg-white text-muted shadow-sm hover:text-ink"
             aria-label="关闭"
           >
             <X size={19} />
@@ -158,7 +158,7 @@ export default function RecordDetail({ record, childName, onClose }: RecordDetai
                 <Icon size={15} />
                 {template.label}
               </span>
-              <span className="text-xs text-stone-400">{formatDate(record.date)}</span>
+              <span className="text-xs text-muted">{formatDate(record.date)}</span>
             </div>
 
             <h1 className="max-w-3xl font-serif text-3xl font-black leading-[1.18] tracking-tight text-[#24342e] md:text-5xl">
@@ -172,40 +172,40 @@ export default function RecordDetail({ record, childName, onClose }: RecordDetai
                   <div className="grid h-[88px] w-[88px] place-items-center rounded-full bg-[#fffaf0]">
                     <div>
                       <div className="text-center font-serif text-3xl font-black" style={{ color: template.deep }}>{score}</div>
-                      <div className="text-center text-[10px] font-bold uppercase tracking-[0.15em] text-stone-400">Score</div>
+                      <div className="text-center text-[10px] font-bold uppercase tracking-[0.15em] text-muted">Score</div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border border-dashed border-stone-300">
+                <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full border border-dashed border-line">
                   <Sparkles size={26} style={{ color: template.primary }} />
                 </div>
               )}
 
-              <div className="min-w-0 flex-1 rounded-2xl border border-stone-200 bg-white p-5">
-                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-stone-700">
+              <div className="min-w-0 flex-1 rounded-2xl border border-line bg-white p-5">
+                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-ink-soft">
                   <MessageSquareText size={17} style={{ color: template.primary }} />
                   {template.contentLabel}
                 </div>
-                <p className="whitespace-pre-wrap text-[15px] leading-7 text-stone-700 first-letter:float-left first-letter:mr-2 first-letter:font-serif first-letter:text-5xl first-letter:font-black first-letter:leading-[0.85]" style={{ color: "#3f4945" }}>
+                <p className="whitespace-pre-wrap text-[15px] leading-7 text-ink-soft first-letter:float-left first-letter:mr-2 first-letter:font-serif first-letter:text-5xl first-letter:font-black first-letter:leading-[0.85]" style={{ color: "#3f4945" }}>
                   {primaryContent}
                 </p>
               </div>
             </div>
 
             {secondaryContent ? (
-              <section className="mt-6 overflow-hidden rounded-2xl border border-stone-200 bg-white">
-                <div className="flex items-center gap-3 border-b border-stone-100 px-5 py-4" style={{ backgroundColor: template.soft }}>
+              <section className="mt-6 overflow-hidden rounded-2xl border border-line bg-white">
+                <div className="flex items-center gap-3 border-b border-line-soft px-5 py-4" style={{ backgroundColor: template.soft }}>
                   <Sparkles size={18} style={{ color: template.primary }} />
                   <h3 className="font-serif text-lg font-bold" style={{ color: template.deep }}>{template.noteLabel}</h3>
                 </div>
-                <blockquote className="border-l-4 px-6 py-5 text-[15px] leading-7 text-stone-700" style={{ borderColor: template.primary }}>
+                <blockquote className="border-l-4 px-6 py-5 text-[15px] leading-7 text-ink-soft" style={{ borderColor: template.primary }}>
                   {secondaryContent}
                 </blockquote>
               </section>
             ) : null}
 
-            <footer className="mt-8 flex items-center justify-between border-t border-stone-200 pt-5 text-xs text-stone-400">
+            <footer className="mt-8 flex items-center justify-between border-t border-line pt-5 text-xs text-muted">
               <div className="flex items-center gap-2">
                 <LockKeyhole size={14} />
                 <span>仅当前家庭账号可见</span>

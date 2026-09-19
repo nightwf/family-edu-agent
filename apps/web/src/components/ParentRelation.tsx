@@ -48,22 +48,22 @@ export default function ParentRelation({ token, children, request }: Props) {
       </div>
 
       <Panel title="当前家长建议" description="由 WorkBuddy 根据关系证据生成，家长确认后执行">
-        <p className="text-sm leading-6 text-stone-600">{latest?.parentAction || "暂无家长行动建议。"}</p>
+        <p className="text-sm leading-6 text-ink-soft">{latest?.parentAction || "暂无家长行动建议。"}</p>
       </Panel>
 
       <Panel title="关系变化记录" description="按时间倒序查看">
         <div className="space-y-3">
           {history.length === 0 ? (
-            <p className="text-sm text-stone-500">暂无关系记录。</p>
+            <p className="text-sm text-muted">暂无关系记录。</p>
           ) : (
             history.map((item) => (
-              <div key={item.id} className="rounded-xl border border-stone-100 bg-white p-3">
+              <div key={item.id} className="rounded-xl border border-line-soft bg-white p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-bold">{item.status}</div>
                   <Badge tone="teal">{item.score ?? "-"}</Badge>
                 </div>
-                <p className="mt-1 text-sm text-stone-600">{item.communicationNote || "-"}</p>
-                <div className="mt-1 text-xs text-stone-500">{item.generatedAt?.slice(0, 10)} · 冲突 {item.conflictCount} 次</div>
+                <p className="mt-1 text-sm text-ink-soft">{item.communicationNote || "-"}</p>
+                <div className="mt-1 text-xs text-muted">{item.generatedAt?.slice(0, 10)} · 冲突 {item.conflictCount} 次</div>
               </div>
             ))
           )}
