@@ -163,7 +163,11 @@ console.log("\n首页人物形象性别映射");
 
   assert(presentation.stateAsset("thinking", "male").endsWith("child-thinking.png"), "男生使用男生形象素材");
   assert(presentation.stateAsset("thinking", "female").endsWith("child-thinking-female.png"), "已就绪的女生状态使用女生形象素材");
-  assert(presentation.stateAsset("progress", "female").endsWith("child-progress.png"), "女生素材未就绪的状态回退到男生同状态素材");
+  for (const state of ["stable", "progress", "thinking", "review", "done"]) {
+    assert(presentation.stateAsset(state, "female").endsWith(`child-${state}-female.png`), `女生 ${state} 状态使用女生素材`);
+  }
+  assert(presentation.hasFemaleAsset("not-a-real-state") === false, "未登记的状态不会被当作已就绪女生素材");
+  assert(presentation.stateAsset("not-a-real-state", "female").endsWith("child-stable.png"), "未登记状态回退到男生稳定素材");
 
   const femaleHero = presentation.deriveChildPresentation({
     child: { id: "c2", name: "XIAOYU", gender: "female" },
@@ -172,7 +176,7 @@ console.log("\n首页人物形象性别映射");
     mastery: { items: [] },
     homework: [],
   });
-  assert(femaleHero.state === "review" && femaleHero.image.endsWith("child-review.png"), "女生素材缺失时首页仍能给出可用形象");
+  assert(femaleHero.state === "review" && femaleHero.image.endsWith("child-review-female.png"), "女生首页形象同时跟随状态与性别");
 
   assert(presentation.stateAsset("unknown-state", "female").endsWith("child-stable.png"), "未知状态回退到稳定形象");
   assert(presentation.stateAsset("stable", null).endsWith("child-stable.png"), "无性别孩子使用男生形象");

@@ -27,7 +27,7 @@ const STATE_ASSETS = STATE_ASSETS_BY_GENDER.male;
  * 已上线的女生素材状态。生成一张就登记一张，未登记的状态自动回退到男生素材，
  * 避免孩子选了女生但页面出现空白。测试会校验这里与实际文件保持一致。
  */
-const FEMALE_READY_STATES = ["stable", "thinking"];
+const FEMALE_READY_STATES = ["stable", "progress", "thinking", "review", "done"];
 
 function normalizedGender(value) {
   return String(value || "").toLowerCase() === "female" ? "female" : "male";
