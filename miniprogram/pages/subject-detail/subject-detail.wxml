@@ -1,0 +1,55 @@
+<view class="page subject-page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+  <view class="detail-back" bindtap="goBack">‹ 返回首页</view>
+
+  <view wx:if="{{loading}}" class="loading-block">正在整理这一科的情况...</view>
+  <block wx:else>
+    <view class="detail-head">
+      <view class="detail-title">{{subject}}</view>
+      <view class="detail-meta"><view class="detail-state">{{statusText}}</view><view class="detail-score">{{scoreText}}<text>分</text></view></view>
+      <view class="detail-sub">{{judgement}}</view>
+    </view>
+
+    <view wx:if="{{gaps.length}}" class="card">
+      <view class="card-kicker">需要先解决的问题</view>
+      <view wx:for="{{gaps}}" wx:key="name" class="gap-item">
+        <view class="gap-top">
+          <view class="gap-name">{{item.name}}</view>
+          <view wx:if="{{item.hasScore}}" class="gap-score">{{item.scoreText}}</view>
+        </view>
+        <view class="gap-why">{{item.why}}</view>
+        <view wx:if="{{item.evidence}}" class="gap-evidence">证据：{{item.evidence}}</view>
+      </view>
+    </view>
+    <view wx:else class="card">
+      <view class="card-kicker">需要先解决的问题</view>
+      <view class="gap-empty">这一科暂时没有确认的薄弱点，继续按当前节奏练习即可。</view>
+    </view>
+
+    <view wx:if="{{advice}}" class="card advice">
+      <view class="card-kicker">后续规划建议</view>
+      <view class="advice-title">{{advice.action}}</view>
+      <view wx:for="{{advice.rows}}" wx:key="label" class="advice-row">
+        <view class="advice-label">{{item.label}}</view>
+        <view class="advice-value">{{item.value}}</view>
+      </view>
+      <view wx:if="{{advice.estimated_minutes}}" class="advice-minutes">预计用时 {{advice.estimated_minutes}} 分钟</view>
+      <view class="advice-actions">
+        <button class="btn btn-primary" bindtap="goWrongBook">查看错题</button>
+      </view>
+    </view>
+
+    <view wx:if="{{tasks.length}}" class="home-section">
+      <view class="section-head"><view class="home-section-title">这一科的最近任务</view></view>
+      <view class="task-list">
+        <view wx:for="{{tasks}}" wx:key="title" class="task-row">
+          <view class="task-subject">{{item.subjectMark}}</view>
+          <view class="task-main">
+            <view class="task-title">{{item.title}}</view>
+            <view class="task-time">{{item.dueText}}{{item.minutesText ? ' · ' + item.minutesText : ''}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

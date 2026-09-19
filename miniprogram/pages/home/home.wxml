@@ -1,42 +1,87 @@
 <view class="page home-page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+
   <view class="home-nav">
-    <view><view class="nav-date">{{todayText}}</view><view class="nav-title">{{family && family.name ? family.name : '禾芽家庭教务'}}</view></view>
+    <view>
+      <view class="nav-date">{{todayText}}</view>
+      <view class="nav-title">{{family && family.name ? family.name : '禾芽家庭教务'}}</view>
+    </view>
     <picker wx:if="{{children.length > 1}}" mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
       <view class="child-picker-pill">{{activeChild.name}} <text>⌄</text></view>
     </picker>
     <view wx:elif="{{activeChild}}" class="child-picker-pill quiet">{{activeChild.name}}</view>
   </view>
-  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
-  <view wx:if="{{loading}}" class="home-skeleton"><view class="skeleton hero-skeleton"></view><view class="skeleton line-skeleton"></view><view class="skeleton line-skeleton short"></view></view>
+
+  <view wx:if="{{loading}}" class="home-skeleton">
+    <view class="skeleton hero-skeleton"></view>
+    <view class="skeleton line-skeleton"></view>
+    <view class="skeleton line-skeleton short"></view>
+  </view>
+
   <block wx:else>
-    <view class="hero-stage" style="background-image: url('{{scene}}')" bindtap="goChildState">
+    <view class="hero-subject" style="background-image: url('{{scene}}')">
       <view class="hero-shade"></view>
       <view class="hero-copy">
-        <view class="hero-kicker">当前孩子状态</view><view class="hero-title">{{hero.title}}</view><view class="hero-subtitle">{{hero.subtitle}}</view>
-        <view class="hero-tags"><view wx:for="{{hero.tags}}" wx:key="*this" class="hero-tag">{{item}}</view></view>
+        <view class="hero-kicker">孩子整体状态</view>
+        <view class="hero-title">{{overall.conclusion}}</view>
+        <view class="hero-tags"><view wx:for="{{overall.tags}}" wx:key="*this" class="hero-tag">{{item}}</view></view>
       </view>
-      <image class="hero-child {{animationEnabled ? 'is-animated' : ''}}" src="{{hero.image}}" mode="aspectFit" binderror="onHeroImageError" />
-      <view class="hero-detail">查看状态报告 <text>›</text></view>
+      <image class="hero-child {{animationEnabled ? 'is-animated' : ''}}" src="{{characterImage}}" mode="aspectFit" binderror="onHeroImageError" />
+      <view class="hero-metrics">
+        <view wx:for="{{overall.metrics}}" wx:key="label"><text>{{item.value}}</text><view>{{item.label}}</view></view>
+      </view>
     </view>
-    <view class="insight-card" bindtap="openInsight">
-      <view class="insight-top"><view><view class="card-kicker">今天先看这里</view><view class="insight-title">{{hero.weakness ? hero.weakness.name : '还没有确认的薄弱点'}}</view></view><view class="insight-score" wx:if="{{hero.weakness && hero.weakness.score !== null}}">{{hero.weakness.score}}<text>分</text></view></view>
-      <view class="evidence-row"><text>证据</text><view>{{hero.evidence}}</view></view>
-      <view class="evidence-row"><text>判断</text><view>{{hero.judgment}}</view></view>
-      <view class="action-box"><view class="action-label">下一步怎么做</view><view class="action-text">{{hero.action}}</view><view class="action-arrow">›</view></view>
+
+    <view class="section-head">
+      <view class="home-section-title">各学科情况</view>
+      <view class="section-link" bindtap="goLearning">学习诊断</view>
     </view>
-    <view wx:if="{{planningCard}}" class="insight-card">
-      <view class="insight-top"><view><view class="card-kicker">学习计划</view><view class="insight-title">{{planningCard.focusText}}</view></view><view class="insight-score">{{planningCard.statusText}}</view></view>
-      <view class="evidence-row"><text>原因</text><view>{{planningCard.reason}}</view></view>
-      <view class="action-box" bindtap="copyPlanningInstruction"><view class="action-label">发给 WorkBuddy</view><view class="action-text">{{planningCopyText}}</view><view class="action-arrow">›</view></view>
+    <view wx:if="{{subjects.length}}" class="subject-list">
+      <view wx:for="{{subjects}}" wx:key="subject" class="subject {{item.statusClass}}" data-subject="{{item.subject}}" bindtap="openSubject">
+        <view class="subject-top">
+          <view class="subject-name">{{item.subject}}</view>
+          <view class="subject-state">{{item.status_text}}</view>
+          <view wx:if="{{item.hasScore}}" class="subject-score">{{item.scoreText}}<text>分</text></view>
+        </view>
+        <view wx:if="{{item.hasScore}}" class="subject-bar"><view class="subject-bar-fill" style="width:{{item.scorePercent}}%"></view></view>
+        <view class="subject-meta">{{item.metaText}}</view>
+        <view class="subject-change">{{item.change_text}}</view>
+        <view class="subject-enter">{{item.enterText}} <text>›</text></view>
+      </view>
     </view>
-    <view class="home-section" wx:if="{{recentChanges.length}}">
-      <view class="section-head compact-head"><view class="home-section-title">本周变化</view><view class="section-link" bindtap="goGrowth">全部</view></view>
-      <view class="change-list"><view wx:for="{{recentChanges}}" wx:key="id" class="change-row" data-id="{{item.id}}" bindtap="openChange"><view class="change-mark"></view><view class="change-main"><view class="change-label">{{item.label}}</view><view class="change-title">{{item.title}}</view><view class="change-text">{{item.text}}</view></view><view class="row-chevron">›</view></view></view>
+    <view wx:else class="empty">还没有学科记录。让 WorkBuddy 同步一次作业或错题后，这里会显示每一科的情况。</view>
+
+    <view wx:if="{{planningCard}}" class="plan-card">
+      <view class="card-kicker">学习计划</view>
+      <view class="plan-cta" catchtap="copyPlanningInstruction">
+        <view class="plan-main">
+          <view class="plan-title">{{planningCard.focusText}}</view>
+          <view class="plan-reason">{{planningCard.reason}}</view>
+        </view>
+        <button class="btn btn-primary plan-button" catchtap="copyPlanningInstruction">{{planningCopyText}}</button>
+      </view>
     </view>
-    <view class="home-section" wx:if="{{pendingTasks.length}}">
-      <view class="section-head compact-head"><view class="home-section-title">待完成任务</view><view class="section-link" bindtap="goHomework">全部</view></view>
-      <view class="task-list"><view wx:for="{{pendingTasks}}" wx:key="id" class="task-row" bindtap="goHomework"><view class="task-subject">{{item.subjectMark}}</view><view class="task-main"><view class="task-title">{{item.title}}</view><view class="task-time">{{item.dueText}}</view></view><view class="row-chevron">›</view></view></view>
+
+    <view wx:if="{{pendingTasks.length}}" class="home-section">
+      <view class="section-head compact-head">
+        <view class="home-section-title">最近学习任务</view>
+        <view class="section-link" bindtap="goHomework">全部</view>
+      </view>
+      <view class="task-list">
+        <view wx:for="{{pendingTasks}}" wx:key="id" class="task-row" bindtap="goHomework">
+          <view class="task-subject">{{item.subjectMark}}</view>
+          <view class="task-main">
+            <view class="task-title">{{item.title}}</view>
+            <view class="task-time">{{item.dueText}}</view>
+          </view>
+          <view class="row-chevron">›</view>
+        </view>
+      </view>
     </view>
-    <view wx:if="{{!activeChild}}" class="empty home-empty"><view>还没有学生档案</view><button class="btn btn-primary" bindtap="goStudents">添加学生</button></view>
+
+    <view wx:if="{{!activeChild}}" class="empty home-empty">
+      <view>还没有学生档案</view>
+      <button class="btn btn-primary" bindtap="goStudents">添加学生</button>
+    </view>
   </block>
 </view>

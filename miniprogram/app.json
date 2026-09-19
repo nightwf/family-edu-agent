@@ -16,7 +16,8 @@
     "pages/wrong-book/wrong-book",
     "pages/family-management/family-management",
     "pages/learning-manager/learning-manager",
-    "pages/settings-detail/settings-detail"
+    "pages/settings-detail/settings-detail",
+    "pages/subject-detail/subject-detail"
   ],
   "window": {
     "navigationBarBackgroundColor": "#0f766e",

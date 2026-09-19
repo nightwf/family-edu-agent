@@ -192,6 +192,48 @@ console.log("\n首页人物形象性别映射");
   }
 }
 
+console.log("\n首页学科视图");
+{
+  const subjects = requireCommonJs("utils/subjects.js");
+
+  const rows = subjects.mapSubjectRows([
+    { subject: "数学", status: "focus", status_text: "需重点", mastery_score: 54, weak_count: 2, review_due_count: 1, attempts_7d: 6, change_text: "看图列式重复出错 2 次" },
+    { subject: "科学", status: "thin", status_text: "材料不足", mastery_score: null, weak_count: 0, review_due_count: 0, attempts_7d: 0, change_text: "还没有足够的作答记录" },
+  ]);
+  assert(rows[0].statusClass === "is-focus", "需重点的学科带上高亮样式类");
+  assert(rows[0].scoreText === "54" && rows[0].hasScore === true, "有掌握度时显示分数");
+  assert(rows[1].scoreText === "—" && rows[1].hasScore === false, "没有掌握度时不显示假分数");
+  assert(rows[0].metaText.includes("薄弱知识点 2") && rows[0].metaText.includes("待复测 1"), "学科摘要包含薄弱点与复测数量");
+  assert(rows[0].enterText === "查看数学规划建议", "学科入口文案带上学科名");
+
+  assert(subjects.pickCharacterState([{ status: "focus", review_due_count: 1 }]) === "review", "复测到期时人物切换到复测形象");
+  assert(subjects.pickCharacterState([{ status: "focus", review_due_count: 0 }]) === "thinking", "需重点时人物切换为巩固形象");
+  assert(subjects.pickCharacterState([{ status: "progress" }]) === "progress", "进步中时人物切换为进步形象");
+  assert(subjects.pickCharacterState([{ status: "thin" }]) === "stable", "材料不足时人物保持稳定形象");
+  assert(subjects.pickCharacterState([]) === "stable", "没有学科记录时人物保持稳定形象");
+
+  const overall = subjects.mapOverall({ conclusion: "数学需要优先处理", tags: ["1 个薄弱知识点"], metrics: { subject_count: 2, mastery_average: 68, review_due_count: 1 } }, 12);
+  assert(overall.conclusion === "数学需要优先处理", "整体状态使用服务端结论");
+  assert(overall.metrics.map((item) => item.value).join(",") === "2,68,12,1", "整体指标按覆盖学科/掌握度/证据/复测排列");
+
+  const overallWithoutEvidence = subjects.mapOverall(null, null);
+  assert(overallWithoutEvidence.metrics[2].value === "—", "缺少证据数据时显示占位符而不是 0");
+
+  const advice = subjects.mapAdvice({
+    action: "易错点变式题 3 道 + 迁移题 1 道",
+    method: "先圈出总量再列式",
+    pass_criteria: "掌握分达到 80",
+    retest: "24 小时后复测",
+    basis: "重复出错 2 次",
+    estimated_minutes: 12,
+  });
+  assert(advice.rows.length === 5, "规划建议展示五项必填说明");
+  assert(advice.rows[0].label === "本次安排", "规划建议第一行是本次安排");
+
+  const gaps = subjects.mapGaps([{ name: "看图列式", mastery_score: 42, why: "重复出错", evidence: "练习 6 次" }]);
+  assert(gaps[0].scoreText === "42" && gaps[0].hasScore, "问题清单显示掌握度");
+}
+
 console.log("\n首页待规划提示");
 {
   const planning = requireCommonJs("utils/planning.js");

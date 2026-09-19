@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>首页结构调整效果图 · 禾芽家庭教务</title>
+<style>
+  :root {
+    --bg: #f7f1df;
+    --panel: #fffdf7;
+    --panel-strong: #ffffff;
+    --ink: #203238;
+    --ink-soft: #34474d;
+    --muted: #728186;
+    --muted-soft: #96a1a4;
+    --teal: #0f766e;
+    --teal-deep: #205159;
+    --teal-soft: #e4f3ef;
+    --gold: #f3c969;
+    --gold-soft: #fff4cf;
+    --accent: #c9503a;
+    --accent-soft: #fff0eb;
+    --line: #e8ddc5;
+    --line-soft: #f1eadb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 18px 60px;
+    background: #eef1f0;
+    color: var(--ink);
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  .page-head { max-width: 1180px; margin: 0 auto 22px; }
+  .page-head h1 { margin: 0 0 6px; font-size: 20px; }
+  .page-head p { margin: 0; color: #66757a; font-size: 13px; line-height: 1.7; }
+  .sample-note {
+    display: inline-block; margin-top: 12px; padding: 8px 14px; border-radius: 10px;
+    background: var(--gold-soft); color: #7d5a12; font-size: 12px; font-weight: 700;
+  }
+  .frames { max-width: 1180px; margin: 0 auto; display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .frame-wrap { flex: 1 1 360px; max-width: 400px; }
+  .frame-title { margin: 0 0 10px 4px; font-size: 14px; font-weight: 800; color: #3d4c50; }
+  .phone {
+    width: 100%; border-radius: 34px; background: var(--bg); padding: 10px;
+    box-shadow: 0 18px 46px rgba(32, 50, 56, .16); border: 1px solid #e3e7e5;
+  }
+  .screen {
+    border-radius: 26px; overflow: hidden; background: var(--bg);
+    height: 812px; overflow-y: auto; scrollbar-width: thin;
+  }
+  .screen::-webkit-scrollbar { width: 5px; }
+  .screen::-webkit-scrollbar-thumb { background: #d8dfdc; border-radius: 6px; }
+
+  .nav { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 18px 18px 0; }
+  .nav-date { color: var(--muted); font-size: 12px; font-weight: 700; }
+  .nav-title { margin-top: 4px; font-size: 19px; font-weight: 900; letter-spacing: 0; }
+  .child-pill {
+    flex: none; display: flex; align-items: center; gap: 6px; padding: 7px 13px;
+    border: 1px solid #d7e7e2; border-radius: 999px; background: rgba(255,255,255,.86);
+    color: var(--teal); font-size: 12px; font-weight: 800;
+  }
+  .body { padding: 14px 18px 26px; display: flex; flex-direction: column; gap: 14px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .card-kicker { color: var(--muted); font-size: 11px; font-weight: 800; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; padding: 4px 2px 0; }
+  .section-title { font-size: 15px; font-weight: 900; }
+  .section-link { color: var(--teal); font-size: 12px; font-weight: 800; }
+
+  /* 顶部整体状态（保留人物与场景，但让结论先说话） */
+  .hero {
+    position: relative; overflow: hidden; border-radius: 18px; min-height: 246px;
+    background-color: #dfe9e4; background-size: cover; background-position: center;
+    display: flex; flex-direction: column; justify-content: space-between; padding: 15px 16px 13px;
+  }
+  .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(12,58,55,.93) 0%, rgba(16,74,68,.86) 46%, rgba(20,86,79,.42) 100%); }
+  .hero-copy { position: relative; z-index: 2; max-width: 235px; color: #fff; }
+  .hero .card-kicker { color: #c7e2dd; }
+  .hero-title { margin-top: 7px; font-size: 19px; font-weight: 900; line-height: 1.35; }
+  .hero-sub { margin-top: 7px; color: #d6eae7; font-size: 12px; line-height: 1.55; }
+  .hero-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .hero-tags span { padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.18); font-size: 11px; font-weight: 800; }
+  .hero-child { position: absolute; right: -6px; bottom: 58px; width: 152px; z-index: 1; }
+  .hero-metrics { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; padding: 10px; border-radius: 13px; background: rgba(255,255,255,.15); backdrop-filter: blur(2px); }
+  .hero-metrics div { text-align: center; color: #fff; }
+  .hero-metrics b { display: block; color: var(--gold); font-size: 18px; font-weight: 900; }
+  .hero-metrics span { display: block; margin-top: 3px; font-size: 10px; color: #dceceb; }
+
+  /* 整体状态 */
+  .overall { background: linear-gradient(140deg, #146b64, #1f4d55); border: 0; color: #fff; }
+  .overall .card-kicker { color: #cbe4df; }
+  .overall-title { margin-top: 8px; font-size: 20px; font-weight: 900; line-height: 1.35; }
+  .overall-sub { margin-top: 8px; color: #d5e9e6; font-size: 12.5px; line-height: 1.6; }
+  .tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+  .tag { padding: 5px 11px; border-radius: 999px; background: rgba(255,255,255,.16); font-size: 11.5px; font-weight: 800; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .metric { padding: 10px 6px; border-radius: 12px; background: rgba(255,255,255,.12); text-align: center; }
+  .metric b { display: block; color: var(--gold); font-size: 19px; font-weight: 900; }
+  .metric span { display: block; margin-top: 3px; font-size: 10.5px; color: #d9ebe8; }
+
+  /* 学科 */
+  .subject-list { display: flex; flex-direction: column; gap: 10px; }
+  .subject { display: block; background: var(--panel-strong); border: 1px solid var(--line); border-radius: 16px; padding: 14px 15px; }
+  .subject.focus { border-color: #efcdc0; background: #fff8f5; }
+  .subject-top { display: flex; align-items: center; gap: 10px; }
+  .subject-name { font-size: 16px; font-weight: 900; }
+  .subject-state { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+  .state-warn { background: var(--accent-soft); color: var(--accent); }
+  .state-good { background: var(--teal-soft); color: var(--teal); }
+  .state-steady { background: var(--gold-soft); color: #80601a; }
+  .state-thin { background: #eef1f0; color: #6d7c80; }
+  .subject-score { margin-left: auto; font-size: 18px; font-weight: 900; color: var(--teal); }
+  .subject-score small { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .bar { height: 7px; margin-top: 11px; border-radius: 999px; background: #edf2f0; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--teal), #3aa79a); }
+  .bar.warn i { background: linear-gradient(90deg, #d3644c, #e79b7f); }
+  .subject-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; color: var(--muted); font-size: 11.5px; }
+  .subject-change { margin-top: 8px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+  .enter { display: flex; align-items: center; justify-content: space-between; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--line-soft); color: var(--teal); font-size: 12px; font-weight: 800; }
+  .chev { color: var(--muted-soft); font-size: 16px; }
+
+  /* 待规划 */
+  .plan-cta { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--gold-soft); }
+  .plan-cta div { min-width: 0; flex: 1; }
+  .plan-cta b { display: block; font-size: 13.5px; font-weight: 900; }
+  .plan-cta span { display: block; margin-top: 3px; color: #7d5a12; font-size: 11.5px; }
+  .btn { flex: none; padding: 9px 14px; border: 0; border-radius: 10px; background: var(--teal); color: #fff; font-size: 12.5px; font-weight: 800; }
+  .btn-ghost { background: #fff; color: var(--teal); border: 1px solid #cfe4df; }
+
+  /* 任务 */
+  .task { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); }
+  .task:last-child { border-bottom: 0; padding-bottom: 2px; }
+  .task-mark { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: var(--teal-soft); color: var(--teal); font-size: 13px; font-weight: 900; }
+  .task-mark.gold { background: var(--gold-soft); color: #7d5a12; }
+  .task-main { min-width: 0; flex: 1; }
+  .task-title { font-size: 13.5px; font-weight: 800; }
+  .task-sub { margin-top: 3px; color: var(--muted); font-size: 11.5px; }
+  .task-state { flex: none; color: var(--muted); font-size: 11.5px; font-weight: 700; }
+
+  /* 学科详情 */
+  .detail-head { padding: 18px 18px 0; }
+  .back { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+  .detail-title { margin-top: 10px; font-size: 22px; font-weight: 900; }
+  .detail-sub { margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+  .gap-item { padding: 13px 0; border-bottom: 1px solid var(--line-soft); }
+  .gap-item:last-child { border-bottom: 0; padding-bottom: 2px; }
+  .gap-top { display: flex; align-items: center; gap: 9px; }
+  .gap-name { font-size: 14.5px; font-weight: 900; }
+  .gap-score { margin-left: auto; color: var(--accent); font-size: 17px; font-weight: 900; }
+  .gap-why { margin-top: 7px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+  .gap-why em { font-style: normal; color: var(--muted); }
+
+  .advice { border-left: 3px solid var(--teal); }
+  .advice-title { font-size: 15px; font-weight: 900; }
+  .advice-row { display: flex; gap: 10px; margin-top: 11px; font-size: 12.5px; line-height: 1.6; }
+  .advice-row b { flex: none; width: 62px; color: var(--muted); font-weight: 700; }
+  .advice-row span { color: var(--ink-soft); }
+  .advice-actions { display: flex; gap: 9px; margin-top: 14px; }
+  .advice-actions .btn { flex: 1; padding: 11px 12px; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>小程序首页结构调整 · 效果图</h1>
+    <p>主次关系：孩子整体状态 → 各学科情况（重点，可点进二级页看规划建议） → 最近学习任务规划（次要）。</p>
+    <div class="sample-note">以下为示例数据，仅用于确认布局与信息主次，不代表系统内的真实数据</div>
+  </div>
+
+  <div class="frames">
+    <!-- 首页 -->
+    <div class="frame-wrap">
+      <p class="frame-title">一、首页</p>
+      <div class="phone">
+        <div class="screen">
+          <div class="nav">
+            <div>
+              <div class="nav-date">2026-09-19</div>
+              <div class="nav-title">我的家庭</div>
+            </div>
+            <div class="child-pill">JOJO ⌄</div>
+          </div>
+
+          <div class="body">
+            <!-- 整体状态 -->
+            <div class="hero" style="background-image: url('../miniprogram/assets/illustrations/scene-home.webp')">
+              <div class="hero-copy">
+                <div class="card-kicker">孩子整体状态</div>
+                <div class="hero-title">整体稳定，数学是目前最需要优先处理的一科</div>
+                <div class="hero-sub">近 7 天新增 12 条学习证据，4 个学科都有记录。</div>
+                <div class="hero-tags">
+                  <span>2 个薄弱知识点</span>
+                  <span>1 项复测到期</span>
+                  <span>亲子沟通顺畅</span>
+                </div>
+              </div>
+              <img class="hero-child" src="../miniprogram/assets/illustrations/child-stable.png" alt="" />
+              <div class="hero-metrics">
+                <div><b>4</b><span>覆盖学科</span></div>
+                <div><b>68</b><span>掌握度均值</span></div>
+                <div><b>12</b><span>本周证据</span></div>
+                <div><b>1</b><span>待复测</span></div>
+              </div>
+            </div>
+
+            <!-- 学科（重点） -->
+            <div class="section-head">
+              <div class="section-title">各学科情况</div>
+              <div class="section-link">全部学科</div>
+            </div>
+
+            <div class="subject-list">
+              <div class="subject focus">
+                <div class="subject-top">
+                  <div class="subject-name">数学</div>
+                  <div class="subject-state state-warn">需重点</div>
+                  <div class="subject-score">54<small> 分</small></div>
+                </div>
+                <div class="bar warn"><i style="width:54%"></i></div>
+                <div class="subject-meta"><span>薄弱知识点 2</span><span>待复测 1</span><span>本周练习 6 次</span></div>
+                <div class="subject-change">看图列式 14 天内重复出错 2 次，迁移题还没通过，建议本周单独安排。</div>
+                <div class="enter"><span>查看数学规划建议</span><span class="chev">›</span></div>
+              </div>
+
+              <div class="subject">
+                <div class="subject-top">
+                  <div class="subject-name">语文</div>
+                  <div class="subject-state state-good">进步中</div>
+                  <div class="subject-score">76<small> 分</small></div>
+                </div>
+                <div class="bar"><i style="width:76%"></i></div>
+                <div class="subject-meta"><span>薄弱知识点 1</span><span>待复测 0</span><span>本周练习 3 次</span></div>
+                <div class="subject-change">病句修改掌握度从 61 升到 76，继续按当前节奏巩固即可。</div>
+                <div class="enter"><span>查看语文规划建议</span><span class="chev">›</span></div>
+              </div>
+
+              <div class="subject">
+                <div class="subject-top">
+                  <div class="subject-name">英语</div>
+                  <div class="subject-state state-steady">状态稳定</div>
+                  <div class="subject-score">82<small> 分</small></div>
+                </div>
+                <div class="bar"><i style="width:82%"></i></div>
+                <div class="subject-meta"><span>薄弱知识点 0</span><span>待复测 0</span><span>本周练习 2 次</span></div>
+                <div class="subject-change">单词认读稳定，暂时不需要额外加量。</div>
+                <div class="enter"><span>查看英语规划建议</span><span class="chev">›</span></div>
+              </div>
+
+              <div class="subject">
+                <div class="subject-top">
+                  <div class="subject-name">科学</div>
+                  <div class="subject-state state-thin">材料不足</div>
+                  <div class="subject-score">—</div>
+                </div>
+                <div class="bar"><i style="width:8%"></i></div>
+                <div class="subject-meta"><span>证据不足</span><span>暂无练习记录</span></div>
+                <div class="subject-change">还没有足够的作答记录，无法判断，先补 1 次练习。</div>
+                <div class="enter"><span>查看科学规划建议</span><span class="chev">›</span></div>
+              </div>
+            </div>
+
+            <!-- 待规划 -->
+            <div class="card">
+              <div class="card-kicker">学习计划</div>
+              <div class="plan-cta">
+                <div>
+                  <b>数学需要重新规划</b>
+                  <span>依据：看图列式重复出错 + 前置知识未达标</span>
+                </div>
+                <button class="btn">复制指令</button>
+              </div>
+            </div>
+
+            <!-- 最近任务（次要） -->
+            <div class="section-head">
+              <div class="section-title">最近学习任务</div>
+              <div class="section-link">全部任务</div>
+            </div>
+            <div class="card">
+              <div class="task">
+                <div class="task-mark">数</div>
+                <div class="task-main">
+                  <div class="task-title">看图列式 · 变式练习 3 题</div>
+                  <div class="task-sub">今天 20:00 前 · 预计 12 分钟</div>
+                </div>
+                <div class="task-state">未开始</div>
+              </div>
+              <div class="task">
+                <div class="task-mark gold">语</div>
+                <div class="task-main">
+                  <div class="task-title">阅读复述 · 用自己的话讲一遍</div>
+                  <div class="task-sub">明天 20:00 前 · 预计 10 分钟</div>
+                </div>
+                <div class="task-state">未开始</div>
+              </div>
+              <div class="task">
+                <div class="task-mark">数</div>
+                <div class="task-main">
+                  <div class="task-title">乘法口诀 · 延迟复测</div>
+                  <div class="task-sub">明天到期 · 预计 5 分钟</div>
+                </div>
+                <div class="task-state">待复测</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 学科详情 -->
+    <div class="frame-wrap">
+      <p class="frame-title">二、学科详情（点数学进入）</p>
+      <div class="phone">
+        <div class="screen">
+          <div class="detail-head">
+            <div class="back">‹ 返回首页</div>
+            <div class="detail-title">数学 · 三年级</div>
+            <div class="detail-sub">整体掌握度 54 分，低于其他学科，本周需要重点安排。</div>
+          </div>
+
+          <div class="body">
+            <div class="card">
+              <div class="card-kicker">需要先解决的问题</div>
+              <div class="gap-item">
+                <div class="gap-top">
+                  <div class="gap-name">看图列式</div>
+                  <div class="gap-score">42</div>
+                </div>
+                <div class="gap-why">14 天内重复出错 2 次，错误原因都是混淆总量与部分量；变式只覆盖 1 种，迁移题未通过。<br /><em>证据：6 次作答、3 次使用提示</em></div>
+              </div>
+              <div class="gap-item">
+                <div class="gap-top">
+                  <div class="gap-name">乘法口诀</div>
+                  <div class="gap-score">61</div>
+                </div>
+                <div class="gap-why">已到复测时间，距上次复测 7 天，需要确认是否还稳定。<br /><em>证据：4 次作答、独立作答 3 次</em></div>
+              </div>
+            </div>
+
+            <div class="card advice">
+              <div class="card-kicker">后续规划建议</div>
+              <div class="advice-title">先解决看图列式，再复测乘法口诀</div>
+              <div class="advice-row"><b>本次安排</b><span>3 道易错点变式题 + 1 道迁移题，预计 12 分钟</span></div>
+              <div class="advice-row"><b>教学方式</b><span>先让孩子自己圈出总量，不直接讲公式</span></div>
+              <div class="advice-row"><b>通过标准</b><span>独立答对 2 道变式题，其中包含 1 道迁移题</span></div>
+              <div class="advice-row"><b>复测安排</b><span>24 小时后做延迟复测，通过后再进入下一个知识点</span></div>
+              <div class="advice-row"><b>判断依据</b><span>前置知识「部分量与总量」尚未达到掌握标准</span></div>
+              <div class="advice-actions">
+                <button class="btn">让 WorkBuddy 生成计划</button>
+                <button class="btn btn-ghost">查看错题</button>
+              </div>
+            </div>
+
+            <div class="section-head">
+              <div class="section-title">该学科最近任务</div>
+              <div class="section-link">全部</div>
+            </div>
+            <div class="card">
+              <div class="task">
+                <div class="task-mark">数</div>
+                <div class="task-main">
+                  <div class="task-title">看图列式 · 变式练习 3 题</div>
+                  <div class="task-sub">今天 20:00 前</div>
+                </div>
+                <div class="task-state">未开始</div>
+              </div>
+              <div class="task">
+                <div class="task-mark">数</div>
+                <div class="task-main">
+                  <div class="task-title">乘法口诀 · 延迟复测</div>
+                  <div class="task-sub">明天到期</div>
+                </div>
+                <div class="task-state">待复测</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

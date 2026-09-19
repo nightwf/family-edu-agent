@@ -2,19 +2,32 @@ const api = require("../../utils/api");
 const format = require("../../utils/format");
 const presentation = require("../../utils/presentation");
 const planning = require("../../utils/planning");
+const subjects = require("../../utils/subjects");
 
-function shortText(value, fallback) {
-  const text = String(value || "").replace(/\s+/g, " ").trim();
-  if (!text) return fallback || "";
-  return text.length > 42 ? `${text.slice(0, 42)}...` : text;
-}
-
+/**
+ * 首页主次关系：
+ * 1. 孩子整体状态（结论 + 关键数字）
+ * 2. 各学科情况（主体，可进入学科详情看后续规划建议）
+ * 3. 学习计划待规划提示与最近学习任务（次要）
+ */
 Page({
   data: {
-    loading: true, error: "", family: null, children: [], childNames: [], childIndex: 0,
-    activeChild: null, todayText: "", scene: presentation.SCENES[0], animationEnabled: true,
-    planningCard: null, planningCopyText: "复制规划指令",
-    hero: presentation.deriveChildPresentation({}), recentChanges: [], pendingTasks: []
+    loading: true,
+    error: "",
+    family: null,
+    children: [],
+    childNames: [],
+    childIndex: 0,
+    activeChild: null,
+    todayText: "",
+    scene: presentation.SCENES[0],
+    animationEnabled: true,
+    overall: null,
+    subjects: [],
+    characterImage: "",
+    planningCard: null,
+    planningCopyText: "复制规划指令",
+    pendingTasks: []
   },
 
   onLoad() {
@@ -35,38 +48,35 @@ Page({
       const foundIndex = children.findIndex((child) => child.id === activeChildId);
       const childIndex = foundIndex >= 0 ? foundIndex : 0;
       const activeChild = children[childIndex] || null;
+
+      const overview = home.subject_overview || null;
+      const rawSubjects = (overview && overview.subjects) || [];
+      const evidenceCount = home.child_state && home.child_state.summary ? home.child_state.summary.evidence_7d : null;
+      const characterState = subjects.pickCharacterState(rawSubjects);
       const childHomework = (home.homework || []).filter((item) => !activeChild || item.childId === activeChild.id);
-      const hero = presentation.deriveChildPresentation({
-        child: activeChild,
-        childState: home.child_state,
-        relationship: home.relationship,
-        wrongQuestions: home.wrong_questions,
-        mastery: home.mastery,
-        reports: home.reports,
-        homework: childHomework
-      });
-      const pendingTasks = childHomework.filter((item) => !["done", "cancelled"].includes(item.status)).slice(0, 3).map((item) => ({
-        ...item,
-        subjectMark: String(item.subject || "任").slice(0, 1),
-        dueText: item.dueDate ? `${format.formatDate(item.dueDate)} 前` : "未设置截止时间"
-      }));
-      const recentChanges = [
-        ...(home.records || []).map((item) => ({
-          id: `record-${item.id}`, label: "成长记录", title: item.title || `${item.type || "学习"}记录`,
-          text: shortText(item.notes || item.content, "暂无补充说明"), time: item.date || item.createdAt, target: "growth"
-        })),
-        ...(home.reports || []).map((item) => ({
-          id: `report-${item.id}`, sourceId: item.id, label: item.type === "monthly" ? "月度报告" : "阶段报告",
-          title: item.title || "成长报告", text: shortText(item.summary || item.content, "报告已同步"), time: item.createdAt, target: "report"
-        }))
-      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 2);
 
       this.setData({
-        family: home.family, children, childNames: children.map((child) => child.displayText), childIndex, activeChild,
-        todayText: format.formatDate(new Date()), scene: presentation.dailyScene(activeChild && activeChild.id, new Date()),
-        hero, pendingTasks, recentChanges, loading: false,
+        family: home.family,
+        children,
+        childNames: children.map((child) => child.displayText),
+        childIndex,
+        activeChild,
+        todayText: format.formatDate(new Date()),
+        scene: presentation.dailyScene(activeChild && activeChild.id, new Date()),
+        overall: subjects.mapOverall(overview && overview.overall, evidenceCount),
+        subjects: subjects.mapSubjectRows(rawSubjects),
+        characterImage: presentation.stateAsset(characterState, activeChild && activeChild.gender),
         planningCard: planning.buildPlanningCard(activeChild, home.learning_priorities, home.planning_request),
-        planningCopyText: "复制规划指令"
+        planningCopyText: "复制规划指令",
+        pendingTasks: childHomework
+          .filter((item) => !["done", "cancelled"].includes(item.status))
+          .slice(0, 3)
+          .map((item) => ({
+            ...item,
+            subjectMark: String(item.subject || "任").slice(0, 1),
+            dueText: item.dueDate ? `${format.formatDate(item.dueDate)} 前` : "未设置截止时间"
+          })),
+        loading: false
       });
     } catch (error) {
       this.setData({ error: error.message, loading: false });
@@ -82,30 +92,25 @@ Page({
   },
 
   onHeroImageError() {
-    const hero = this.data.hero || {};
-    const isFemaleAsset = presentation.normalizedGender(this.data.activeChild && this.data.activeChild.gender) === "female"
-      && String(hero.image || "").includes("-female");
-    if (isFemaleAsset) {
-      // 女生素材缺失时退回男生同状态素材，避免首页出现空白。
-      this.setData({ "hero.image": presentation.stateAsset(hero.state, "male") });
-      return;
-    }
-    this.setData({ "hero.image": presentation.STATE_ASSETS.stable, animationEnabled: false });
+    const gender = this.data.activeChild && this.data.activeChild.gender;
+    this.setData({ characterImage: presentation.stateAsset("stable", gender) });
   },
+
+  openSubject(event) {
+    const subject = event.currentTarget.dataset.subject;
+    if (!subject || !this.data.activeChild) return;
+    wx.navigateTo({ url: `/pages/subject-detail/subject-detail?childId=${this.data.activeChild.id}&subject=${encodeURIComponent(subject)}` });
+  },
+
   goStudents() { wx.switchTab({ url: "/pages/students/students" }); },
   goGrowth() { wx.switchTab({ url: "/pages/growth/growth" }); },
   goHomework() { wx.setStorageSync("familyEduLearningModule", "homework"); wx.navigateTo({ url: "/pages/learning-manager/learning-manager" }); },
+  goLearning() { wx.switchTab({ url: "/pages/learning/learning" }); },
   goChildState() {
     if (!this.data.activeChild) return this.goStudents();
     wx.navigateTo({ url: `/pages/child-state/child-state?childId=${this.data.activeChild.id}` });
   },
-  goWeakness() {
-    if (this.data.activeChild) wx.navigateTo({ url: `/pages/weakness-detail/weakness-detail?childId=${this.data.activeChild.id}` });
-  },
-  openInsight() {
-    if (this.data.hero && this.data.hero.weakness) this.goWeakness();
-    else this.goChildState();
-  },
+
   copyPlanningInstruction() {
     const card = this.data.planningCard;
     if (!card || !card.instruction) return;
@@ -116,13 +121,5 @@ Page({
         setTimeout(() => this.setData({ planningCopyText: "复制规划指令" }), 1500);
       }
     });
-  },
-  openChange(event) {
-    const item = this.data.recentChanges.find((entry) => entry.id === event.currentTarget.dataset.id);
-    if (item && item.target === "report") {
-      const childId = this.data.activeChild ? this.data.activeChild.id : "";
-      return wx.navigateTo({ url: `/pages/monthly-report/monthly-report?id=${item.sourceId}&childId=${childId}` });
-    }
-    this.goGrowth();
   }
 });

@@ -29,6 +29,7 @@ import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { registerV2Routes } from "./v2/routes.js";
 import { ensurePlanningRequest, getLearningPriorities } from "./v2/learning-engine.js";
+import { getSubjectDetail, getSubjectOverview } from "./v2/subject-overview.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
 import { loadMobileHomeInsights } from "./mobile-home.js";
@@ -661,6 +662,7 @@ export async function buildApp() {
     const learning = activeChild
       ? await buildHomeLearningSection(auth.familyId, activeChild.id)
       : { learning_priorities: null, planning_request: null };
+    const subjectOverview = activeChild ? await buildHomeSubjectOverview(auth.familyId, activeChild.id) : null;
     return {
       user,
       family,
@@ -671,6 +673,7 @@ export async function buildApp() {
       homework,
       ...insights,
       ...learning,
+      subject_overview: subjectOverview,
       stats: {
         records: childRecords.length,
         writing: childRecords.filter((item) => item.type === "writing").length,
@@ -678,6 +681,22 @@ export async function buildApp() {
         homework: Math.round(childRecords.filter((item) => item.type === "homework").reduce((sum, item) => sum + (item.score || 0), 0) / Math.max(1, childRecords.filter((item) => item.type === "homework").length)),
       },
     };
+  });
+
+  app.get("/api/mobile/subject-detail", { preHandler: requireAuth as any }, async (request, reply) => {
+    const familyId = getAuth(request).familyId;
+    const query = request.query as any;
+    const childId = String(query.child_id || "");
+    const subject = String(query.subject || "");
+    if (!childId || !subject) return reply.code(400).send({ error: "缺少 child_id 或 subject" });
+    try {
+      return await getSubjectDetail(familyId, childId, subject);
+    } catch (error) {
+      if (error instanceof Error && (error as any).statusCode === 404) {
+        return reply.code(404).send({ error: error.message });
+      }
+      throw error;
+    }
   });
 
   app.get("/api/mobile/growth", { preHandler: requireAuth as any }, async (request) => {
@@ -787,6 +806,14 @@ function normalizeChildGender(value: unknown) {
  * 首页需要的学习决策信息：当前优先级和待规划事项。
  * 这部分是规则计算，失败时不能影响首页其它数据加载。
  */
+async function buildHomeSubjectOverview(familyId: string, childId: string) {
+  try {
+    return await getSubjectOverview(familyId, childId);
+  } catch {
+    return null;
+  }
+}
+
 async function buildHomeLearningSection(familyId: string, childId: string) {
   try {
     const priorities = await getLearningPriorities(familyId, childId, { limit: 3 });

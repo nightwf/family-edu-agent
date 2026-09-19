@@ -28,6 +28,7 @@ const api = {
   home: () => request({ url: "/api/home" }),
   mobileHome: (params) => request({ url: `/api/mobile/home?${qs(params)}` }),
   mobileGrowth: (params) => request({ url: `/api/mobile/growth?${qs(params)}` }),
+  subjectDetail: (params) => request({ url: `/api/mobile/subject-detail?${qs(params)}` }),
   mobileLearning: (params) => request({ url: `/api/mobile/learning?${qs({ limit: 20, ...(params || {}) })}` }),
   settings: () => request({ url: "/api/settings" }),
   familyMembers: () => request({ url: "/api/family/members" }),
