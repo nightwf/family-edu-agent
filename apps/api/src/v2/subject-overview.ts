@@ -226,6 +226,9 @@ async function collectSubjectInputs(familyId: string, childId: string, now: Date
     return buckets.get(key) as SubjectBucket;
   };
 
+  // 先按孩子的关注学科建骨架：没有记录的科目也要出现，并如实显示为「材料不足」。
+  for (const subject of child.subjects || []) bucket(subject);
+
   for (const item of masteries) {
     bucket(item.questionType?.subject).masteries.push({
       name: item.questionType?.name || "未命名题型",
@@ -316,6 +319,7 @@ export async function getSubjectOverview(familyId: string, childId: string, now 
       })),
       weak_items: weakItems(input),
     }))
+    // 关注学科即使暂时没有记录也要展示，只有既不属于关注学科又没有数据的「其他」才隐藏。
     .filter((row) => row.subject !== "其他" || row.status !== "thin");
 
   const ranked = rankSubjectRows(rows).map(({ attempts_14d, ...rest }) => rest);

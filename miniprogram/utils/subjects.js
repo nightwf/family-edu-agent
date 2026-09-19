@@ -56,7 +56,7 @@ function mapOverall(overall, evidenceCount) {
     conclusion: (overall && overall.conclusion) || "还没有足够的学习记录，先录入一次作业或错题",
     tags: (overall && overall.tags) || [],
     metrics: [
-      { value: metrics.subject_count === undefined || metrics.subject_count === null ? "—" : String(metrics.subject_count), label: "覆盖学科" },
+      { value: metrics.subject_count === undefined || metrics.subject_count === null ? "—" : String(metrics.subject_count), label: "有记录学科" },
       { value: metrics.mastery_average === undefined || metrics.mastery_average === null ? "—" : String(Math.round(metrics.mastery_average)), label: "掌握度均值" },
       { value: evidenceCount === null || evidenceCount === undefined ? "—" : String(evidenceCount), label: "本周证据" },
       { value: metrics.review_due_count === undefined || metrics.review_due_count === null ? "0" : String(metrics.review_due_count), label: "待复测" }

@@ -189,9 +189,28 @@ describe("规划建议由规则生成", () => {
 
 describe("学科概览接口", () => {
   beforeEach(() => {
-    childFindFirst.mockResolvedValue({ id: "c1", name: "JOJO", grade: "三年级" });
+    childFindFirst.mockResolvedValue({ id: "c1", name: "JOJO", grade: "三年级", subjects: ["数学"] });
     wrongFindMany.mockResolvedValue([]);
     homeworkFindMany.mockResolvedValue([]);
+  });
+
+  it("没有记录的关注学科也会出现，并标记为材料不足", async () => {
+    childFindFirst.mockResolvedValue({ id: "c1", name: "JOJO", grade: "三年级", subjects: ["语文", "数学", "英语", "科学"] });
+    masteryFindMany.mockResolvedValue([
+      { masteryScore: 54, status: "learning", totalAttempts: 5, variationCount: 2, nextReviewAt: null, questionType: { name: "看图列式", subject: "数学" } },
+    ]);
+    attemptFindMany.mockResolvedValue([
+      { attemptedAt: new Date(NOW.getTime() - 86_400_000), questionType: { subject: "数学", name: "看图列式" } },
+    ]);
+    getLearningPriorities.mockResolvedValue({ signal_count: 0, planning_required: true, active_goal: null, priorities: [] });
+
+    const overview = await getSubjectOverview("fam1", "c1", NOW);
+    expect(overview.subjects).toHaveLength(4);
+    expect(overview.subjects[0].subject).toBe("数学");
+    expect(overview.subjects[0].status).toBe("focus");
+    const thinSubjects = overview.subjects.filter((row) => row.status === "thin").map((row) => row.subject);
+    expect(thinSubjects).toEqual(expect.arrayContaining(["语文", "英语", "科学"]));
+    expect(overview.overall.metrics.subject_count).toBe(1);
   });
 
   it("按学科聚合掌握度、薄弱点和复测数量", async () => {
