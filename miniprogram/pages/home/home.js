@@ -77,7 +77,17 @@ Page({
     this.load();
   },
 
-  onHeroImageError() { this.setData({ "hero.image": presentation.STATE_ASSETS.stable, animationEnabled: false }); },
+  onHeroImageError() {
+    const hero = this.data.hero || {};
+    const isFemaleAsset = presentation.normalizedGender(this.data.activeChild && this.data.activeChild.gender) === "female"
+      && String(hero.image || "").includes("-female");
+    if (isFemaleAsset) {
+      // 女生素材缺失时退回男生同状态素材，避免首页出现空白。
+      this.setData({ "hero.image": presentation.stateAsset(hero.state, "male") });
+      return;
+    }
+    this.setData({ "hero.image": presentation.STATE_ASSETS.stable, animationEnabled: false });
+  },
   goStudents() { wx.switchTab({ url: "/pages/students/students" }); },
   goGrowth() { wx.switchTab({ url: "/pages/growth/growth" }); },
   goHomework() { wx.setStorageSync("familyEduLearningModule", "homework"); wx.navigateTo({ url: "/pages/learning-manager/learning-manager" }); },

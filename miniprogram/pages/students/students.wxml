@@ -15,7 +15,7 @@
   <view wx:if="{{children.length}}" class="student-list">
     <view wx:for="{{children}}" wx:key="id" class="student-card folder-card" data-id="{{item.id}}" bindtap="openDetail">
       <view class="student-head">
-        <view class="student-avatar tone-{{item.colorIndex}}"><image src="/assets/illustrations/child-stable.png" mode="aspectFit" /></view>
+        <view class="student-avatar tone-{{item.colorIndex}}"><image src="{{item.avatar}}" mode="aspectFit" /></view>
         <view class="student-main">
           <view class="student-name-row">
             <view class="name">{{item.name}}</view>
@@ -24,7 +24,7 @@
               <view class="more-button" data-id="{{item.id}}" catchtap="openActions" aria-label="更多操作"></view>
             </view>
           </view>
-          <view class="student-meta">{{item.age || '-'}} 岁 · {{item.grade || '未设置年级'}}</view>
+          <view class="student-meta">{{item.genderText}} · {{item.age || '-'}} 岁 · {{item.grade || '未设置年级'}}</view>
         </view>
       </view>
       <view class="profile-block">
@@ -61,6 +61,13 @@
         <view class="form-item">
           <view class="form-label">姓名</view>
           <input class="input" value="{{form.name}}" data-field="name" bindinput="onField" placeholder="孩子姓名" />
+        </view>
+        <view class="form-item">
+          <view class="form-label">性别</view>
+          <view class="gender-picker">
+            <view wx:for="{{genderOptions}}" wx:key="value" class="gender-option {{form.gender === item.value ? 'is-active' : ''}}" data-value="{{item.value}}" bindtap="onGenderChange">{{item.label}}</view>
+          </view>
+          <view class="form-hint">决定首页人物形象，后续可随时修改</view>
         </view>
         <view class="form-row">
           <view class="form-item half">

@@ -35,7 +35,7 @@ import {
   type PageId,
 } from "./components/Layout";
 
-type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
+type Child = { id: string; name: string; gender?: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
 type Knowledge = { id: string; childId: string; kind: string; title: string; content: string; createdAt: string };
 type Textbook = { id: string; childId: string; title: string; subject?: string; publisher?: string; version?: string; status: string };
@@ -323,6 +323,7 @@ function App() {
       name: form.get("name"),
       age: Number(form.get("age")),
       grade: form.get("grade"),
+      gender: form.get("gender") === "female" ? "female" : "male",
       subjects: String(form.get("subjects") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
       textbook_version: form.get("textbook_version"),
     };
@@ -550,7 +551,7 @@ function App() {
                     {home.children.map((child) => (
                       <tr key={child.id} className="border-t border-stone-200">
                         <td className="px-2 py-3 font-semibold">{child.name}</td>
-                        <td className="px-2 py-3">{child.age} 岁 / {child.grade}</td>
+                        <td className="px-2 py-3">{child.gender === "female" ? "女生" : "男生"} · {child.age} 岁 / {child.grade}</td>
                         <td className="px-2 py-3">{child.subjects.join("、")}</td>
                         <td className="px-2 py-3">{child.textbookVersion || "未设置"}</td>
                         <td className="px-2 py-3">
@@ -866,6 +867,10 @@ function App() {
             <input name="name" defaultValue={editingChild?.name} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="姓名" />
             <input name="age" type="number" defaultValue={editingChild?.age} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年龄" />
             <input name="grade" defaultValue={editingChild?.grade} required className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="年级" />
+            <select name="gender" defaultValue={editingChild?.gender || "male"} className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2">
+              <option value="male">男生</option>
+              <option value="female">女生</option>
+            </select>
             <input name="subjects" defaultValue={editingChild?.subjects.join("、")} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="学科" />
             <input name="textbook_version" defaultValue={editingChild?.textbookVersion} className="w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="教材版本" />
             <div className="flex justify-end gap-2">

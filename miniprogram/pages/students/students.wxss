@@ -86,4 +86,7 @@
 .form-item.half { width: calc(50% - 8rpx); }
 .form-hint { margin-top: 8rpx; color: #8b989a; font-size: 22rpx; }
 .save-button { margin-top: 8rpx; }
+.gender-picker { display: flex; gap: 12rpx; }
+.gender-option { min-width: 140rpx; min-height: 76rpx; display: flex; align-items: center; justify-content: center; border: 1rpx solid var(--line); border-radius: 18rpx; background: #fff; color: #6f7f82; font-size: 26rpx; font-weight: 800; }
+.gender-option.is-active { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); }
 .student-detail-link{padding:18rpx 24rpx;border-top:1rpx solid var(--line-soft);color:var(--teal);font-size:23rpx;font-weight:800;text-align:right}

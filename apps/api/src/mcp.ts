@@ -100,7 +100,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
       prisma.child.findMany({
         where: { familyId, status: "active" },
         orderBy: { createdAt: "asc" },
-        select: { id: true, name: true, age: true, grade: true },
+        select: { id: true, name: true, gender: true, age: true, grade: true },
       }),
       prisma.record.count({ where: { familyId } }),
       prisma.report.count({ where: { familyId } }),
@@ -114,6 +114,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
       children: children.map((child) => ({
         child_id: child.id,
         name: child.name,
+        gender: child.gender,
         age: child.age,
         grade: child.grade,
       })),
@@ -290,6 +291,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     name: z.string(),
     age: z.number().optional(),
     grade: z.string(),
+    gender: z.enum(["male", "female"]).optional(),
     subjects: z.array(z.string()).optional(),
     textbook_version: z.string().optional(),
   }, async (input) => {
@@ -297,6 +299,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
       data: {
         familyId,
         name: input.name,
+        gender: input.gender || "male",
         age: input.age,
         grade: input.grade,
         subjects: input.subjects || [],
@@ -311,6 +314,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     name: z.string().optional(),
     age: z.number().optional(),
     grade: z.string().optional(),
+    gender: z.enum(["male", "female"]).optional(),
     subjects: z.array(z.string()).optional(),
     textbook_version: z.string().optional(),
     status: z.string().optional(),
@@ -322,6 +326,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
         name: input.name,
         age: input.age,
         grade: input.grade,
+        gender: input.gender,
         subjects: input.subjects,
         textbookVersion: input.textbook_version,
         status: input.status,

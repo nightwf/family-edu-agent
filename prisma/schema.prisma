@@ -133,6 +133,7 @@ model Child {
   familyId          String
   family            Family                       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   name              String
+  gender            String                       @default("male")
   age               Int?
   grade             String
   subjects          String[]

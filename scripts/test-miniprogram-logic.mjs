@@ -153,6 +153,41 @@ console.log("\n首页每日场景与状态映射");
   assert(review.weakness.name === "小数加减", "薄弱点名称来自真实题型数据");
 }
 
+console.log("\n首页人物形象性别映射");
+{
+  const presentation = requireCommonJs("utils/presentation.js");
+  assert(presentation.normalizedGender(undefined) === "male", "未设置性别时按男生处理");
+  assert(presentation.normalizedGender("female") === "female", "女生档案识别为女生");
+  assert(presentation.normalizedGender("FEMALE") === "female", "性别取值大小写不敏感");
+  assert(presentation.normalizedGender("other") === "male", "非法性别值回退为男生");
+
+  assert(presentation.stateAsset("thinking", "male").endsWith("child-thinking.png"), "男生使用男生形象素材");
+  assert(presentation.stateAsset("thinking", "female").endsWith("child-thinking-female.png"), "已就绪的女生状态使用女生形象素材");
+  assert(presentation.stateAsset("progress", "female").endsWith("child-progress.png"), "女生素材未就绪的状态回退到男生同状态素材");
+
+  const femaleHero = presentation.deriveChildPresentation({
+    child: { id: "c2", name: "XIAOYU", gender: "female" },
+    childState: { summary: { evidence_7d: 1 } },
+    wrongQuestions: { items: [{ status: "needs_review", questionType: { name: "阅读概括" } }] },
+    mastery: { items: [] },
+    homework: [],
+  });
+  assert(femaleHero.state === "review" && femaleHero.image.endsWith("child-review.png"), "女生素材缺失时首页仍能给出可用形象");
+
+  assert(presentation.stateAsset("unknown-state", "female").endsWith("child-stable.png"), "未知状态回退到稳定形象");
+  assert(presentation.stateAsset("stable", null).endsWith("child-stable.png"), "无性别孩子使用男生形象");
+
+  const illustrationDir = path.join(root, "assets/illustrations");
+  for (const state of presentation.FEMALE_READY_STATES) {
+    assert(fs.existsSync(path.join(illustrationDir, `child-${state}-female.png`)), `已登记的女生素材真实存在：child-${state}-female.png`);
+  }
+  const femaleFiles = fs.readdirSync(illustrationDir).filter((name) => name.endsWith("-female.png"));
+  for (const file of femaleFiles) {
+    const state = file.replace(/^child-/, "").replace(/-female\.png$/, "");
+    assert(presentation.FEMALE_READY_STATES.includes(state), `已存在的女生素材已登记到映射表：${file}`);
+  }
+}
+
 console.log("\n家庭切换缓存隔离");
 {
   const session = requireCommonJs("utils/session.js");

@@ -774,6 +774,10 @@ export async function buildApp() {
     return { children, active_child: activeChild, data };
   });
 
+function normalizeChildGender(value: unknown) {
+  return String(value || "").toLowerCase() === "female" ? "female" : "male";
+}
+
   app.get("/api/children", { preHandler: requireAuth as any }, async (request) => {
     return prisma.child.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "asc" } });
   });
@@ -785,6 +789,7 @@ export async function buildApp() {
       data: {
         familyId,
         name: body.name,
+        gender: normalizeChildGender(body.gender),
         age: Number(body.age || 0),
         grade: body.grade,
         subjects: Array.isArray(body.subjects) ? body.subjects : String(body.subjects || "").split(/[,，]/).map((item: string) => item.trim()).filter(Boolean),
@@ -801,6 +806,7 @@ export async function buildApp() {
       where: { id: childId },
       data: {
         name: body.name,
+        gender: body.gender === undefined || body.gender === null || body.gender === "" ? undefined : normalizeChildGender(body.gender),
         age: Number(body.age || 0),
         grade: body.grade,
         subjects: Array.isArray(body.subjects) ? body.subjects : String(body.subjects || "").split(/[,，]/).map((item: string) => item.trim()).filter(Boolean),

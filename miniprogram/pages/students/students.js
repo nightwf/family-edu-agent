@@ -1,4 +1,14 @@
 const api = require("../../utils/api");
+const presentation = require("../../utils/presentation");
+
+const GENDERS = [
+  { value: "male", label: "男生" },
+  { value: "female", label: "女生" }
+];
+
+function emptyForm() {
+  return { name: "", gender: "male", age: "", grade: "", subjects: "", textbook_version: "" };
+}
 
 Page({
   data: {
@@ -7,13 +17,8 @@ Page({
     children: [],
     formVisible: false,
     editingId: "",
-    form: {
-      name: "",
-      age: "",
-      grade: "",
-      subjects: "",
-      textbook_version: ""
-    }
+    genderOptions: GENDERS,
+    form: emptyForm()
   },
 
   onShow() {
@@ -29,7 +34,9 @@ Page({
           ...child,
           initial: (child.name || "孩").slice(0, 1),
           colorIndex: index % 3,
-          subjectsText: (child.subjects || []).join("、") || "未设置"
+          subjectsText: (child.subjects || []).join("、") || "未设置",
+          genderText: presentation.normalizedGender(child.gender) === "female" ? "女生" : "男生",
+          avatar: presentation.stateAsset("stable", child.gender)
         })),
         loading: false
       });
@@ -39,11 +46,7 @@ Page({
   },
 
   openCreate() {
-    this.setData({
-      formVisible: true,
-      editingId: "",
-      form: { name: "", age: "", grade: "", subjects: "", textbook_version: "" }
-    });
+    this.setData({ formVisible: true, editingId: "", form: emptyForm() });
   },
 
   openDetail(event) {
@@ -61,6 +64,7 @@ Page({
       editingId: child.id,
       form: {
         name: child.name || "",
+        gender: presentation.normalizedGender(child.gender),
         age: child.age === null || child.age === undefined ? "" : String(child.age),
         grade: child.grade || "",
         subjects: (child.subjects || []).join("、"),
@@ -95,6 +99,10 @@ Page({
     this.setData({ [`form.${field}`]: event.detail.value });
   },
 
+  onGenderChange(event) {
+    this.setData({ "form.gender": event.currentTarget.dataset.value });
+  },
+
   async submit() {
     const { editingId, form } = this.data;
     if (!form.name || !form.grade) {
@@ -103,6 +111,7 @@ Page({
     }
     const payload = {
       name: form.name,
+      gender: presentation.normalizedGender(form.gender),
       age: Number(form.age || 0),
       grade: form.grade,
       subjects: form.subjects.split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
