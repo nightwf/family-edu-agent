@@ -68,6 +68,21 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 5. 前置关系默认使用 `PREREQUISITE_OF`，必须区分 `hard`（必须先掌握）和 `soft`（建议掌握），并用 `reason` 说明原因。
 6. 后续规划、讲解和掌握判定先调用 `get_knowledge_context`，不要绕过已知证据和前置关系。
 
+## 学习优先级流程
+
+1. 涉及“接下来学什么”的问题，先调用 `get_learning_priorities`，不要用模型推测代替。
+2. 优先级由禾芽按固定规则计算：前置知识缺口 > 重复出错 > 复测到期 > 掌握度偏低 > 变式覆盖不足；
+   另加严重度、与当前阶段目标的相关性和新鲜度。必须引用返回的 `reason` 与 `priority_score` 作为依据。
+3. 教材知识节点建立后，用 `link_question_type_knowledge` 把题型关联到知识节点；一道题考察多个知识点时用
+   `link_question_knowledge` 覆盖题型默认关联。作答后禾芽会自动刷新对应知识点的掌握状态，不需要重复手写。
+4. 题目答案或选项被修改后调用 `verify_question_answer` 复验。`calculation` 类型若包含无法用四则运算核对的内容，
+   会返回 `unverified`，不得当成已验证答案使用；主观题返回 `not_applicable`，需要评分量表或人工确认。
+5. 家长端出现待规划事项时，先 `list_planning_requests` 找到事项，读完 `get_learning_priorities` 与
+   `get_planning_context` 再制定目标，写回后用 `update_planning_request_status` 标记 `completed`，并按需关联 `stage_goal_id`。
+6. 练习或计划执行后，用 `record_recommendation_outcome` 记录这次建议的真实效果
+   （`improved` / `unchanged` / `worse` / `unmeasurable`）。
+7. 已经解决的信号用 `resolve_learning_signal` 处理，保持首页只显示当前真正需要关注的问题。
+
 ## 安全与删除
 
 - MCP 工具只访问当前授权对应家庭的数据；

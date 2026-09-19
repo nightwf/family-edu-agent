@@ -158,14 +158,16 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
   });
 
   server.tool("get_sync_spec", "读取禾芽最新版详细同步规范。新会话先调用 get_agent_bootstrap；工具变化、复杂任务或不确定应保存什么时再调用本工具。", {}, async () => textResult({
-    version: "2.3",
+    version: "2.4",
     startup_rule: "新会话首次使用禾芽时先调用 get_agent_bootstrap；连接后无需让家长重复粘贴提示词。",
     family_identity: "家庭身份只由连接授权（OAuth Access Token 或家庭 Token）决定，不传入或猜测 family_id。",
     child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
     save_rule: "普通闲聊不保存；家长明确要求保存、同步、写入、记录时调用对应工具。",
     workflows: {
-      understand_child: ["get_child_state", "get_family_policy", "get_planning_context"],
-      stage_goal: ["get_planning_context", "propose_stage_goals", "confirm_stage_goal"],
+      understand_child: ["get_child_state", "get_family_policy", "get_learning_priorities", "get_planning_context"],
+      learning_priority: ["get_learning_priorities", "list_learning_signals", "resolve_learning_signal"],
+      stage_goal: ["get_learning_priorities", "get_planning_context", "propose_stage_goals", "confirm_stage_goal"],
+      planning_request: ["list_planning_requests", "get_planning_request", "get_learning_priorities", "propose_stage_goals", "update_planning_request_status"],
       weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
       evidence: ["save_evidence_record", "review_evidence_record"],
       knowledge_v2: ["import_source_document", "save_knowledge_nodes_batch", "save_knowledge_relations_batch", "get_knowledge_context"],

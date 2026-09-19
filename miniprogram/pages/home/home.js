@@ -1,6 +1,7 @@
 const api = require("../../utils/api");
 const format = require("../../utils/format");
 const presentation = require("../../utils/presentation");
+const planning = require("../../utils/planning");
 
 function shortText(value, fallback) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
@@ -12,6 +13,7 @@ Page({
   data: {
     loading: true, error: "", family: null, children: [], childNames: [], childIndex: 0,
     activeChild: null, todayText: "", scene: presentation.SCENES[0], animationEnabled: true,
+    planningCard: null, planningCopyText: "复制规划指令",
     hero: presentation.deriveChildPresentation({}), recentChanges: [], pendingTasks: []
   },
 
@@ -62,7 +64,9 @@ Page({
       this.setData({
         family: home.family, children, childNames: children.map((child) => child.displayText), childIndex, activeChild,
         todayText: format.formatDate(new Date()), scene: presentation.dailyScene(activeChild && activeChild.id, new Date()),
-        hero, pendingTasks, recentChanges, loading: false
+        hero, pendingTasks, recentChanges, loading: false,
+        planningCard: planning.buildPlanningCard(activeChild, home.learning_priorities, home.planning_request),
+        planningCopyText: "复制规划指令"
       });
     } catch (error) {
       this.setData({ error: error.message, loading: false });
@@ -101,6 +105,17 @@ Page({
   openInsight() {
     if (this.data.hero && this.data.hero.weakness) this.goWeakness();
     else this.goChildState();
+  },
+  copyPlanningInstruction() {
+    const card = this.data.planningCard;
+    if (!card || !card.instruction) return;
+    wx.setClipboardData({
+      data: card.instruction,
+      success: () => {
+        this.setData({ planningCopyText: "已复制" });
+        setTimeout(() => this.setData({ planningCopyText: "复制规划指令" }), 1500);
+      }
+    });
   },
   openChange(event) {
     const item = this.data.recentChanges.find((entry) => entry.id === event.currentTarget.dataset.id);

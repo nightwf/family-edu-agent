@@ -1,1 +1,88 @@
-<view class="page learning-page"><view wx:if="{{error}}" class="error-tip">{{error}}</view><view class="learning-head"><view><view class="page-eyebrow">先诊断，再练习</view><view class="title">学习诊断</view></view><picker wx:if="{{children.length}}" mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange"><view class="child-filter">{{childNames[childIndex]}} <text>⌄</text></view></picker></view><view wx:if="{{loading}}" class="loading-block">正在整理学习证据...</view><block wx:else><view class="diagnosis-card"><view class="diagnosis-copy"><view class="diagnosis-kicker">当前学习重点</view><view class="diagnosis-title">{{wrong.length ? wrong[0].name : '还没有确认的薄弱点'}}</view><view class="diagnosis-sub">{{wrong.length ? wrong[0].reasonText : '需要继续同步错题和练习记录后判断'}}</view></view><image src="/assets/illustrations/child-thinking.png" mode="aspectFit"/><view class="diagnosis-stats"><view><text>{{overview.weakCount}}</text>待处理</view><view><text>{{overview.reviewCount}}</text>待复测</view><view><text>{{overview.homeworkCount}}</text>未完成</view></view></view><view class="section-head"><view class="section-title">重点薄弱</view><view class="section-link" bindtap="goWeakness">完整诊断</view></view><view wx:if="{{mastery.length}}" class="focus-list"><view wx:for="{{mastery}}" wx:key="id" class="focus-row"><view class="focus-main"><view class="focus-name">{{item.name}}</view><view class="focus-meta">{{item.statusText}}</view><view class="progress"><view class="progress-fill" style="width:{{item.score}}%"></view></view></view><view class="focus-score">{{item.score}}</view></view></view><view wx:else class="empty slim-empty">还没有题型掌握记录</view><view class="section-head"><view class="section-title">学习资料</view></view><view class="module-grid"><view class="module-card primary" bindtap="goWrongBook"><view class="module-icon">错</view><view><view class="module-name">错题本</view><view class="module-desc">订正、巩固、复测</view></view><text>›</text></view><view class="module-card" data-module="questions" bindtap="openModule"><view class="module-icon teal">题</view><view><view class="module-name">题库与题型</view><view class="module-desc">掌握度和同型题</view></view><text>›</text></view><view class="module-card" data-module="homework" bindtap="openModule"><view class="module-icon gold">作</view><view><view class="module-name">家庭作业</view><view class="module-desc">任务和完成情况</view></view><text>›</text></view><view class="module-card" data-module="textbooks" bindtap="openModule"><view class="module-icon teal">材</view><view><view class="module-name">教材</view><view class="module-desc">WorkBuddy 同步资料</view></view><text>›</text></view><view class="module-card" data-module="knowledge" bindtap="openModule"><view class="module-icon gold">知</view><view><view class="module-name">知识库</view><view class="module-desc">总结与教育材料</view></view><text>›</text></view></view></block></view>
+<view class="page learning-page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+  <view class="learning-head">
+    <view>
+      <view class="page-eyebrow">先诊断，再练习</view>
+      <view class="title">学习诊断</view>
+    </view>
+    <picker wx:if="{{children.length}}" mode="selector" range="{{childNames}}" value="{{childIndex}}" bindchange="onChildChange">
+      <view class="child-filter">{{childNames[childIndex]}} <text>⌄</text></view>
+    </picker>
+  </view>
+  <view wx:if="{{loading}}" class="loading-block">正在整理学习证据...</view>
+  <block wx:else>
+    <view class="diagnosis-card">
+      <view class="diagnosis-copy">
+        <view class="diagnosis-kicker">当前学习重点</view>
+        <view class="diagnosis-title">{{wrong.length ? wrong[0].name : '还没有确认的薄弱点'}}</view>
+        <view class="diagnosis-sub">{{wrong.length ? wrong[0].reasonText : '需要继续同步错题和练习记录后判断'}}</view>
+      </view>
+      <image src="/assets/illustrations/child-thinking.png" mode="aspectFit"/>
+      <view class="diagnosis-stats">
+        <view><text>{{overview.weakCount}}</text>待处理</view>
+        <view><text>{{overview.reviewCount}}</text>待复测</view>
+        <view><text>{{overview.homeworkCount}}</text>未完成</view>
+      </view>
+    </view>
+
+    <view class="section-head">
+      <view class="section-title">学习优先级</view>
+      <view wx:if="{{planningRequired}}" class="section-link">建议重新规划</view>
+    </view>
+    <view wx:if="{{priorities.length}}" class="focus-list">
+      <view wx:for="{{priorities}}" wx:key="signal_id" class="focus-row">
+        <view class="focus-main">
+          <view class="focus-name">{{item.focusText}}</view>
+          <view class="focus-meta">{{item.rankText}} · {{item.reason}}</view>
+        </view>
+        <view class="focus-score">{{item.scoreValue}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty slim-empty">暂时没有需要优先处理的问题</view>
+
+    <view class="section-head">
+      <view class="section-title">重点薄弱</view>
+      <view class="section-link" bindtap="goWeakness">完整诊断</view>
+    </view>
+    <view wx:if="{{mastery.length}}" class="focus-list">
+      <view wx:for="{{mastery}}" wx:key="id" class="focus-row">
+        <view class="focus-main">
+          <view class="focus-name">{{item.name}}</view>
+          <view class="focus-meta">{{item.statusText}}</view>
+          <view class="progress"><view class="progress-fill" style="width:{{item.score}}%"></view></view>
+        </view>
+        <view class="focus-score">{{item.score}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty slim-empty">还没有题型掌握记录</view>
+
+    <view class="section-head"><view class="section-title">学习资料</view></view>
+    <view class="module-grid">
+      <view class="module-card primary" bindtap="goWrongBook">
+        <view class="module-icon">错</view>
+        <view><view class="module-name">错题本</view><view class="module-desc">订正、巩固、复测</view></view>
+        <text>›</text>
+      </view>
+      <view class="module-card" data-module="questions" bindtap="openModule">
+        <view class="module-icon teal">题</view>
+        <view><view class="module-name">题库与题型</view><view class="module-desc">掌握度和同型题</view></view>
+        <text>›</text>
+      </view>
+      <view class="module-card" data-module="homework" bindtap="openModule">
+        <view class="module-icon gold">作</view>
+        <view><view class="module-name">家庭作业</view><view class="module-desc">任务和完成情况</view></view>
+        <text>›</text>
+      </view>
+      <view class="module-card" data-module="textbooks" bindtap="openModule">
+        <view class="module-icon teal">材</view>
+        <view><view class="module-name">教材</view><view class="module-desc">WorkBuddy 同步资料</view></view>
+        <text>›</text>
+      </view>
+      <view class="module-card" data-module="knowledge" bindtap="openModule">
+        <view class="module-icon gold">知</view>
+        <view><view class="module-name">知识库</view><view class="module-desc">总结与教育材料</view></view>
+        <text>›</text>
+      </view>
+    </view>
+  </block>
+</view>

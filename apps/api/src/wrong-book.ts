@@ -7,6 +7,7 @@ import {
   requireQuestion,
   requireQuestionType,
 } from "./question-bank.js";
+import { refreshKnowledgeStateFromAttempt } from "./v2/learning-engine.js";
 
 export const WRONG_QUESTION_STATUSES = ["pending_correction", "strengthening", "mastered", "needs_review", "archived"] as const;
 export const PAPER_STATUSES = ["draft", "ready", "in_progress", "completed", "archived"] as const;
@@ -707,5 +708,12 @@ export async function recordQuestionAttemptWithWrongBook(familyId: string, input
     wrongQuestionId = wrong?.id;
   }
   const wrongMastery = wrongQuestionId ? await recalculateWrongQuestionMastery(familyId, wrongQuestionId) : null;
-  return { ...result, wrong_question_mastery: wrongMastery };
+  // 作答是知识状态的唯一事实来源：写入后同步刷新关联知识点的掌握情况。
+  const knowledgeState = await refreshKnowledgeStateFromAttempt(
+    familyId,
+    input.child_id,
+    result.attempt.questionId,
+    result.attempt.questionTypeId,
+  );
+  return { ...result, wrong_question_mastery: wrongMastery, knowledge_state: knowledgeState.updated };
 }

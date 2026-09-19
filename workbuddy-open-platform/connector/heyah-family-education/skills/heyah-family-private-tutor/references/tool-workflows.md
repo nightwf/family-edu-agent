@@ -2,20 +2,35 @@
 
 ## 理解孩子
 
-`get_agent_bootstrap` → `get_child_state` → `get_family_policy` → `get_planning_context`
+`get_agent_bootstrap` → `get_child_state` → `get_family_policy` → `get_learning_priorities` → `get_planning_context`
 
 先确认当前孩子状态、活跃目标和家庭边界，再给出判断。不要只根据一次成绩或一条记录下结论。
+
+## 学习优先级与待规划
+
+`get_learning_priorities` → `list_planning_requests` → `get_planning_context` → `propose_stage_goals` → `update_planning_request_status`
+
+1. 学习优先级由禾芽按固定规则算好：前置知识缺口 > 重复出错 > 复测到期 > 掌握度偏低 > 变式覆盖不足，再加严重度和目标相关性。
+   必须引用返回的 `reason` 与 `priority_score`，不要自己另排优先级，也不要编造依据。
+2. 家长端出现待规划事项时，先 `list_planning_requests` 找到它，读完优先级再制定目标；写回候选目标后用
+   `update_planning_request_status` 标记 `completed`，并按需关联 `stage_goal_id`。
+3. 教材知识节点建好后，用 `link_question_type_knowledge` 把题型关联到知识节点；单题考察多个知识点时用
+   `link_question_knowledge` 覆盖题型默认关联。
+4. 题目答案修改后用 `verify_question_answer` 复验。返回 `unverified` 的题目不得当作已验证答案使用。
+5. 练习或计划执行后，用 `record_recommendation_outcome` 记录真实效果。
 
 ## 阶段目标与周计划
 
 1. `get_planning_context`
-2. `propose_stage_goals`，写入 2-3 个候选目标
-3. 家长确认后 `get_stage_goal`
-4. `create_weekly_plan`
-5. 执行后 `update_plan_item_status`
-6. 到期 `create_assessment`
+2. `get_learning_priorities`
+3. `propose_stage_goals`，写入 2-3 个候选目标
+4. 家长确认后 `get_stage_goal`
+5. `create_weekly_plan`
+6. 执行后 `update_plan_item_status`
+7. 到期 `create_assessment`
 
-阶段目标应为 4-8 周，每个候选目标都要包含可验证标准和起止日期。计划任务完成时必须提供证据。
+阶段目标应为 4-8 周，每个候选目标都要包含可验证标准和起止日期，并覆盖排在前面的学习优先级。
+计划任务完成时必须提供证据。
 
 ## 每日学习计划
 

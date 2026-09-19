@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js";
+import { verifyQuestionAnswer } from "./v2/answer-verification.js";
 
 export const MASTERY_STATUSES = ["unassessed", "learning", "basic", "mastered", "needs_review"] as const;
 export const QUESTION_DIFFICULTIES = ["basic", "advanced", "transfer", "review"] as const;
@@ -328,7 +329,40 @@ function questionTypeData(input: any) {
   return Object.fromEntries(Object.entries(data).filter(([, item]) => item !== undefined));
 }
 
-function questionData(input: any) {
+/**
+ * 生成题目的验证字段。
+ * - 新建题目：一律按当前答案重新验证；
+ * - 更新题目：只有改动了答案、选项、题型或评分标准时才重新验证，避免把已有验证结果抹掉；
+ * - 允许调用方显式传入 verification_status 覆盖，用于外部计算引擎已核对过的场景。
+ */
+function verificationData(input: any, force: boolean) {
+  const format = input.format;
+  const answer = input.answer;
+  const options = input.options;
+  const scoringRubric = value(input, "scoring_rubric", "scoringRubric");
+  const explicitStatus = value(input, "verification_status", "verificationStatus");
+  const touched = [format, answer, options, scoringRubric].some((item) => item !== undefined);
+  if (!force && !touched && explicitStatus === undefined) return {};
+  if (explicitStatus !== undefined) {
+    return {
+      verificationStatus: explicitStatus,
+      verificationMethod: value(input, "verification_method", "verificationMethod"),
+      verifiedAnswer: value(input, "verified_answer", "verifiedAnswer"),
+      verificationErrors: value(input, "verification_errors", "verificationErrors"),
+      verifiedAt: explicitStatus === "verified" ? new Date() : null,
+    };
+  }
+  const result = verifyQuestionAnswer({ format, answer, options, scoringRubric });
+  return {
+    verificationStatus: result.status,
+    verificationMethod: result.method,
+    verifiedAnswer: (result.verifiedAnswer ?? undefined) as any,
+    verificationErrors: (result.errors.length ? result.errors : undefined) as any,
+    verifiedAt: result.status === "verified" ? new Date() : null,
+  };
+}
+
+function questionData(input: any, options: { verifyAnswer?: boolean } = {}) {
   const data = {
     questionTypeId: value(input, "question_type_id", "questionTypeId"),
     stem: input.stem,
@@ -347,6 +381,7 @@ function questionData(input: any) {
     variationType: value(input, "variation_type", "variationType"),
     generatedByWorkbuddy: value(input, "generated_by_workbuddy", "generatedByWorkbuddy"),
     status: input.status,
+    ...verificationData(input, options.verifyAnswer === true),
   };
   return Object.fromEntries(Object.entries(data).filter(([, item]) => item !== undefined));
 }
@@ -437,7 +472,7 @@ export async function createQuestion(familyId: string, input: any) {
   return prisma.question.create({
     data: {
       familyId,
-      ...questionData(input),
+      ...questionData(input, { verifyAnswer: true }),
       questionTypeId,
       stem: String(input.stem).trim(),
       format: input.format || "short_answer",
@@ -449,6 +484,31 @@ export async function createQuestion(familyId: string, input: any) {
     },
     include: { questionType: true },
   });
+}
+
+/**
+ * 对已入库的题目重新做一次答案验证，结果写回题目。
+ * 用于 WorkBuddy 生成题目后自查，也用于家长发现问题后复验。
+ */
+export async function verifyStoredQuestion(familyId: string, questionId: string) {
+  const question = await requireQuestion(familyId, questionId);
+  const result = verifyQuestionAnswer({
+    format: question.format,
+    answer: question.answer,
+    options: question.options,
+    scoringRubric: question.scoringRubric,
+  });
+  const updated = await prisma.question.update({
+    where: { id: questionId },
+    data: {
+      verificationStatus: result.status,
+      verificationMethod: result.method,
+      verifiedAnswer: (result.verifiedAnswer ?? undefined) as any,
+      verificationErrors: (result.errors.length ? result.errors : undefined) as any,
+      verifiedAt: result.status === "verified" ? new Date() : null,
+    },
+  });
+  return { question: updated, verification: result };
 }
 
 export async function createQuestionsBatch(familyId: string, questions: any[]) {
@@ -478,7 +538,7 @@ export async function createQuestionsBatch(familyId: string, questions: any[]) {
     return prisma.question.create({
       data: {
         familyId,
-        ...questionData(input),
+        ...questionData(input, { verifyAnswer: true }),
         questionTypeId,
         stem: String(input.stem).trim(),
         format: input.format || "short_answer",

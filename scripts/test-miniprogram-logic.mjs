@@ -188,6 +188,38 @@ console.log("\n首页人物形象性别映射");
   }
 }
 
+console.log("\n首页待规划提示");
+{
+  const planning = requireCommonJs("utils/planning.js");
+  assert(planning.buildPlanningCard({ name: "JOJO" }, null, null) === null, "没有待规划事项时不显示规划卡片");
+
+  const withPriority = planning.buildPlanningCard(
+    { name: "JOJO" },
+    { top: { label: "看图列式", reason: "14 天内重复出错 2 次", priority_score: 104 } },
+    { id: "pr1", status: "pending", trigger_reason: "看图列式重复出错" },
+  );
+  assert(withPriority.statusText === "待规划", "待规划事项显示为待规划状态");
+  assert(withPriority.focusText === "看图列式", "规划卡片显示第一优先的学习重点");
+  assert(withPriority.instruction.includes("JOJO") && withPriority.instruction.includes("看图列式"), "复制指令带上孩子与学习重点");
+  assert(withPriority.instruction.includes("4 周"), "复制指令明确计划周期");
+
+  const inProgress = planning.buildPlanningCard(
+    { name: "JOJO" },
+    { top: { label: "看图列式", reason: "重复出错" } },
+    { id: "pr2", status: "in_progress" },
+  );
+  assert(inProgress.statusText === "规划中", "进行中的待规划事项显示为规划中");
+  assert(inProgress.reason === "重复出错", "没有触发原因时回退到优先级原因");
+
+  const noSignal = planning.buildPlanningCard(
+    { name: "JOJO" },
+    null,
+    { id: "pr3", status: "pending", trigger_reason: "长期没有新的学习记录" },
+  );
+  assert(noSignal.focusText === "需要先补充学习记录", "没有优先级时提示先补充学习记录");
+  assert(noSignal.instruction.includes("JOJO"), "没有优先级时仍然生成可用指令");
+}
+
 console.log("\n家庭切换缓存隔离");
 {
   const session = requireCommonJs("utils/session.js");

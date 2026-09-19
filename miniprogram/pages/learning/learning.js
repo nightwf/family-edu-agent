@@ -1,10 +1,110 @@
-const api=require("../../utils/api");const format=require("../../utils/format");
+const api = require("../../utils/api");
+const format = require("../../utils/format");
+
+/**
+ * 学习优先级由服务端按规则算出，页面只负责展示，不在前端二次排序，
+ * 保证家长看到的顺序和 WorkBuddy 制定计划时用的是同一套依据。
+ */
+function mapPriorities(learning) {
+  const items = (learning && learning.priorities) || [];
+  return items.map((item) => ({
+    ...item,
+    rankText: `第 ${item.rank} 优先`,
+    scoreValue: item.priority_score === null || item.priority_score === undefined ? "" : Math.round(item.priority_score),
+    focusText: item.label || item.subject || "待确认"
+  }));
+}
+
 Page({
-  data:{loading:true,error:"",children:[],childNames:[],childIndex:0,childId:"",wrong:[],mastery:[],pendingHomework:[],overview:{weakCount:0,reviewCount:0,homeworkCount:0}},
-  onShow(){this.load();},
-  async load(){this.setData({loading:true,error:""});try{const saved=wx.getStorageSync("familyEduSelectedChildId");const home=await api.mobileHome({child_id:saved});const children=home.children||[];const childId=home.active_child?home.active_child.id:"";const childIndex=Math.max(0,children.findIndex(item=>item.id===childId));const wrong=((home.wrong_questions&&home.wrong_questions.items)||[]).filter(item=>!["mastered","archived"].includes(item.status)).map(item=>({...item,name:(item.questionType&&item.questionType.name)||(item.knowledgePoints&&item.knowledgePoints[0])||item.subject||"未分类错题",statusText:format.wrongStatus(item.status),reasonText:item.errorReason||item.keyLearningPoint||"尚未记录错误原因"}));const mastery=((home.mastery&&home.mastery.items)||[]).map(item=>({...item,name:item.questionType?item.questionType.name:"未分类题型",score:Math.round(Number(item.masteryScore||0)),statusText:format.masteryStatus(item.status)})).sort((a,b)=>a.score-b.score).slice(0,3);const pendingHomework=(home.homework||[]).filter(item=>item.childId===childId&&!["done","cancelled"].includes(item.status));this.setData({children,childNames:children.map(item=>`${item.name} · ${item.grade||"未设置年级"}`),childIndex,childId,wrong:wrong.slice(0,3),mastery,pendingHomework:pendingHomework.slice(0,3),overview:{weakCount:wrong.length,reviewCount:wrong.filter(item=>item.status==="needs_review").length,homeworkCount:pendingHomework.length},loading:false});}catch(error){this.setData({error:error.message,loading:false});}},
-  onChildChange(event){const childIndex=Number(event.detail.value);const child=this.data.children[childIndex];if(child)wx.setStorageSync("familyEduSelectedChildId",child.id);this.setData({childIndex});this.load();},
-  goWeakness(){if(this.data.childId)wx.navigateTo({url:`/pages/weakness-detail/weakness-detail?childId=${this.data.childId}`});},
-  goWrongBook(){wx.navigateTo({url:`/pages/wrong-book/wrong-book?childId=${this.data.childId}`});},
-  openModule(event){const module=event.currentTarget.dataset.module;if(module==="wrong")return this.goWrongBook();wx.setStorageSync("familyEduLearningModule",module);wx.navigateTo({url:"/pages/learning-manager/learning-manager"});}
+  data: {
+    loading: true,
+    error: "",
+    children: [],
+    childNames: [],
+    childIndex: 0,
+    childId: "",
+    priorities: [],
+    planningRequired: false,
+    wrong: [],
+    mastery: [],
+    pendingHomework: [],
+    overview: { weakCount: 0, reviewCount: 0, homeworkCount: 0 }
+  },
+
+  onShow() {
+    this.load();
+  },
+
+  async load() {
+    this.setData({ loading: true, error: "" });
+    try {
+      const saved = wx.getStorageSync("familyEduSelectedChildId");
+      const home = await api.mobileHome({ child_id: saved });
+      const children = home.children || [];
+      const childId = home.active_child ? home.active_child.id : "";
+      const childIndex = Math.max(0, children.findIndex((item) => item.id === childId));
+      const wrong = ((home.wrong_questions && home.wrong_questions.items) || [])
+        .filter((item) => !["mastered", "archived"].includes(item.status))
+        .map((item) => ({
+          ...item,
+          name: (item.questionType && item.questionType.name) || (item.knowledgePoints && item.knowledgePoints[0]) || item.subject || "未分类错题",
+          statusText: format.wrongStatus(item.status),
+          reasonText: item.errorReason || item.keyLearningPoint || "尚未记录错误原因"
+        }));
+      const mastery = ((home.mastery && home.mastery.items) || [])
+        .map((item) => ({
+          ...item,
+          name: item.questionType ? item.questionType.name : "未分类题型",
+          score: Math.round(Number(item.masteryScore || 0)),
+          statusText: format.masteryStatus(item.status)
+        }))
+        .sort((a, b) => a.score - b.score)
+        .slice(0, 3);
+      const pendingHomework = (home.homework || []).filter((item) => item.childId === childId && !["done", "cancelled"].includes(item.status));
+      const learning = home.learning_priorities || null;
+
+      this.setData({
+        children,
+        childNames: children.map((item) => `${item.name} · ${item.grade || "未设置年级"}`),
+        childIndex,
+        childId,
+        priorities: mapPriorities(learning),
+        planningRequired: Boolean(learning && learning.planning_required),
+        wrong: wrong.slice(0, 3),
+        mastery,
+        pendingHomework: pendingHomework.slice(0, 3),
+        overview: {
+          weakCount: wrong.length,
+          reviewCount: wrong.filter((item) => item.status === "needs_review").length,
+          homeworkCount: pendingHomework.length
+        },
+        loading: false
+      });
+    } catch (error) {
+      this.setData({ error: error.message, loading: false });
+    }
+  },
+
+  onChildChange(event) {
+    const childIndex = Number(event.detail.value);
+    const child = this.data.children[childIndex];
+    if (child) wx.setStorageSync("familyEduSelectedChildId", child.id);
+    this.setData({ childIndex });
+    this.load();
+  },
+
+  goWeakness() {
+    if (this.data.childId) wx.navigateTo({ url: `/pages/weakness-detail/weakness-detail?childId=${this.data.childId}` });
+  },
+
+  goWrongBook() {
+    wx.navigateTo({ url: `/pages/wrong-book/wrong-book?childId=${this.data.childId}` });
+  },
+
+  openModule(event) {
+    const module = event.currentTarget.dataset.module;
+    if (module === "wrong") return this.goWrongBook();
+    wx.setStorageSync("familyEduLearningModule", module);
+    wx.navigateTo({ url: "/pages/learning-manager/learning-manager" });
+  }
 });

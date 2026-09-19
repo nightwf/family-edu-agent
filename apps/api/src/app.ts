@@ -28,6 +28,7 @@ import { listPracticePapers, listRemediationPlans, listWrongQuestions } from "./
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { registerV2Routes } from "./v2/routes.js";
+import { ensurePlanningRequest, getLearningPriorities } from "./v2/learning-engine.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
 import { loadMobileHomeInsights } from "./mobile-home.js";
@@ -657,6 +658,9 @@ export async function buildApp() {
     const childRecords = activeChild ? records.filter((item) => item.childId === activeChild.id) : [];
     const childReports = activeChild ? reports.filter((item) => item.childId === activeChild.id) : [];
     const insights = await loadMobileHomeInsights(auth.familyId, activeChild?.id || null);
+    const learning = activeChild
+      ? await buildHomeLearningSection(auth.familyId, activeChild.id)
+      : { learning_priorities: null, planning_request: null };
     return {
       user,
       family,
@@ -666,6 +670,7 @@ export async function buildApp() {
       reports: childReports.slice(0, 5),
       homework,
       ...insights,
+      ...learning,
       stats: {
         records: childRecords.length,
         writing: childRecords.filter((item) => item.type === "writing").length,
@@ -776,6 +781,36 @@ export async function buildApp() {
 
 function normalizeChildGender(value: unknown) {
   return String(value || "").toLowerCase() === "female" ? "female" : "male";
+}
+
+/**
+ * 首页需要的学习决策信息：当前优先级和待规划事项。
+ * 这部分是规则计算，失败时不能影响首页其它数据加载。
+ */
+async function buildHomeLearningSection(familyId: string, childId: string) {
+  try {
+    const priorities = await getLearningPriorities(familyId, childId, { limit: 3 });
+    const planningRequest = await ensurePlanningRequest(familyId, childId);
+    return {
+      learning_priorities: {
+        top: priorities.priorities[0] || null,
+        priorities: priorities.priorities,
+        signal_count: priorities.signal_count,
+        planning_required: priorities.planning_required,
+        active_goal: priorities.active_goal,
+      },
+      planning_request: planningRequest
+        ? {
+            id: planningRequest.id,
+            status: planningRequest.status,
+            trigger_reason: planningRequest.triggerReason,
+            created_at: planningRequest.createdAt,
+          }
+        : null,
+    };
+  } catch {
+    return { learning_priorities: null, planning_request: null };
+  }
 }
 
   app.get("/api/children", { preHandler: requireAuth as any }, async (request) => {

@@ -43,8 +43,9 @@ export function buildAgentBootstrap(input: {
           "教育方法优先调用 get_effective_skill，使用当前家庭已经个性化后的规则。",
         ],
     workflow_router: {
-      understand_child: ["get_child_state", "get_family_policy", "get_planning_context"],
-      stage_goal: ["get_planning_context", "propose_stage_goals", "list_stage_goals", "confirm_stage_goal"],
+      understand_child: ["get_child_state", "get_family_policy", "get_learning_priorities", "get_planning_context"],
+      stage_goal: ["get_learning_priorities", "get_planning_context", "propose_stage_goals", "list_stage_goals", "confirm_stage_goal"],
+      planning_request: ["list_planning_requests", "get_planning_request", "get_learning_priorities", "propose_stage_goals", "update_planning_request_status"],
       weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
       evidence: ["save_evidence_record", "review_evidence_record"],
       knowledge: ["import_source_document", "save_knowledge_nodes_batch", "save_knowledge_relations_batch", "get_knowledge_context"],
@@ -61,6 +62,7 @@ export function buildAgentBootstrap(input: {
       "普通闲聊不自动保存；家长明确要求记录、同步、保存或写入时再写入。",
       "写入后读取或检查返回结果，失败时不得声称已经同步。",
       "制定阶段目标前必须读取 get_planning_context，并返回 2 至 3 个候选目标。",
+      "制定目标前必须读取 get_learning_priorities，目标要覆盖其中排在前面的真实优先级。",
       "计划任务完成时必须提供完成证据，不能只改状态。",
       "单次表现不能说明已经掌握。",
       "不进行医学或心理诊断。",
@@ -178,7 +180,10 @@ ${connectionNote}
 - 教学规划只负责安排订正、讲解、变式、迁移和复测，不把“完成任务”等同于“已经掌握”
 
 目标与周计划：
-- 制定 4–8 周阶段目标前，必须先调用 get_child_state 和 get_planning_context
+- 制定 4–8 周阶段目标前，必须先调用 get_child_state、get_learning_priorities 和 get_planning_context
+- get_learning_priorities 返回的是禾芽按规则算好的真实优先级（前置缺口 > 重复出错 > 复测到期 > 掌握度偏低 > 变式不足），不要自己另排一套优先级，也不要编造依据
+- 目标必须覆盖排在前面的优先级，并引用对应信号的 reason 与 priority_score 作为依据
+- 家长端存在待规划事项时，先调用 list_planning_requests 找到该事项，规划完成后用 update_planning_request_status 标记 completed，并按需关联 stage_goal_id
 - 阶段目标必须返回 2 至 3 个候选目标，并包含可验证的标准、开始日期和结束日期
 - 通过 propose_stage_goals 写回候选目标，等待家长在禾芽确认，不直接创建已确认目标
 - 家长确认后调用 get_stage_goal 读取目标，再调用 create_weekly_plan 生成周计划
@@ -191,6 +196,14 @@ ${connectionNote}
 - 证据应包含场景、具体表现、频率、有效策略、相反证据和置信度
 - 单条证据不能直接宣布“已经掌握”或“性格如何”
 - 家长通过 review_evidence_record 确认或纠正重要推断
+
+学习优先级与知识关联：
+- 学习优先级由禾芽根据真实作答和错题计算，调用 get_learning_priorities 读取，不要用模型推测替代
+- 导入教材并建立知识点后，用 link_question_type_knowledge 把题型关联到知识节点，否则题型掌握度无法回溯到知识图谱
+- 一道题考察多个知识点时，用 link_question_knowledge 覆盖题型默认关联
+- 题目答案或选项被修改后，用 verify_question_answer 重新验证；计算结果无法用四则运算核对时会标记为未验证，不能当成已验证答案使用
+- 练习或计划执行后，用 record_recommendation_outcome 记录这次建议的真实效果（improved / unchanged / worse / unmeasurable），让禾芽能判断推荐是否有效
+- 已经解决的信号用 resolve_learning_signal 处理，不要留过期信号
 
 教材与知识库：
 - 教材或材料导入先调用 import_source_document 保存来源

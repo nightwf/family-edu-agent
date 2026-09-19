@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { prisma } from "../prisma.js";
 import { getFamilyPolicy, proposeFamilyPolicyChange, reviewFamilyPolicyChange } from "./family-policy.js";
 import { createEvidenceRecord, listEvidence, reviewEvidenceRecord } from "./evidence.js";
 import { getChildState } from "./child-state.js";
@@ -29,6 +30,23 @@ import {
   listRelationshipHistory,
   saveRelationshipSnapshot,
 } from "./relationship.js";
+import {
+  ensurePlanningRequest,
+  getLearningPriorities,
+  getPlanningRequest,
+  linkQuestionKnowledgeNodes,
+  linkQuestionTypeKnowledgeNodes,
+  listPlanningRequests,
+  listQuestionKnowledgeNodes,
+  listQuestionTypeKnowledgeNodes,
+  listRecommendationOutcomes,
+  recordRecommendationOutcome,
+  resolveLearningSignal,
+  syncLearningSignals,
+  unlinkQuestionTypeKnowledgeNode,
+  updatePlanningRequestStatus,
+} from "./learning-engine.js";
+import { verifyStoredQuestion } from "../question-bank.js";
 
 function textResult(payload: unknown) {
   return {
@@ -482,5 +500,162 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
           evidenceRef: input.evidence_ref,
         }),
       ),
+  );
+
+  // ---- 学习决策层：信号、优先级、知识关联、待规划事项 ----
+
+  server.tool(
+    "get_learning_priorities",
+    "读取学生当前的学习优先级。禾芽按“前置缺口 > 重复出错 > 复测到期 > 掌握度偏低 > 变式不足”的规则算好，制定目标前必须先读，并说明每条优先级的依据。",
+    { child_id: z.string(), limit: z.number().min(1).max(20).optional() },
+    async ({ child_id, limit }) => safe(() => getLearningPriorities(familyId, child_id, { limit })),
+  );
+
+  server.tool(
+    "list_learning_signals",
+    "列出学生学习信号的当前状态。信号来自真实作答与错题，不是模型推断。",
+    { child_id: z.string(), refresh: z.boolean().optional() },
+    async ({ child_id, refresh }) =>
+      safe(() =>
+        refresh === false
+          ? prisma.learningSignal.findMany({ where: { familyId, childId: child_id, status: "active" }, orderBy: [{ severity: "desc" }, { detectedAt: "desc" }] })
+          : syncLearningSignals(familyId, child_id),
+      ),
+  );
+
+  server.tool(
+    "resolve_learning_signal",
+    "把某个学习信号标记为已解决或已忽略。忽略只影响这一条，下次数据仍触发时会重新出现。",
+    { signal_id: z.string(), status: z.enum(["resolved", "dismissed"]).optional(), note: z.string().optional() },
+    async ({ signal_id, status, note }) => safe(() => resolveLearningSignal(familyId, signal_id, { status, note })),
+  );
+
+  server.tool(
+    "link_question_type_knowledge",
+    "把题型关联到教材知识节点，让题型掌握度能追溯到知识图谱。导入教材或新建题型后使用。",
+    {
+      question_type_id: z.string(),
+      links: z.array(z.object({ knowledge_node_id: z.string(), role: z.string().optional(), weight: z.number().optional() })),
+    },
+    async ({ question_type_id, links }) => safe(() => linkQuestionTypeKnowledgeNodes(familyId, question_type_id, links)),
+  );
+
+  server.tool(
+    "list_question_type_knowledge",
+    "读取一个题型已关联的知识节点。",
+    { question_type_id: z.string() },
+    async ({ question_type_id }) => safe(() => listQuestionTypeKnowledgeNodes(familyId, question_type_id)),
+  );
+
+  server.tool(
+    "unlink_question_type_knowledge",
+    "解除题型与某个知识节点的关联。",
+    { question_type_id: z.string(), knowledge_node_id: z.string() },
+    async ({ question_type_id, knowledge_node_id }) =>
+      safe(() => unlinkQuestionTypeKnowledgeNode(familyId, question_type_id, knowledge_node_id)),
+  );
+
+  server.tool(
+    "link_question_knowledge",
+    "为单道题目指定知识节点，会覆盖题型的默认关联，用于一道题考察多个知识点。",
+    {
+      question_id: z.string(),
+      links: z.array(z.object({ knowledge_node_id: z.string(), role: z.string().optional(), weight: z.number().optional() })),
+    },
+    async ({ question_id, links }) => safe(() => linkQuestionKnowledgeNodes(familyId, question_id, links)),
+  );
+
+  server.tool(
+    "list_question_knowledge",
+    "读取一道题目已关联的知识节点。",
+    { question_id: z.string() },
+    async ({ question_id }) => safe(() => listQuestionKnowledgeNodes(familyId, question_id)),
+  );
+
+  server.tool(
+    "create_planning_request",
+    "把某个学生标记为需要重新规划。禾芽只登记待规划事项，不生成计划本身，计划由 WorkBuddy 读取上下文后制定。",
+    { child_id: z.string(), note: z.string().optional() },
+    async ({ child_id, note }) =>
+      safe(async () => {
+        const request = await ensurePlanningRequest(familyId, child_id);
+        if (!request) throw new Error("当前没有达到需要重新规划的阈值");
+        if (note) return updatePlanningRequestStatus(familyId, request.id, { status: request.status, note });
+        return request;
+      }),
+  );
+
+  server.tool(
+    "list_planning_requests",
+    "列出待规划事项，用于确认哪些学生还没有生成学习计划。",
+    { child_id: z.string().optional(), status: z.string().optional(), limit: z.number().min(1).max(50).optional() },
+    async ({ child_id, status, limit }) => safe(() => listPlanningRequests(familyId, { child_id, status, limit })),
+  );
+
+  server.tool(
+    "get_planning_request",
+    "读取一条待规划事项及其优先级快照。",
+    { planning_request_id: z.string() },
+    async ({ planning_request_id }) => safe(() => getPlanningRequest(familyId, planning_request_id)),
+  );
+
+  server.tool(
+    "update_planning_request_status",
+    "更新待规划事项状态：开始规划用 in_progress，候选目标写回后可从 pending 直接到 completed，作废用 cancelled。",
+    {
+      planning_request_id: z.string(),
+      status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
+      stage_goal_id: z.string().optional(),
+      note: z.string().optional(),
+    },
+    async ({ planning_request_id, status, stage_goal_id, note }) =>
+      safe(() => updatePlanningRequestStatus(familyId, planning_request_id, { status, stage_goal_id, note })),
+  );
+
+  server.tool(
+    "record_recommendation_outcome",
+    "记录一次建议执行后的真实效果，用于判断推荐是否有效。",
+    {
+      child_id: z.string(),
+      source_type: z.string(),
+      source_id: z.string(),
+      action_type: z.string(),
+      status: z.enum(["pending", "improved", "unchanged", "worse", "unmeasurable"]).optional(),
+      metrics: z.record(z.any()).optional(),
+      note: z.string().optional(),
+      measured_at: z.string().datetime().optional(),
+    },
+    async (input) =>
+      safe(() =>
+        recordRecommendationOutcome(familyId, {
+          child_id: input.child_id,
+          source_type: input.source_type,
+          source_id: input.source_id,
+          action_type: input.action_type,
+          status: input.status,
+          metrics: input.metrics,
+          note: input.note,
+          measured_at: input.measured_at,
+        }),
+      ),
+  );
+
+  server.tool(
+    "list_recommendation_outcomes",
+    "读取建议执行效果记录。",
+    {
+      child_id: z.string().optional(),
+      source_type: z.string().optional(),
+      source_id: z.string().optional(),
+      limit: z.number().min(1).max(50).optional(),
+    },
+    async (input) => safe(() => listRecommendationOutcomes(familyId, input)),
+  );
+
+  server.tool(
+    "verify_question_answer",
+    "对已入库题目重新验证答案。客观题用确定性规则核对，主观题会标记为需要评分量表或人工确认。",
+    { question_id: z.string() },
+    async ({ question_id }) => safe(() => verifyStoredQuestion(familyId, question_id)),
   );
 }

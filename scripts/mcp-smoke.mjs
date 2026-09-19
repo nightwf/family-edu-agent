@@ -52,23 +52,50 @@ try {
     "import_source_document",
     "list_education_methods",
     "save_method_effect",
+    "get_learning_priorities",
+    "list_learning_signals",
+    "resolve_learning_signal",
+    "link_question_type_knowledge",
+    "list_question_type_knowledge",
+    "link_question_knowledge",
+    "list_question_knowledge",
+    "create_planning_request",
+    "list_planning_requests",
+    "get_planning_request",
+    "update_planning_request_status",
+    "record_recommendation_outcome",
+    "list_recommendation_outcomes",
+    "verify_question_answer",
   ];
   const missing = required.filter((name) => !names.has(name));
   if (missing.length) throw new Error(`missing MCP tools: ${missing.join(", ")}`);
   const bootstrap = await client.callTool({ name: "get_agent_bootstrap", arguments: {} });
   const bootstrapText = bootstrap.content?.find((item) => item.type === "text")?.text || "";
-  if (!bootstrapText.includes('"agent_role": "禾芽家庭私教"') || !bootstrapText.includes('"identity_source": "X-MCP-Token"')) {
+  if (!bootstrapText.includes('"agent_role": "禾芽家庭私教"') || !bootstrapText.includes('"authenticated": true')) {
     throw new Error("get_agent_bootstrap did not return the family tutor startup contract");
   }
   const spec = await client.callTool({ name: "get_sync_spec", arguments: {} });
   const text = spec.content?.find((item) => item.type === "text")?.text || "";
-  if (!text.includes('"version": "2.3"') || !text.includes("stage_goal")) {
-    throw new Error("get_sync_spec did not return the WorkBuddy v2.3 workflow");
+  if (!text.includes('"version": "2.4"') || !text.includes("stage_goal") || !text.includes("learning_priority")) {
+    throw new Error("get_sync_spec did not return the WorkBuddy v2.4 workflow");
   }
   for (const name of ["list_wrong_questions", "list_practice_papers", "list_remediation_plans"]) {
     const result = await client.callTool({ name, arguments: { limit: 1, offset: 0 } });
     if (result.isError) throw new Error(`${name} returned an MCP error`);
   }
+  const children = await client.callTool({ name: "list_children", arguments: {} });
+  const childList = JSON.parse(children.content?.find((item) => item.type === "text")?.text || "[]");
+  if (!Array.isArray(childList) || childList.length === 0) throw new Error("list_children returned no children");
+  const child = childList[0];
+  if (!("gender" in child)) throw new Error("list_children did not return child gender");
+  const priorities = await client.callTool({ name: "get_learning_priorities", arguments: { child_id: child.id, limit: 3 } });
+  if (priorities.isError) throw new Error("get_learning_priorities returned an MCP error");
+  const priorityPayload = JSON.parse(priorities.content?.find((item) => item.type === "text")?.text || "{}");
+  if (!Array.isArray(priorityPayload.priorities) || typeof priorityPayload.planning_required !== "boolean") {
+    throw new Error("get_learning_priorities did not return priorities and planning_required");
+  }
+  const requests = await client.callTool({ name: "list_planning_requests", arguments: { child_id: child.id } });
+  if (requests.isError) throw new Error("list_planning_requests returned an MCP error");
   console.log(`MCP smoke test passed: ${listed.tools.length} tools, agent bootstrap and wrong-book workflows available`);
 } finally {
   await client.close().catch(() => {});

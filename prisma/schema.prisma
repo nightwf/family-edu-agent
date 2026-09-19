@@ -151,6 +151,9 @@ model Child {
   wrongQuestions    WrongQuestionEntry[]
   practicePapers    PracticePaper[]
   remediationPlans  RemediationPlan[]
+  learningSignals   LearningSignal[]
+  planningRequests  PlanningRequest[]
+  recommendationOutcomes RecommendationOutcome[]
 }
 
 model Record {
@@ -467,6 +470,7 @@ model QuestionType {
   masteries          StudentQuestionTypeMastery[]
   wrongQuestions     WrongQuestionEntry[]
   remediationTasks   RemediationTask[]
+  knowledgeNodes     QuestionTypeKnowledgeNode[]
 
   @@index([familyId, subject, grade])
   @@index([familyId, status])
@@ -493,12 +497,18 @@ model Question {
   generationRuleVersion String?
   variationType         String?
   generatedByWorkbuddy  Boolean                 @default(false)
+  verificationStatus    String                  @default("unverified")
+  verificationMethod    String?
+  verifiedAnswer        Json?
+  verificationErrors    Json?
+  verifiedAt            DateTime?
   status                String                  @default("active")
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   attempts              QuestionAttempt[]
   wrongQuestions        WrongQuestionEntry[]
   practicePaperItems    PracticePaperQuestion[]
+  knowledgeNodes        QuestionKnowledgeNode[]
 
   @@index([familyId, questionTypeId, status])
   @@index([familyId, difficulty])
@@ -1095,6 +1105,8 @@ model KnowledgeNode {
   outgoingRelations   KnowledgeRelation[]   @relation("RelationSource")
   incomingRelations   KnowledgeRelation[]   @relation("RelationTarget")
   childStates         ChildKnowledgeState[]
+  questionTypes       QuestionTypeKnowledgeNode[]
+  questions           QuestionKnowledgeNode[]
 
   @@index([familyId, subject, grade, status])
   @@index([familyId, sourceDocumentId])
@@ -1226,4 +1238,98 @@ model AuditLog {
 
   @@index([familyId, createdAt])
   @@index([entityType, entityId])
+}
+
+/// 题型默认关联的知识节点，用于把题型掌握度连回知识图谱。
+model QuestionTypeKnowledgeNode {
+  id              String       @id @default(cuid())
+  familyId        String
+  questionTypeId  String
+  questionType    QuestionType @relation(fields: [questionTypeId], references: [id], onDelete: Cascade)
+  knowledgeNodeId String
+  knowledgeNode   KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+  role            String       @default("primary")
+  weight          Float        @default(1)
+  createdAt       DateTime     @default(now())
+
+  @@unique([questionTypeId, knowledgeNodeId])
+  @@index([familyId, knowledgeNodeId])
+}
+
+/// 单道题目关联的知识节点，用于覆盖或补充题型默认关联。
+model QuestionKnowledgeNode {
+  id              String       @id @default(cuid())
+  familyId        String
+  questionId      String
+  question        Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgeNodeId String
+  knowledgeNode   KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+  role            String       @default("primary")
+  weight          Float        @default(1)
+  createdAt       DateTime     @default(now())
+
+  @@unique([questionId, knowledgeNodeId])
+  @@index([familyId, knowledgeNodeId])
+}
+
+/// 学习触发信号：由规则从真实数据中算出，不是 AI 推断。
+model LearningSignal {
+  id              String   @id @default(cuid())
+  familyId        String
+  childId         String
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  type            String
+  severity        Int      @default(1)
+  dedupeKey       String
+  knowledgeNodeId String?
+  questionTypeId  String?
+  wrongQuestionId String?
+  reason          String
+  evidence        Json?
+  status          String   @default("active")
+  detectedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolvedAt      DateTime?
+
+  @@unique([childId, dedupeKey])
+  @@index([familyId, childId, status, severity])
+}
+
+/// 待规划事项：禾芽发现需要重新规划时创建，由家长或 WorkBuddy 推进。
+model PlanningRequest {
+  id               String    @id @default(cuid())
+  familyId         String
+  childId          String
+  child            Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  status           String    @default("pending")
+  source           String    @default("system")
+  triggerReason    String
+  signalIds        Json?
+  prioritySnapshot Json?
+  note             String?
+  stageGoalId      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  completedAt      DateTime?
+
+  @@index([familyId, childId, status])
+}
+
+/// 推荐效果追踪：记录某个学习优先级执行后，孩子的真实变化。
+model RecommendationOutcome {
+  id         String    @id @default(cuid())
+  familyId   String
+  childId    String
+  child      Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  sourceType String
+  sourceId   String
+  actionType String
+  status     String    @default("pending")
+  metrics    Json?
+  note       String?
+  measuredAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([familyId, childId, sourceType, sourceId])
 }

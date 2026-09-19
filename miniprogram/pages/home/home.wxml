@@ -24,6 +24,11 @@
       <view class="evidence-row"><text>判断</text><view>{{hero.judgment}}</view></view>
       <view class="action-box"><view class="action-label">下一步怎么做</view><view class="action-text">{{hero.action}}</view><view class="action-arrow">›</view></view>
     </view>
+    <view wx:if="{{planningCard}}" class="insight-card">
+      <view class="insight-top"><view><view class="card-kicker">学习计划</view><view class="insight-title">{{planningCard.focusText}}</view></view><view class="insight-score">{{planningCard.statusText}}</view></view>
+      <view class="evidence-row"><text>原因</text><view>{{planningCard.reason}}</view></view>
+      <view class="action-box" bindtap="copyPlanningInstruction"><view class="action-label">发给 WorkBuddy</view><view class="action-text">{{planningCopyText}}</view><view class="action-arrow">›</view></view>
+    </view>
     <view class="home-section" wx:if="{{recentChanges.length}}">
       <view class="section-head compact-head"><view class="home-section-title">本周变化</view><view class="section-link" bindtap="goGrowth">全部</view></view>
       <view class="change-list"><view wx:for="{{recentChanges}}" wx:key="id" class="change-row" data-id="{{item.id}}" bindtap="openChange"><view class="change-mark"></view><view class="change-main"><view class="change-label">{{item.label}}</view><view class="change-title">{{item.title}}</view><view class="change-text">{{item.text}}</view></view><view class="row-chevron">›</view></view></view>
