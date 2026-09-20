@@ -188,6 +188,8 @@ ${connectionNote}
 - 通过 propose_stage_goals 写回候选目标，等待家长在禾芽确认，不直接创建已确认目标
 - 家长确认后调用 get_stage_goal 读取目标，再调用 create_weekly_plan 生成周计划
 - 周计划任务分为学校作业、孩子任务、家长行动、AI 任务和复测
+- create_weekly_plan 的每条任务必须带 type，取值只能是 SCHOOL_HOMEWORK(学校作业) / CHILD_TASK(孩子任务) / PARENT_ACTION(家长行动) / AGENT_TASK(AI 任务) / RETEST(复测)，不要自造写法
+- update_plan_item_status 的 status 只能取 PENDING / IN_PROGRESS / COMPLETED / SKIPPED / CANCELLED / NEEDS_REVIEW；完成任务必须附完成证据
 - 完成计划任务时调用 update_plan_item_status，并必须提供完成证据
 - 复测结果通过 create_assessment 保存，结果必须可以判断目标是否改善
 

@@ -109,7 +109,11 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
     "save_evidence_record",
     {
       child_id: z.string(),
-      type: z.string(),
+      type: z
+        .string()
+        .describe(
+          "证据类型。合法值：OBSERVATION（行为观察）、WRITING（写作）、READING（阅读）、HOMEWORK_COMPLETION（作业完成）、QUESTION_ATTEMPT（作答记录）、RETEST（复测结果）、PARENT_NOTE（家长记录）。也可以直接写中文名称。",
+        ),
       task_description: z.string().optional(),
       environment: z.string().optional(),
       observed_behavior: z.string().optional(),
@@ -215,7 +219,11 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
       week_start: z.string(),
       items: z.array(
         z.object({
-          type: z.string(),
+          type: z
+            .string()
+            .describe(
+              "任务类型。合法值：SCHOOL_HOMEWORK（学校作业）、CHILD_TASK（孩子任务）、PARENT_ACTION（家长行动）、AGENT_TASK（AI 任务）、RETEST（复测）。也可以直接写中文名称。",
+            ),
           title: z.string(),
           description: z.string().optional(),
           estimated_minutes: z.number().optional(),
@@ -252,7 +260,11 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
     "update_plan_item_status",
     {
       plan_item_id: z.string(),
-      status: z.string(),
+      status: z
+        .string()
+        .describe(
+          "任务状态。合法值：PENDING（待开始）、IN_PROGRESS（进行中）、COMPLETED（已完成）、SKIPPED（已跳过）、CANCELLED（已取消）、NEEDS_REVIEW（需复测）。也可以直接写中文名称。",
+        ),
       evidence: z.record(z.any()).optional(),
     },
     async (input) =>
@@ -314,7 +326,11 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
       nodes: z
         .array(
           z.object({
-            type: z.string(),
+            type: z
+            .string()
+            .describe(
+              "知识节点类型。合法值：CHAPTER（章节）、KNOWLEDGE_POINT（知识点）、CONCEPT（概念）、EXAMPLE（例题）、MISCONCEPTION（常见错误）。",
+            ),
             title: z.string(),
             subject: z.string().optional(),
             grade: z.string().optional(),
@@ -379,7 +395,12 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
         z.object({
           prerequisite_title: z.string(),
           dependent_title: z.string(),
-          relation_type: z.string().optional(),
+          relation_type: z
+            .string()
+            .optional()
+            .describe(
+              "关系类型。合法值：PREREQUISITE_OF（前置依赖）、CONTAINS（包含）、RELATED_TO（相关）、EXAMPLE_OF（例题属于）、ERROR_OF（易错点属于）。默认 PREREQUISITE_OF。",
+            ),
           strength: z.enum(["hard", "soft"]).optional(),
           reason: z.string().optional(),
         }),
@@ -410,7 +431,12 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
     {
       child_id: z.string(),
       knowledge_node_id: z.string(),
-      status: z.string().optional(),
+      status: z
+        .string()
+        .optional()
+        .describe(
+          "掌握状态。合法值：UNASSESSED（未评估）、LEARNING（学习中）、PARTIAL（部分掌握）、MASTERED（已掌握）、NEEDS_REVIEW（需复习）。也可以直接写中文名称。",
+        ),
       score: z.number().min(0).max(100).optional(),
       evidence: z.record(z.any()).optional(),
       manual_reason: z.string().optional(),

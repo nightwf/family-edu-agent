@@ -76,8 +76,8 @@ try {
   }
   const spec = await client.callTool({ name: "get_sync_spec", arguments: {} });
   const text = spec.content?.find((item) => item.type === "text")?.text || "";
-  if (!text.includes('"version": "2.4"') || !text.includes("stage_goal") || !text.includes("learning_priority")) {
-    throw new Error("get_sync_spec did not return the WorkBuddy v2.4 workflow");
+  if (!text.includes('"version": "2.5"') || !text.includes("stage_goal") || !text.includes("plan_item_type")) {
+    throw new Error("get_sync_spec did not return the WorkBuddy v2.5 workflow with enum values");
   }
   for (const name of ["list_wrong_questions", "list_practice_papers", "list_remediation_plans"]) {
     const result = await client.callTool({ name, arguments: { limit: 1, offset: 0 } });

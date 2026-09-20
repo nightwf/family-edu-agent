@@ -83,6 +83,26 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
    （`improved` / `unchanged` / `worse` / `unmeasurable`）。
 7. 已经解决的信号用 `resolve_learning_signal` 处理，保持首页只显示当前真正需要关注的问题。
 
+## 枚举取值
+
+下面这些字段在数据库里是枚举。请直接使用给出的取值，大小写不敏感，也可以直接写括号里的中文名称。
+写错时接口会返回全部合法值，不要靠试错猜测。
+
+| 字段 | 合法取值 |
+| --- | --- |
+| `create_weekly_plan` 的 `items[].type` | `SCHOOL_HOMEWORK`(学校作业)、`CHILD_TASK`(孩子任务)、`PARENT_ACTION`(家长行动)、`AGENT_TASK`(AI 任务)、`RETEST`(复测) |
+| `update_plan_item_status` 的 `status` | `PENDING`(待开始)、`IN_PROGRESS`(进行中)、`COMPLETED`(已完成)、`SKIPPED`(已跳过)、`CANCELLED`(已取消)、`NEEDS_REVIEW`(需复测) |
+| `save_evidence_record` 的 `type` | `OBSERVATION`(行为观察)、`WRITING`(写作)、`READING`(阅读)、`HOMEWORK_COMPLETION`(作业完成)、`QUESTION_ATTEMPT`(作答记录)、`RETEST`(复测结果)、`PARENT_NOTE`(家长记录) |
+| `save_knowledge_nodes_batch` 的 `nodes[].type` | `CHAPTER`(章节)、`KNOWLEDGE_POINT`(知识点)、`CONCEPT`(概念)、`EXAMPLE`(例题)、`MISCONCEPTION`(常见错误) |
+| `save_knowledge_relations_batch` 的 `relations[].relation_type` | `PREREQUISITE_OF`(前置依赖，默认)、`CONTAINS`(包含)、`RELATED_TO`(相关)、`EXAMPLE_OF`(例题属于)、`ERROR_OF`(易错点属于) |
+| `update_child_knowledge_state` 的 `status` | `UNASSESSED`(未评估)、`LEARNING`(学习中)、`PARTIAL`(部分掌握)、`MASTERED`(已掌握)、`NEEDS_REVIEW`(需复习) |
+
+补充说明：
+
+- `create_weekly_plan` 的每条任务都要有 `type`，缺省或写错都会被拒绝；
+- 任务类型决定这条任务归谁做：`SCHOOL_HOMEWORK` 是学校布置的作业，`CHILD_TASK` 是给孩子的练习，`PARENT_ACTION` 是家长要配合的事，`AGENT_TASK` 是智能体自己执行的事，`RETEST` 是延迟复测；
+- 完成任务（`COMPLETED`）必须同时提供 `evidence`，否则会被拒绝。
+
 ## 安全与删除
 
 - MCP 工具只访问当前授权对应家庭的数据；

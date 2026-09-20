@@ -158,7 +158,7 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
   });
 
   server.tool("get_sync_spec", "读取禾芽最新版详细同步规范。新会话先调用 get_agent_bootstrap；工具变化、复杂任务或不确定应保存什么时再调用本工具。", {}, async () => textResult({
-    version: "2.4",
+    version: "2.5",
     startup_rule: "新会话首次使用禾芽时先调用 get_agent_bootstrap；连接后无需让家长重复粘贴提示词。",
     family_identity: "家庭身份只由连接授权（OAuth Access Token 或家庭 Token）决定，不传入或猜测 family_id。",
     child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
@@ -185,6 +185,34 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     wrong_book_rule: "识别到真实错题时记录错误答案、原因和分析；同一学生同一题重复出错应累计，不创建重复条目。",
     mastery_rule: "单次答对不能判定已掌握；错题默认需完成原题订正、至少3道独立正确变式、至少2次会话、迁移题及24小时后复测，且掌握分达到80。后续再错必须转为需复习。",
     generation_rule: "生成同类题、针对性试卷或教学规划前，必须先读取错题练习上下文；不得只替换数字或人名。生成结果保存后才能用于追踪作答。",
+    // 枚举白名单：写这些字段时直接用下列取值，不要自造或翻译成其他写法。
+    enum_rule: "下列字段是枚举，请只使用给出的取值（大小写不敏感，也可以直接写中文名称）。写错时接口会返回全部合法值。",
+    enums: {
+      plan_item_type: {
+        field: "create_weekly_plan 的 items[].type",
+        values: ["SCHOOL_HOMEWORK(学校作业)", "CHILD_TASK(孩子任务)", "PARENT_ACTION(家长行动)", "AGENT_TASK(AI 任务)", "RETEST(复测)"],
+      },
+      plan_item_status: {
+        field: "update_plan_item_status 的 status",
+        values: ["PENDING(待开始)", "IN_PROGRESS(进行中)", "COMPLETED(已完成)", "SKIPPED(已跳过)", "CANCELLED(已取消)", "NEEDS_REVIEW(需复测)"],
+      },
+      evidence_type: {
+        field: "save_evidence_record 的 type",
+        values: ["OBSERVATION(行为观察)", "WRITING(写作)", "READING(阅读)", "HOMEWORK_COMPLETION(作业完成)", "QUESTION_ATTEMPT(作答记录)", "RETEST(复测结果)", "PARENT_NOTE(家长记录)"],
+      },
+      knowledge_node_type: {
+        field: "save_knowledge_nodes_batch 的 nodes[].type",
+        values: ["CHAPTER(章节)", "KNOWLEDGE_POINT(知识点)", "CONCEPT(概念)", "EXAMPLE(例题)", "MISCONCEPTION(常见错误)"],
+      },
+      knowledge_relation_type: {
+        field: "save_knowledge_relations_batch 的 relations[].relation_type",
+        values: ["PREREQUISITE_OF(前置依赖，默认)", "CONTAINS(包含)", "RELATED_TO(相关)", "EXAMPLE_OF(例题属于)", "ERROR_OF(易错点属于)"],
+      },
+      child_knowledge_status: {
+        field: "update_child_knowledge_state 的 status",
+        values: ["UNASSESSED(未评估)", "LEARNING(学习中)", "PARTIAL(部分掌握)", "MASTERED(已掌握)", "NEEDS_REVIEW(需复习)"],
+      },
+    },
   }));
 
   server.tool("list_family_policies", { family_id: z.string().optional() }, async ({ family_id }) => {

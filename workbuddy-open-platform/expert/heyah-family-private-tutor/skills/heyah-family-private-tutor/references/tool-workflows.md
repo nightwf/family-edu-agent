@@ -32,6 +32,21 @@
 阶段目标应为 4-8 周，每个候选目标都要包含可验证标准和起止日期，并覆盖排在前面的学习优先级。
 计划任务完成时必须提供证据。
 
+### 周计划任务类型（必填枚举）
+
+`create_weekly_plan` 每条任务的 `type` 只能取下列值，大小写不敏感，也可以直接写中文：
+
+| 取值 | 中文 | 用在哪 |
+| --- | --- | --- |
+| `SCHOOL_HOMEWORK` | 学校作业 | 学校老师布置的作业 |
+| `CHILD_TASK` | 孩子任务 | 给孩子的练习与巩固 |
+| `PARENT_ACTION` | 家长行动 | 需要家长配合完成的事 |
+| `AGENT_TASK` | AI 任务 | 智能体自己执行的事，例如出题、整理 |
+| `RETEST` | 复测 | 延迟复测与复习检测 |
+
+`update_plan_item_status` 的 `status` 只能取 `PENDING`(待开始) / `IN_PROGRESS`(进行中) / `COMPLETED`(已完成) / `SKIPPED`(已跳过) / `CANCELLED`(已取消) / `NEEDS_REVIEW`(需复测)。
+写错时接口会把全部合法值写在报错里，直接按提示改用即可，不需要反复试错。
+
 ## 每日学习计划
 
 `get_child_state` → `get_weekly_plan` → `list_homework` → `list_wrong_questions` → `list_student_mastery`
