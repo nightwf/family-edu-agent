@@ -110,7 +110,6 @@ export function Landing({ onLogin }: { onLogin: () => void }) {
             <a href="#why" className="hidden rounded-lg px-3 py-2 text-ink-soft hover:bg-white/70 lg:block">为什么更懂孩子</a>
             <a href="#agents" className="hidden rounded-lg px-3 py-2 text-ink-soft hover:bg-white/70 lg:block">接入智能体</a>
             <a href="#how" className="hidden rounded-lg px-3 py-2 text-ink-soft hover:bg-white/70 lg:block">AI 怎么规划</a>
-            <a href="#screens" className="hidden rounded-lg px-3 py-2 text-ink-soft hover:bg-white/70 md:block">界面预览</a>
             <button onClick={onLogin} className="flex items-center gap-2 rounded-xl bg-teal px-4 py-2 font-bold text-white hover:bg-teal-deep">
               登录 <ArrowRight size={15} />
             </button>
@@ -236,29 +235,6 @@ export function Landing({ onLogin }: { onLogin: () => void }) {
         <p className="mt-5 text-xs leading-6 text-muted">
           单次答对不会被判定为掌握；人工修正的判断优先于系统自动计算，系统只提供依据，不替你下结论。
         </p>
-      </section>
-
-      <section id="screens" className="border-y border-line/70 bg-white/45">
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <h2 className="text-2xl font-black md:text-[30px]">界面预览</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted">
-            手机端随时查看，电脑端整理和配置，两端是同一份数据。
-          </p>
-          <div className="mt-8 flex flex-wrap items-start gap-8">
-            <figure className="w-[240px]">
-              <div className="rounded-[28px] border border-line bg-panel p-2 shadow-[0_18px_40px_rgba(32,50,56,0.14)]">
-                <img src={asset("preview-home.png")} alt="手机端首页：整体状态与各学科情况" className="w-full rounded-[22px]" />
-              </div>
-              <figcaption className="mt-3 text-xs leading-6 text-muted">首页：孩子整体状态与各学科情况</figcaption>
-            </figure>
-            <figure className="w-[240px]">
-              <div className="rounded-[28px] border border-line bg-panel p-2 shadow-[0_18px_40px_rgba(32,50,56,0.14)]">
-                <img src={asset("preview-subject.png")} alt="手机端学科详情：问题与规划建议" className="w-full rounded-[22px]" />
-              </div>
-              <figcaption className="mt-3 text-xs leading-6 text-muted">学科详情：需要先解决的问题与规划建议</figcaption>
-            </figure>
-          </div>
-        </div>
       </section>
 
       <section id="start" className="mx-auto max-w-6xl px-5 py-16">
