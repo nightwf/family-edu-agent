@@ -1,47 +1,59 @@
-import { useEffect, useState } from "react";
-import { Check, RefreshCw, X } from "lucide-react";
-import { Badge, ChildTabs, PageHeader, Panel, StatCard } from "./Layout";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, RefreshCw } from "lucide-react";
+import type { PageId } from "./Layout";
+import { buildPlanningCard, type PlanningCard } from "../lib/planning";
+import { dailyScene, formatDate, stateAsset } from "../lib/presentation";
+import { mapOverall, mapSubjectRows, pickCharacterState, subjectTone, type SubjectRow } from "../lib/subjects";
 
-type Child = { id: string; name: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
+type Child = { id: string; name: string; gender?: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 
 type Props = {
   token: string;
   children: Child[];
   home?: any;
   request: (path: string, options?: RequestInit, token?: string) => Promise<any>;
+  onNavigate: (page: PageId) => void;
+  onOpenSubject: (target: { childId: string; subject: string }) => void;
+  familyName?: string;
 };
 
-export default function ChildOverview({ token, children, home, request }: Props) {
+/**
+ * 电脑端首页，信息结构以小程序首页为基准：
+ * 1. 孩子整体状态（结论 + 关键数字 + 形象）
+ * 2. 各学科情况（主体，可进入学科详情看后续规划建议）
+ * 3. 学习计划待规划提示与最近学习任务（次要）
+ * 亲子关系、待确认证据这类内容放在二级页面，不在首页堆叠。
+ */
+export default function ChildOverview({ token, children, home, request, onNavigate, onOpenSubject, familyName }: Props) {
   const [selectedChildId, setSelectedChildId] = useState(children[0]?.id || "");
-  const [state, setState] = useState<any | null>(null);
-  const [evidence, setEvidence] = useState<any[]>([]);
-  const [relationship, setRelationship] = useState<any | null>(null);
+  const [detail, setDetail] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [copyText, setCopyText] = useState("复制规划指令");
+  const [imageFailed, setImageFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    setSelectedChildId((current) => current || children[0]?.id || "");
+    setSelectedChildId((current) => (children.some((child) => child.id === current) ? current : children[0]?.id || ""));
   }, [children]);
 
   useEffect(() => {
-    if (!selectedChildId) return;
+    if (!selectedChildId) {
+      setDetail(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      request(`/api/v2/children/${selectedChildId}/state`, {}, token),
-      request(`/api/v2/children/${selectedChildId}/evidence?limit=20`, {}, token),
-      request(`/api/v2/children/${selectedChildId}/relationship`, {}, token),
-    ])
-      .then(([stateData, evidenceData, relationshipData]) => {
-        if (cancelled) return;
-        setState(stateData);
-        setEvidence(evidenceData.items || []);
-        setRelationship(relationshipData || null);
+    setError("");
+    setImageFailed(false);
+    request(`/api/home?child_id=${selectedChildId}`, {}, token)
+      .then((data) => {
+        if (!cancelled) setDetail(data);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          setState(null);
-          setEvidence([]);
-          setRelationship(null);
+          setDetail(null);
+          setError((err as Error).message);
         }
       })
       .finally(() => {
@@ -50,137 +62,259 @@ export default function ChildOverview({ token, children, home, request }: Props)
     return () => {
       cancelled = true;
     };
-  }, [selectedChildId, token, request]);
+  }, [selectedChildId, token, request, reloadKey]);
 
-  async function reviewEvidence(evidenceId: string, action: "confirm" | "correct") {
-    await request(`/api/v2/evidence/${evidenceId}/review`, {
-      method: "PATCH",
-      body: JSON.stringify({ action }),
-    }, token);
-    const evidenceData = await request(`/api/v2/children/${selectedChildId}/evidence?limit=20`, {}, token);
-    setEvidence(evidenceData.items || []);
+  const activeChild = useMemo(
+    () => children.find((child) => child.id === selectedChildId) || children[0] || null,
+    [children, selectedChildId],
+  );
+
+  const overview = detail?.subject_overview || null;
+  const rawSubjects = (overview?.subjects || []) as any[];
+  const subjects = useMemo(() => mapSubjectRows(rawSubjects), [detail]);
+  const evidenceCount = detail?.child_state?.summary?.evidence_7d ?? null;
+  const overall = useMemo(() => mapOverall(overview?.overall, evidenceCount), [detail]);
+  const characterImage = useMemo(
+    () => stateAsset(pickCharacterState(rawSubjects), activeChild?.gender),
+    [detail, activeChild?.gender],
+  );
+  const scene = useMemo(() => dailyScene(activeChild?.id, new Date()), [activeChild?.id]);
+  const planningCard: PlanningCard | null = useMemo(
+    () => buildPlanningCard(activeChild, detail?.learning_priorities, detail?.planning_request),
+    [activeChild, detail],
+  );
+  const pendingTasks = useMemo(() => {
+    const rows = (detail?.homework || home?.homework || []).filter(
+      (item: any) => !activeChild || item.childId === activeChild.id,
+    );
+    return rows.filter((item: any) => !["done", "cancelled"].includes(item.status)).slice(0, 3);
+  }, [detail, home, activeChild]);
+
+  async function copyInstruction() {
+    if (!planningCard?.instruction) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(planningCard.instruction);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = planningCard.instruction;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopyText("已复制");
+      window.setTimeout(() => setCopyText("复制规划指令"), 1500);
+    } catch {
+      setCopyText("复制失败");
+      window.setTimeout(() => setCopyText("复制规划指令"), 1500);
+    }
   }
 
   if (children.length === 0) {
-    return <Panel>当前家庭还没有学生档案。</Panel>;
+    return (
+      <section className="rounded-2xl border border-line bg-panel p-8 text-center">
+        <div className="font-bold text-ink">还没有学生档案</div>
+        <p className="mt-2 text-sm text-muted">先添加孩子，学习记录才能准确归到同一个孩子名下。</p>
+        <button
+          onClick={() => onNavigate("students")}
+          className="mt-4 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white"
+        >
+          添加学生
+        </button>
+      </section>
+    );
   }
 
-  const summary = state?.summary || {};
-  const selectedChild = children.find((child) => child.id === selectedChildId);
-  const homework = (home?.homework || []).filter((item: any) => item.childId === selectedChildId);
-  const pendingEvidence = evidence.filter((item) => item.reviewStatus === "PENDING_CONFIRMATION");
-  const confirmedEvidence = evidence.filter((item) => item.reviewStatus === "CONFIRMED");
-
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title={`${selectedChild?.name || ""} 最近怎么样了？`}
-        description="先看当前目标和证据，再决定本周要做什么。"
-        actions={<button className="rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white">生成本周计划</button>}
-      />
-      <ChildTabs children={children} activeChildId={selectedChildId} onChange={setSelectedChildId} />
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <section className="rounded-2xl bg-teal p-5 text-white shadow-[0_18px_40px_rgba(15,118,110,0.18)]">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-bold text-white/60">孩子当前状态</div>
-              <div className="mt-2 text-xl font-black">{state?.active_goal?.title || "还没有设定阶段目标"}</div>
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                {state?.active_goal?.objective || "让 WorkBuddy 读取孩子状态后生成候选目标，你在这里确认。"}
-              </p>
-            </div>
-            <Badge tone="gold">4–8 周</Badge>
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-3 text-white">
-            <div><div className="text-xs text-white/60">待确认</div><div className="text-2xl font-black">{summary.pending_confirmation ?? 0}</div></div>
-            <div><div className="text-xs text-white/60">本周任务</div><div className="text-2xl font-black">{homework.length}</div></div>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-amber-200 bg-gold/15 p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-bold text-amber-700">亲子关系状态</div>
-              <div className="mt-2 text-xl font-black">{relationship?.status || "暂无记录"}</div>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">{relationship?.communicationNote || "还没有亲子关系记录。"}</p>
-            </div>
-            <Badge tone="coral">评分 {relationship?.score ?? "-"}</Badge>
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div><div className="text-xs text-muted">本周冲突</div><div className="text-2xl font-black">{relationship?.conflictCount ?? 0}</div></div>
-            <div><div className="text-xs text-muted">家长行动</div><div className="text-2xl font-black">{relationship?.parentAction ? 1 : 0}</div></div>
-          </div>
-        </section>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
-        <Panel
-          title="本周重点"
-          description="优先看截止时间近、需要家长参与的任务"
-          actions={<button onClick={() => setLoading(true)} className="inline-flex items-center gap-1 text-sm text-teal"><RefreshCw size={15} />刷新</button>}
-        >
-          {homework.length === 0 ? (
-            <p className="text-sm text-muted">本周暂无作业或计划任务。</p>
-          ) : (
-            <div className="space-y-3">
-              {homework.slice(0, 4).map((item: any) => (
-                <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-line-soft bg-white p-3">
-                  <div className="min-w-0">
-                    <div className="font-bold">{item.title}</div>
-                    <div className="mt-1 text-xs text-muted">{item.subject || "学习任务"} · {item.dueDate?.slice(0, 10) || "未设置截止时间"}</div>
-                  </div>
-                  <Badge tone={item.status === "done" ? "teal" : "warn"}>{item.status === "done" ? "已完成" : "待完成"}</Badge>
-                </div>
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs text-muted">{formatDate(new Date())}</div>
+          <h1 className="mt-1 text-2xl font-black text-ink md:text-[28px]">{familyName || "禾芽家庭教务"}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          {children.length > 1 ? (
+            <select
+              aria-label="切换孩子"
+              value={selectedChildId}
+              onChange={(event) => setSelectedChildId(event.target.value)}
+              className="rounded-full border border-[#d7e7e2] bg-white/85 px-3 py-2 text-sm font-bold text-teal"
+            >
+              {children.map((child) => (
+                <option key={child.id} value={child.id}>
+                  {child.name} · {child.grade || "未设置年级"}
+                </option>
               ))}
-            </div>
-          )}
-        </Panel>
-
-        <Panel
-          title="需要家长确认"
-          description="这些推断会影响后续计划，请确认或纠正"
-          actions={<Badge tone={pendingEvidence.length ? "coral" : "muted"}>{pendingEvidence.length} 条</Badge>}
-        >
-          {pendingEvidence.length === 0 ? (
-            <p className="text-sm text-muted">暂时没有需要确认的推断。</p>
+            </select>
           ) : (
-            <div className="space-y-3">
-              {pendingEvidence.map((item) => (
-                <div key={item.id} className="rounded-xl border border-amber-100 bg-white p-3">
-                  <div className="font-bold">{item.type}</div>
-                  <p className="mt-1 text-sm text-ink-soft">{item.observedBehavior || item.taskDescription || "-"}</p>
-                  {item.effectiveStrategy && <p className="mt-1 text-xs text-muted">有效策略：{item.effectiveStrategy}</p>}
-                  <div className="mt-2 flex gap-2">
-                    <button onClick={() => reviewEvidence(item.id, "confirm")} className="inline-flex items-center gap-1 rounded-lg bg-teal px-3 py-1.5 text-xs font-bold text-white"><Check size={14} />确认</button>
-                    <button onClick={() => reviewEvidence(item.id, "correct")} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold"><X size={14} />纠正</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <span className="rounded-full border border-line bg-white/70 px-3 py-2 text-sm font-bold text-[#58716f]">
+              {activeChild?.name}
+            </span>
           )}
-        </Panel>
-      </div>
+          <button
+            onClick={() => setReloadKey((value) => value + 1)}
+            className="inline-flex items-center gap-1 rounded-full border border-line bg-white/70 px-3 py-2 text-sm text-teal"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />刷新
+          </button>
+        </div>
+      </header>
 
-      <Panel title="最近动态" description="最近确认的学习证据，按时间倒序">
-        {loading ? (
-          <p className="text-sm text-muted">加载中...</p>
-        ) : confirmedEvidence.length === 0 ? (
-          <p className="text-sm text-muted">暂无已确认的动态。</p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {confirmedEvidence.slice(0, 6).map((item) => (
-              <div key={item.id} className="rounded-xl border border-line-soft bg-white p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-bold">{item.type}</div>
-                  <Badge tone="teal">已确认</Badge>
+      {error && <div className="rounded-xl border border-orange-200 bg-accent-soft px-4 py-3 text-sm text-accent">{error}</div>}
+
+      <section
+        data-testid="child-hero"
+        className="relative overflow-hidden rounded-[28px] bg-[#d9eee7] bg-cover bg-center shadow-[0_24px_54px_rgba(37,75,70,0.16)]"
+        style={{ backgroundImage: `url('${scene}')` }}
+      >
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(12,58,55,0.94)_0%,rgba(16,70,66,0.88)_44%,rgba(26,86,79,0.46)_100%)]" />
+        <div className="relative z-[2] flex min-h-[340px] flex-col justify-between gap-4 p-5 md:min-h-[360px] md:p-8">
+          <div className="flex items-stretch gap-4">
+            <div className="w-[60%] text-white md:w-[58%]">
+              <div className="text-xs font-extrabold text-[#cfe7e2]">孩子整体状态</div>
+              <h2 className="mt-2 text-xl font-black leading-snug md:text-[30px]">{overall.conclusion}</h2>
+              {overall.tags.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {overall.tags.map((tag: string) => (
+                    <span key={tag} className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
-                <p className="mt-1 text-sm text-ink-soft">{item.observedBehavior || item.taskDescription || "-"}</p>
+              )}
+            </div>
+            {/* 人物形象单独占一列，绝对不会压到左侧结论或下方指标条 */}
+            <div className="relative min-h-[150px] flex-1 md:min-h-[220px]">
+              <img
+                src={characterImage}
+                alt=""
+                aria-hidden="true"
+                onError={() => setImageFailed(true)}
+                className={`pointer-events-none absolute inset-0 h-full w-full object-contain object-bottom ${
+                  imageFailed ? "hidden" : ""
+                } ${loading ? "" : "motion-safe:animate-[child-breathe_3.6s_ease-in-out_infinite]"}`}
+              />
+            </div>
+          </div>
+          <div data-testid="child-hero-metrics" className="hero-metrics-grid rounded-2xl bg-white/15 px-2 py-3 md:px-3 md:py-4">
+            {overall.metrics.map((metric) => (
+              <div key={metric.label} className="text-center text-white">
+                <div className="text-xl font-black text-gold md:text-[28px]">{metric.value}</div>
+                <div className="mt-1 text-[10px] leading-tight text-[#dceceb] md:text-[11px]">{metric.label}</div>
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section data-testid="subject-section">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="text-lg font-black text-ink">各学科情况</h2>
+          <button onClick={() => onNavigate("child-state")} className="text-sm font-bold text-teal">
+            学习诊断
+          </button>
+        </div>
+        {subjects.length === 0 ? (
+          <div className="rounded-2xl border border-line bg-panel p-5 text-sm text-muted">
+            还没有学科记录。让 WorkBuddy 同步一次作业或错题后，这里会显示每一科的情况。
+          </div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {subjects.map((row: SubjectRow) => (
+              <SubjectCard
+                key={row.subject}
+                row={row}
+                onOpen={() => activeChild && onOpenSubject({ childId: activeChild.id, subject: row.subject })}
+              />
+            ))}
+          </div>
         )}
-      </Panel>
+      </section>
+
+      {planningCard && (
+        <section className="rounded-2xl border border-line bg-panel p-5">
+          <div className="text-xs font-extrabold text-accent">学习计划</div>
+          <div className="mt-3 flex flex-wrap items-center gap-4 rounded-2xl bg-gold-soft p-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-base font-black text-ink">{planningCard.focusText}</div>
+              <div className="mt-1.5 text-sm leading-6 text-[#7d5a12]">{planningCard.reason}</div>
+            </div>
+            <button
+              onClick={copyInstruction}
+              className="shrink-0 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white"
+            >
+              {copyText}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {pendingTasks.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="text-lg font-black text-ink">最近学习任务</h2>
+            <button onClick={() => onNavigate("homework")} className="text-sm font-bold text-teal">
+              全部
+            </button>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-line bg-panel">
+            {pendingTasks.map((item: any) => (
+              <button
+                key={item.id}
+                onClick={() => onNavigate("homework")}
+                className="flex w-full items-center gap-3 border-b border-line-soft px-4 py-3 text-left last:border-b-0 hover:bg-teal-soft/40"
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold-soft text-sm font-black text-[#7f5c13]">
+                  {String(item.subject || "任").slice(0, 1)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-ink">{item.title}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted">
+                    {item.dueDate ? `${formatDate(item.dueDate)} 前` : "未设置截止时间"}
+                  </span>
+                </span>
+                <ChevronRight size={18} className="shrink-0 text-muted" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {detail?.learning_priorities?.planning_required && !planningCard && (
+        <p className="text-sm text-muted">学习记录显示需要重新规划，补充更多练习后这里会给出可发送的规划指令。</p>
+      )}
     </div>
+  );
+}
+
+function SubjectCard({ row, onOpen }: { row: SubjectRow; onOpen: () => void }) {
+  const tone = subjectTone(row.statusClass);
+  return (
+    <button data-testid="subject-card" onClick={onOpen} className={`rounded-2xl border p-5 text-left transition hover:shadow-[0_12px_28px_rgba(38,52,59,0.08)] ${tone.card}`}>
+      <div className="flex items-center gap-3">
+        <span className="text-xl font-black text-ink">{row.subject}</span>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone.pill}`}>{row.status_text}</span>
+        {row.hasScore && (
+          <span className={`ml-auto text-2xl font-black ${tone.score}`}>
+            {row.scoreText}
+            <span className="ml-0.5 text-xs font-bold text-muted">分</span>
+          </span>
+        )}
+      </div>
+      {row.hasScore && (
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef2f0]">
+          <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${row.scorePercent}%` }} />
+        </div>
+      )}
+      <div className="mt-3 text-xs text-muted">{row.metaText}</div>
+      {row.change_text && <div className="mt-2 text-sm leading-6 text-ink-soft">{row.change_text}</div>}
+      <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-3 text-sm font-bold text-teal">
+        {row.enterText}
+        <ChevronRight size={16} className="text-muted" />
+      </div>
+    </button>
   );
 }

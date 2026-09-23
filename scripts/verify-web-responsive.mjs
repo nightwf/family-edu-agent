@@ -18,15 +18,70 @@ const baseUrl = liveUrlArg || `http://127.0.0.1:${port}/family-edu/`;
 const outDir = path.join(process.cwd(), "designs");
 fs.mkdirSync(outDir, { recursive: true });
 
+// 桩数据故意让「数学」有记录、其余三科只有声明没有记录，
+// 用来验证「声明的学科即使没数据也要展示」和「空数据用真实空状态」这两条要求。
 const home = {
   children: [
     { id: "c1", name: "JOJO", age: 10, grade: "四年级", gender: "male", subjects: ["语文", "数学", "英语", "科学"], textbookVersion: "人教版" },
+  ],
+  active_child: { id: "c1", name: "JOJO", age: 10, grade: "四年级", gender: "male", subjects: ["语文", "数学", "英语", "科学"], textbookVersion: "人教版" },
+  subject_overview: {
+    child: { child_id: "c1", name: "JOJO", grade: "四年级" },
+    overall: {
+      conclusion: "整体需要关注，数学是目前最需要优先处理的一科",
+      tags: ["3 个薄弱知识点", "1 项复测到期", "2 条待处理信号"],
+      metrics: { subject_count: 1, mastery_average: 58, review_due_count: 1 },
+    },
+    subjects: [
+      {
+        subject: "数学", status: "focus", status_text: "需重点", mastery_score: 58,
+        weak_count: 2, review_due_count: 1, attempts_7d: 3,
+        change_text: "两步应用题重复出错 2 次，建议本周单独安排。",
+      },
+      { subject: "语文", status: "thin", status_text: "材料不足", mastery_score: null, weak_count: 0, review_due_count: 0, attempts_7d: 0, change_text: "还没有足够的作答记录，无法判断这一科的水平，先补一次练习。" },
+      { subject: "英语", status: "thin", status_text: "材料不足", mastery_score: null, weak_count: 0, review_due_count: 0, attempts_7d: 0, change_text: "还没有足够的作答记录，无法判断这一科的水平，先补一次练习。" },
+      { subject: "科学", status: "thin", status_text: "材料不足", mastery_score: null, weak_count: 0, review_due_count: 0, attempts_7d: 0, change_text: "还没有足够的作答记录，无法判断这一科的水平，先补一次练习。" },
+    ],
+  },
+  learning_priorities: {
+    top: { label: "两步应用题", subject: "数学", reason: "同一题型两周内重复出错 2 次" },
+    priorities: [{ label: "两步应用题", subject: "数学", reason: "同一题型两周内重复出错 2 次" }],
+    signal_count: 2,
+    planning_required: true,
+  },
+  planning_request: { id: "plan-1", status: "pending", trigger_reason: "数学出现重复错误，需要重新安排下一阶段重点" },
+  child_state: {
+    summary: { evidence_7d: 4, evidence_42d: 9, pending_confirmation: 1, confirmed: 6, corrected: 1 },
+    recent_evidence: [],
+    active_goal: null,
+  },
+  relationship: { status: "平稳", score: 78, communicationNote: "最近一周沟通顺畅。", conflictCount: 0 },
+  wrong_questions: { items: [], total: 0 },
+  mastery: { items: [], total: 0 },
+  homework: [
+    { id: "h1", childId: "c1", subject: "数学", title: "练习册 P12 应用题", dueDate: "2026-09-25T00:00:00.000Z", status: "pending" },
+    { id: "h2", childId: "c1", subject: "语文", title: "朗读课文并复述", dueDate: "2026-09-26T00:00:00.000Z", status: "pending" },
   ],
   stats: { familyName: "验证家庭", childCount: 1, recordCount: 12, reportCount: 3, homeworkCount: 2 },
 };
 
 const stubs = [
   [/\/api\/home(\?|$)/, () => home],
+  [
+    /\/api\/mobile\/subject-detail(\?|$)/,
+    () => ({
+      child: { child_id: "c1" },
+      subject: "数学",
+      status: "focus",
+      status_text: "需重点",
+      mastery_score: 58,
+      judgement: "数学整体掌握度 58 分，两步应用题重复出错，本周需要重点安排。",
+      gaps: [{ name: "两步应用题", mastery_score: 52, type: "REPEATED_ERROR", why: "同一题型两周内重复出错 2 次", evidence: "练习 4 次 · 独立作答 2 次 · 覆盖 1 种变式" }],
+      advice: { action: "先讲清两步之间的依赖关系，再做同型变式", method: "先示范一次，再让孩子独立复述步骤", pass_criteria: "连续 3 次独立做对且能说出中间量", retest: "24 小时后复测一次", basis: "题型掌握判定标准：独立作答 5 次、覆盖 3 种变式", estimated_minutes: 20 },
+      tasks: [{ title: "练习册 P12 应用题", due_date: "2026-09-25T00:00:00.000Z", estimated_minutes: 15 }],
+      planning_required: true,
+    }),
+  ],
   [/\/api\/settings(\?|$)/, () => ({ family: { name: "验证家庭", code: "123456" }, mcp_token: "stub-token", workbuddy_prompt: "示例提示词", doubao_prompt: "示例提示词" })],
   [/\/api\/policies(\?|$)/, () => []],
   [/\/api\/policy-changes(\?|$)/, () => []],
@@ -120,6 +175,118 @@ try {
     });
 
     const before = await measure();
+
+    // 首页信息结构与小程序对齐：整体状态 → 各学科情况 → 学习计划 → 最近学习任务。
+    // 线上模式用的是无效口令，只能验证骨架，所以结构断言只在桩数据模式跑。
+    let homeLayout = null;
+    if (!liveUrlArg) {
+      homeLayout = await page.evaluate(() => {
+        const navButtons = [...document.querySelectorAll("aside nav button")];
+        // 只看正文：侧边栏里也有「学习计划」这类字样，混进来会算错顺序
+        const text = document.querySelector("main")?.innerText || "";
+        const headingPos = (label) => text.indexOf(label);
+        return {
+          primaryNav: navButtons.filter((button) => button.querySelector("svg")).map((button) => button.textContent.trim()),
+          secondaryNav: navButtons.filter((button) => !button.querySelector("svg")).map((button) => button.textContent.trim()),
+          hasHero: !!document.querySelector('[data-testid="child-hero"]'),
+          subjectCards: document.querySelectorAll('[data-testid="subject-card"]').length,
+          subjectNamesOnCard: [...document.querySelectorAll('[data-testid="subject-card"]')].map((card) => card.textContent.trim().slice(0, 2)),
+          declaredSubjectsShown: ["语文", "数学", "英语", "科学"].every((subject) => text.includes(subject)),
+          order: {
+            overall: headingPos("孩子整体状态"),
+            subjects: headingPos("各学科情况"),
+            planning: headingPos("学习计划"),
+            tasks: headingPos("最近学习任务"),
+          },
+          emptyStateShown: text.includes("材料不足"),
+          // 人物形象是绝对定位的，最容易压到文案或指标条，这里量真实几何位置
+          hero: (() => {
+            const hero = document.querySelector('[data-testid="child-hero"]');
+            const image = hero?.querySelector("img");
+            const title = hero?.querySelector("h2");
+            const copy = title?.parentElement;
+            const metrics = hero?.querySelector('[data-testid="child-hero-metrics"]');
+            const rect = (el) => (el ? el.getBoundingClientRect() : null);
+            const overlaps = (a, b) =>
+              a && b ? !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top) : null;
+            return {
+              heroBox: rect(hero) ? { w: Math.round(rect(hero).width), h: Math.round(rect(hero).height) } : null,
+              imageBox: rect(image) ? { w: Math.round(rect(image).width), h: Math.round(rect(image).height) } : null,
+              copyBox: rect(copy) ? { w: Math.round(rect(copy).width), h: Math.round(rect(copy).height) } : null,
+              metricsBox: rect(metrics) ? { w: Math.round(rect(metrics).width), h: Math.round(rect(metrics).height) } : null,
+              imageLoaded: image ? image.naturalWidth > 0 : false,
+              imageInsideHero:
+                rect(image) && rect(hero)
+                  ? rect(image).right <= rect(hero).right + 1 && rect(image).bottom <= rect(hero).bottom + 1
+                  : null,
+              titleOverlapsImage: !overlaps(rect(title), rect(image)),
+              imageOverlapsMetrics: overlaps(rect(image), rect(metrics)) === false,
+            };
+          })(),
+        };
+      });
+      homeLayout.checks = {
+        heroFirst:
+          homeLayout.order.overall >= 0 &&
+          homeLayout.order.overall < homeLayout.order.subjects &&
+          homeLayout.order.subjects < homeLayout.order.planning &&
+          homeLayout.order.subjects < homeLayout.order.tasks,
+        allDeclaredSubjects: homeLayout.subjectCards === 4 && homeLayout.declaredSubjectsShown,
+        honestEmptyState: homeLayout.emptyStateShown,
+        // 窄屏下侧边栏是收起来的抽屉，导航结构留到抽屉那块再核对
+        fivePrimaryAreas: viewport.expectSidebar
+          ? homeLayout.primaryNav.length === 9 && homeLayout.secondaryNav.length === 3
+          : null,
+        heroComposed:
+          homeLayout.hero.imageLoaded &&
+          homeLayout.hero.imageInsideHero === true &&
+          homeLayout.hero.titleOverlapsImage === true &&
+          homeLayout.hero.imageOverlapsMetrics === true,
+      };
+      await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-home.png`), fullPage: true });
+    }
+
+    // 二级页链路：学科卡片 → 后续规划建议；孩子状态 → 整体状态/原因/下一步
+    let pageProbe = null;
+    if (!liveUrlArg && viewport.expectSidebar) {
+      await page.locator('[data-testid="subject-card"]').first().click();
+      await page.waitForTimeout(400);
+      const subjectPage = await page.evaluate(() => ({
+        heading: document.querySelector("header div")?.textContent?.trim() || "",
+        hasAdvice: document.body.innerText.includes("后续规划建议"),
+        hasGaps: document.body.innerText.includes("需要先解决的问题"),
+        hasJudgement: document.body.innerText.includes("整体掌握度"),
+      }));
+      await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-subject.png`), fullPage: true });
+
+      await page.getByRole("button", { name: "孩子状态", exact: true }).first().click();
+      await page.waitForTimeout(400);
+      const statePage = await page.evaluate(() => {
+        const text = document.querySelector("main")?.innerText || "";
+        return {
+          hasHero: !!document.querySelector('img[alt=""]'),
+          steps: ["观察证据", "系统判断", "家长下一步"].map((label) => ({ label, at: text.indexOf(label) })),
+          hasRelationship: text.includes("亲子关系状态"),
+        };
+      });
+      await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-child-state.png`), fullPage: true });
+
+      pageProbe = {
+        subjectPage,
+        statePage,
+        checks: {
+          subjectDetailReached: subjectPage.hasAdvice && subjectPage.hasGaps && subjectPage.hasJudgement,
+          stateStepsOrdered:
+            statePage.steps.every((step) => step.at >= 0) &&
+            statePage.steps[0].at < statePage.steps[1].at &&
+            statePage.steps[1].at < statePage.steps[2].at,
+          relationshipOnStatePage: statePage.hasRelationship,
+        },
+      };
+      await page.getByRole("button", { name: "首页", exact: true }).first().click();
+      await page.waitForTimeout(300);
+    }
+
     await page.screenshot({ path: path.join(outDir, `web-${viewport.name}.png`), fullPage: false });
 
     let drawer = null;
@@ -131,13 +298,15 @@ try {
         return {
           drawerNavItems: nav.length,
           bodyOverflow: document.body.style.overflow,
+          primaryNav: nav.filter((el) => el.querySelector("svg")).map((el) => el.textContent.trim()),
+          secondaryNav: nav.filter((el) => !el.querySelector("svg")).map((el) => el.textContent.trim()),
           firstItems: nav.slice(0, 4).map((el) => el.textContent.trim()),
         };
       });
       await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-drawer.png`), fullPage: false });
     }
 
-    report.push({ viewport: viewport.name, ...before, drawer, errors: [...new Set(errors)].slice(0, 4) });
+    report.push({ viewport: viewport.name, ...before, homeLayout, pageProbe, drawer, errors: [...new Set(errors)].slice(0, 4) });
     await context.close();
   }
 } finally {

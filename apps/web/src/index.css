@@ -15,12 +15,31 @@ body {
   background: linear-gradient(180deg, #f8f2df 0%, #fffaf0 60%, #f7f1df 100%);
 }
 
+/* 首页人物形象呼吸动效，与小程序同一节奏 */
+@keyframes child-breathe {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
 /* 与小程序一致的卡片：浅边框、圆角、轻阴影 */
 .card {
   border: 1px solid #e8ddc5;
   border-radius: 18px;
   background: #fffdf7;
   box-shadow: 0 12px 32px rgba(38, 52, 59, 0.06);
+}
+
+/* 首页「孩子整体状态」的四个指标：窄屏也保持一行四列，与小程序一致。
+   下面的窄屏栅格降列规则是给普通内容区用的，这里不能被它影响。 */
+.hero-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 input,

@@ -23,6 +23,7 @@ import WrongBook from "./components/WrongBook";
 import ChildOverview from "./components/ChildOverview";
 import GoalPlan from "./components/GoalPlan";
 import ChildStateDetail from "./components/ChildStateDetail";
+import SubjectDetail from "./components/SubjectDetail";
 import ParentRelation from "./components/ParentRelation";
 import { Landing } from "./components/Landing";
 import {
@@ -236,6 +237,8 @@ function App() {
   const [v2EducationMethods, setV2EducationMethods] = useState<any[]>([]);
   const [familyPolicy, setFamilyPolicy] = useState<any>({});
   const [memberships, setMemberships] = useState<any>({});
+  // 学科详情是二级页，需要带上「哪个孩子、哪一科」的参数
+  const [subjectTarget, setSubjectTarget] = useState<{ childId: string; subject: string } | null>(null);
 
   async function load() {
     if (!token) return;
@@ -535,12 +538,13 @@ function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           title={
-            page === "home" ? "孩子总览" :
+            page === "home" ? "首页" :
+            page === "subject" ? (subjectTarget?.subject ? `${subjectTarget.subject} · 学科详情` : "学科详情") :
             page === "plan" ? "计划" :
             page === "child-state" ? "孩子状态" :
             page === "relation" ? "亲子关系" :
             page === "students" ? "学生" :
-            page === "reports" ? "报告成长" :
+            page === "reports" ? "成长" :
             page === "textbooks" ? "教材" :
             page === "questions" ? "题库" :
             page === "wrong-book" ? "错题本" :
@@ -555,7 +559,25 @@ function App() {
           <div className="mx-auto max-w-[1180px] space-y-5">
 
           {page === "home" && home && (
-            <ChildOverview token={token} children={home.children} home={home} request={request} />
+            <ChildOverview
+              token={token}
+              children={home.children}
+              home={home}
+              request={request}
+              onNavigate={setPage}
+              onOpenSubject={(target) => { setSubjectTarget(target); setPage("subject"); }}
+              familyName={settings?.family?.name}
+            />
+          )}
+
+          {page === "subject" && subjectTarget && (
+            <SubjectDetail
+              token={token}
+              childId={subjectTarget.childId}
+              subject={subjectTarget.subject}
+              request={request}
+              onNavigate={setPage}
+            />
           )}
 
           {page === "plan" && home && (
@@ -563,7 +585,7 @@ function App() {
           )}
 
           {page === "child-state" && home && (
-            <ChildStateDetail token={token} children={home.children} request={request} />
+            <ChildStateDetail token={token} children={home.children} request={request} onNavigate={setPage} />
           )}
 
           {page === "relation" && home && (

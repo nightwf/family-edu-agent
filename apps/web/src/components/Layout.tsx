@@ -15,6 +15,7 @@ import {
 
 export type PageId =
   | "home"
+  | "subject"
   | "plan"
   | "child-state"
   | "relation"
@@ -27,32 +28,43 @@ export type PageId =
   | "knowledge"
   | "settings";
 
-type NavItem = { id: PageId; label: string; icon: typeof LayoutDashboard };
+type NavChild = { id: PageId; label: string };
+type NavItem = { id: PageId; label: string; icon: typeof LayoutDashboard; children?: NavChild[] };
 
-const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
+/**
+ * 导航以小程序为基准：只保留首页 / 学生 / 成长 / 学习 / 我的五个一级入口，
+ * 计划、孩子状态、亲子关系和学习资料都是二级入口。
+ * 小程序里二级页在页面内跳转，电脑端屏幕更宽，就在侧边栏直接展开，避免功能被藏起来。
+ */
+const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
   {
-    title: "围绕孩子",
     items: [
-      { id: "home", label: "孩子总览", icon: LayoutDashboard },
-      { id: "plan", label: "计划", icon: TrendingUp },
-      { id: "child-state", label: "孩子状态", icon: TrendingUp },
-      { id: "relation", label: "亲子关系", icon: Users },
+      {
+        id: "home",
+        label: "首页",
+        icon: LayoutDashboard,
+        children: [
+          { id: "plan", label: "学习计划" },
+          { id: "child-state", label: "孩子状态" },
+          { id: "relation", label: "亲子关系" },
+        ],
+      },
       { id: "students", label: "学生", icon: Users },
-      { id: "reports", label: "报告成长", icon: TrendingUp },
+      { id: "reports", label: "成长", icon: TrendingUp },
     ],
   },
   {
-    title: "学习资源",
+    title: "学习",
     items: [
-      { id: "textbooks", label: "教材", icon: BookOpen },
-      { id: "questions", label: "题库", icon: BookMarked },
-      { id: "wrong-book", label: "错题本", icon: BookX },
       { id: "homework", label: "作业", icon: ClipboardCheck },
+      { id: "wrong-book", label: "错题本", icon: BookX },
+      { id: "questions", label: "题库", icon: BookMarked },
+      { id: "textbooks", label: "教材", icon: BookOpen },
       { id: "knowledge", label: "知识库", icon: Library },
     ],
   },
   {
-    title: "账号与配置",
+    title: "我的",
     items: [{ id: "settings", label: "设置", icon: Settings }],
   },
 ];
@@ -78,24 +90,47 @@ export function Sidebar({
         </div>
       </div>
       <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto">
-        {NAV_GROUPS.map((group) => (
-          <div key={group.title}>
-            <div className="mb-2 px-3 text-[11px] font-bold tracking-wider text-muted">{group.title}</div>
+        {NAV_GROUPS.map((group, groupIndex) => (
+          <div key={group.title || `group-${groupIndex}`}>
+            {group.title && (
+              <div className="mb-2 px-3 text-[11px] font-bold tracking-wider text-muted">{group.title}</div>
+            )}
             <div className="space-y-1">
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = page === item.id;
+                const childActive = Boolean(item.children?.some((child) => child.id === page));
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => onNavigate(item.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                      active ? "bg-teal font-bold text-white shadow-[0_8px_18px_rgba(15,118,110,0.22)]" : "text-ink-soft hover:bg-teal-soft hover:text-teal"
-                    }`}
-                  >
-                    <Icon size={17} />
-                    {item.label}
-                  </button>
+                  <div key={item.id}>
+                    <button
+                      onClick={() => onNavigate(item.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                        active
+                          ? "bg-teal font-bold text-white shadow-[0_8px_18px_rgba(15,118,110,0.22)]"
+                          : childActive
+                            ? "font-bold text-teal"
+                            : "text-ink-soft hover:bg-teal-soft hover:text-teal"
+                      }`}
+                    >
+                      <Icon size={17} />
+                      {item.label}
+                    </button>
+                    {item.children && (
+                      <div className="mt-1 space-y-0.5 pl-9">
+                        {item.children.map((child) => (
+                          <button
+                            key={child.id}
+                            onClick={() => onNavigate(child.id)}
+                            className={`block w-full rounded-lg px-3 py-1.5 text-left text-[13px] transition ${
+                              page === child.id ? "bg-teal-soft font-bold text-teal" : "text-muted hover:text-teal"
+                            }`}
+                          >
+                            {child.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
