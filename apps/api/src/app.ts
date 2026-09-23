@@ -30,6 +30,7 @@ import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { registerV2Routes } from "./v2/routes.js";
 import { getSubjectDetail } from "./v2/subject-overview.js";
 import { loadHomeAggregate } from "./home-aggregate.js";
+import { parseStringList } from "./list-input.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
 import { buildGrowthTimeline } from "./mobile-growth.js";
@@ -816,7 +817,7 @@ function normalizeChildGender(value: unknown) {
         gender: normalizeChildGender(body.gender),
         age: Number(body.age || 0),
         grade: body.grade,
-        subjects: Array.isArray(body.subjects) ? body.subjects : String(body.subjects || "").split(/[,，]/).map((item: string) => item.trim()).filter(Boolean),
+        subjects: parseStringList(body.subjects),
         textbookVersion: body.textbook_version || "",
       },
     });
@@ -833,7 +834,7 @@ function normalizeChildGender(value: unknown) {
         gender: body.gender === undefined || body.gender === null || body.gender === "" ? undefined : normalizeChildGender(body.gender),
         age: Number(body.age || 0),
         grade: body.grade,
-        subjects: Array.isArray(body.subjects) ? body.subjects : String(body.subjects || "").split(/[,，]/).map((item: string) => item.trim()).filter(Boolean),
+        subjects: parseStringList(body.subjects),
         textbookVersion: body.textbook_version || "",
       },
     });
@@ -1096,7 +1097,7 @@ function normalizeChildGender(value: unknown) {
       philosophy: body.philosophy,
       communicationStyle: body.communication_style,
       strictness: body.strictness,
-      parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item: string) => item.trim()).filter(Boolean) : undefined,
+      parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : undefined,
     });
   });
 
@@ -1114,7 +1115,7 @@ function normalizeChildGender(value: unknown) {
       educationPhilosophy: body.education_philosophy,
       communicationStyle: body.communication_style,
       strictness: body.strictness,
-      parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item: string) => item.trim()).filter(Boolean) : undefined,
+      parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : undefined,
     });
   });
 

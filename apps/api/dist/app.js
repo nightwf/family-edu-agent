@@ -20,8 +20,12 @@ import { listPracticePapers, listRemediationPlans, listWrongQuestions } from "./
 import { registerQuestionBankRoutes } from "./question-bank-routes.js";
 import { registerWrongBookRoutes } from "./wrong-book-routes.js";
 import { registerV2Routes } from "./v2/routes.js";
+import { getSubjectDetail } from "./v2/subject-overview.js";
+import { loadHomeAggregate } from "./home-aggregate.js";
+import { parseStringList } from "./list-input.js";
 import { exchangeWechatCode, WechatError } from "./wechat.js";
 import { registerOAuthRoutes, listOAuthConnections, revokeOAuthConnection } from "./oauth.js";
+import { buildGrowthTimeline } from "./mobile-growth.js";
 import { applyToFamilyByJoinCode, createFamilyForUser, ensureFamilyJoinCode, findOrCreateWechatUser, listFamilyJoinRequests, reviewFamilyJoinRequest, } from "./family-onboarding.js";
 import { createInviteCode, ensureFamilyMember, getActiveFamilyMember, listFamilyMembers, listPendingInvites, normalizeEmail, requireOwner, } from "./family-members.js";
 async function requireAuth(request, reply) {
@@ -602,6 +606,7 @@ export async function buildApp() {
     });
     app.get("/api/home", { preHandler: requireAuth }, async (request) => {
         const familyId = getAuth(request).familyId;
+        const query = request.query;
         const [children, reports, textbooks, knowledge, homework, records] = await Promise.all([
             prisma.child.findMany({ where: { familyId, status: "active" }, orderBy: { createdAt: "asc" } }),
             prisma.report.findMany({ where: { familyId }, orderBy: { createdAt: "desc" }, take: 3 }),
@@ -610,12 +615,18 @@ export async function buildApp() {
             prisma.homework.findMany({ where: { familyId }, orderBy: { dueDate: "asc" } }),
             prisma.record.findMany({ where: { familyId }, orderBy: { date: "desc" } }),
         ]);
+        // 电脑端首页与小程序首页共用同一套学情口径：整体状态、各学科情况、待规划提示。
+        // 这些字段是增量补充，其它页面继续只读 children/textbooks/knowledge/homework/stats。
+        const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
+        const aggregate = await loadHomeAggregate(familyId, activeChild?.id || null);
         return {
             children,
             reports,
             textbooks,
             knowledge,
             homework,
+            active_child: activeChild,
+            ...aggregate,
             stats: {
                 records: records.length,
                 writing: records.filter((item) => item.type === "writing").length,
@@ -638,6 +649,7 @@ export async function buildApp() {
         const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
         const childRecords = activeChild ? records.filter((item) => item.childId === activeChild.id) : [];
         const childReports = activeChild ? reports.filter((item) => item.childId === activeChild.id) : [];
+        const aggregate = await loadHomeAggregate(auth.familyId, activeChild?.id || null);
         return {
             user,
             family,
@@ -646,6 +658,7 @@ export async function buildApp() {
             records: childRecords.slice(0, 8),
             reports: childReports.slice(0, 5),
             homework,
+            ...aggregate,
             stats: {
                 records: childRecords.length,
                 writing: childRecords.filter((item) => item.type === "writing").length,
@@ -653,6 +666,23 @@ export async function buildApp() {
                 homework: Math.round(childRecords.filter((item) => item.type === "homework").reduce((sum, item) => sum + (item.score || 0), 0) / Math.max(1, childRecords.filter((item) => item.type === "homework").length)),
             },
         };
+    });
+    app.get("/api/mobile/subject-detail", { preHandler: requireAuth }, async (request, reply) => {
+        const familyId = getAuth(request).familyId;
+        const query = request.query;
+        const childId = String(query.child_id || "");
+        const subject = String(query.subject || "");
+        if (!childId || !subject)
+            return reply.code(400).send({ error: "缺少 child_id 或 subject" });
+        try {
+            return await getSubjectDetail(familyId, childId, subject);
+        }
+        catch (error) {
+            if (error instanceof Error && error.statusCode === 404) {
+                return reply.code(404).send({ error: error.message });
+            }
+            throw error;
+        }
     });
     app.get("/api/mobile/growth", { preHandler: requireAuth }, async (request) => {
         const familyId = getAuth(request).familyId;
@@ -662,23 +692,50 @@ export async function buildApp() {
         const activeChild = children.find((child) => child.id === query.child_id) || children[0] || null;
         if (!activeChild)
             return { children, active_child: null, records: [], reports: [], growth: [], page: { limit, offset, total_records: 0, total_reports: 0 } };
-        const [records, reports, growthRecords, totalRecords, totalReports] = await Promise.all([
+        const [records, reports, timelineRecords, timelineReports, evidenceRecords, attempts, wrongQuestions, masteries, stateSnapshots, totalRecords, totalReports] = await Promise.all([
             prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: limit, skip: offset }),
             prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: Math.min(10, limit), skip: offset }),
-            prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "asc" }, take: 80 }),
+            prisma.record.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { date: "desc" }, take: 100 }),
+            prisma.report.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { createdAt: "desc" }, take: 20 }),
+            prisma.evidenceRecord.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { observedAt: "desc" }, take: 100 }),
+            prisma.questionAttempt.findMany({
+                where: { childId: activeChild.id, familyId },
+                include: { questionType: { select: { name: true, subject: true } }, question: { select: { stem: true } } },
+                orderBy: { attemptedAt: "desc" },
+                take: 100,
+            }),
+            prisma.wrongQuestionEntry.findMany({
+                where: { childId: activeChild.id, familyId },
+                include: { questionType: { select: { name: true } }, question: { select: { stem: true } } },
+                orderBy: { lastWrongAt: "desc" },
+                take: 100,
+            }),
+            prisma.studentQuestionTypeMastery.findMany({
+                where: { childId: activeChild.id, familyId },
+                include: { questionType: { select: { name: true, subject: true } } },
+                orderBy: { updatedAt: "desc" },
+                take: 100,
+            }),
+            prisma.childStateSnapshot.findMany({ where: { childId: activeChild.id, familyId }, orderBy: { asOf: "desc" }, take: 20 }),
             prisma.record.count({ where: { childId: activeChild.id, familyId } }),
             prisma.report.count({ where: { childId: activeChild.id, familyId } }),
         ]);
+        const timeline = buildGrowthTimeline({
+            records: timelineRecords,
+            reports: timelineReports,
+            evidenceRecords,
+            attempts,
+            wrongQuestions,
+            masteries,
+            stateSnapshots,
+        });
         return {
             children,
             active_child: activeChild,
             records,
             reports,
-            growth: growthRecords.map((record) => ({
-                date: record.date.toISOString().slice(0, 10),
-                type: record.type,
-                score: record.score,
-            })),
+            growth: timeline.events,
+            growth_summary: timeline.summary,
             page: { limit, offset, total_records: totalRecords, total_reports: totalReports },
         };
     });
@@ -733,6 +790,9 @@ export async function buildApp() {
         }
         return { children, active_child: activeChild, data };
     });
+    function normalizeChildGender(value) {
+        return String(value || "").toLowerCase() === "female" ? "female" : "male";
+    }
     app.get("/api/children", { preHandler: requireAuth }, async (request) => {
         return prisma.child.findMany({ where: { familyId: getAuth(request).familyId }, orderBy: { createdAt: "asc" } });
     });
@@ -743,9 +803,10 @@ export async function buildApp() {
             data: {
                 familyId,
                 name: body.name,
+                gender: normalizeChildGender(body.gender),
                 age: Number(body.age || 0),
                 grade: body.grade,
-                subjects: Array.isArray(body.subjects) ? body.subjects : String(body.subjects || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+                subjects: parseStringList(body.subjects),
                 textbookVersion: body.textbook_version || "",
             },
         });
@@ -759,9 +820,10 @@ export async function buildApp() {
             where: { id: childId },
             data: {
                 name: body.name,
+                gender: body.gender === undefined || body.gender === null || body.gender === "" ? undefined : normalizeChildGender(body.gender),
                 age: Number(body.age || 0),
                 grade: body.grade,
-                subjects: Array.isArray(body.subjects) ? body.subjects : String(body.subjects || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+                subjects: parseStringList(body.subjects),
                 textbookVersion: body.textbook_version || "",
             },
         });
@@ -1022,7 +1084,7 @@ export async function buildApp() {
             philosophy: body.philosophy,
             communicationStyle: body.communication_style,
             strictness: body.strictness,
-            parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item) => item.trim()).filter(Boolean) : undefined,
+            parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : undefined,
         });
     });
     app.get("/api/policy-changes", { preHandler: requireAuth }, async (request) => {
@@ -1037,7 +1099,7 @@ export async function buildApp() {
             educationPhilosophy: body.education_philosophy,
             communicationStyle: body.communication_style,
             strictness: body.strictness,
-            parentGoals: Array.isArray(body.parent_goals) ? body.parent_goals : body.parent_goals ? String(body.parent_goals).split(/[,，]/).map((item) => item.trim()).filter(Boolean) : undefined,
+            parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : undefined,
         });
     });
     app.get("/api/education-methods", { preHandler: requireAuth }, async (request) => {

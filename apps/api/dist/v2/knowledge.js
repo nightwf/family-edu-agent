@@ -1,9 +1,11 @@
 import { prisma } from "../prisma.js";
 import { writeAudit } from "./audit.js";
+import { CHILD_KNOWLEDGE_STATUSES, KNOWLEDGE_NODE_TYPES, KNOWLEDGE_RELATION_TYPES, requireEnumValue, } from "./enum-normalize.js";
 function normalizeKnowledgeNodeInput(node) {
     const raw = node;
     return {
-        type: node.type,
+        // 知识节点类型是枚举，非法取值会报出全部合法值
+        type: requireEnumValue(KNOWLEDGE_NODE_TYPES, node.type, "知识节点类型（nodes[].type）"),
         title: node.title,
         subject: node.subject,
         grade: node.grade,
@@ -170,7 +172,7 @@ export async function saveKnowledgeRelationsBatch(familyId, sourceDocumentId, re
         if (relation.prerequisiteTitle === relation.dependentTitle) {
             throw new Error("知识节点不能成为自己的前置知识点");
         }
-        const relationType = relation.relationType || "PREREQUISITE_OF";
+        const relationType = requireEnumValue(KNOWLEDGE_RELATION_TYPES, relation.relationType || "PREREQUISITE_OF", "知识关系类型（relations[].relation_type）");
         const prerequisite = await prisma.knowledgeNode.findFirst({
             where: {
                 familyId,
@@ -239,13 +241,14 @@ export async function upsertChildKnowledgeState(familyId, input, actor = { type:
     const node = await prisma.knowledgeNode.findFirst({ where: { id: input.knowledgeNodeId, familyId } });
     if (!node)
         throw new Error("知识节点不存在或不属于当前家庭");
+    const knowledgeStatus = requireEnumValue(CHILD_KNOWLEDGE_STATUSES, input.status || "UNASSESSED", "知识点掌握状态（status）");
     const state = await prisma.childKnowledgeState.upsert({
         where: { childId_knowledgeNodeId: { childId: input.childId, knowledgeNodeId: input.knowledgeNodeId } },
         update: {
-            status: input.status,
+            status: knowledgeStatus,
             score: input.score,
             evidence: (input.evidence ?? undefined),
-            manualStatus: input.status,
+            manualStatus: knowledgeStatus,
             manualReason: input.manualReason,
             manualSource: actor.id || actor.type,
             lastPracticedAt: new Date(),
@@ -254,10 +257,10 @@ export async function upsertChildKnowledgeState(familyId, input, actor = { type:
             familyId,
             childId: input.childId,
             knowledgeNodeId: input.knowledgeNodeId,
-            status: input.status,
+            status: knowledgeStatus,
             score: input.score || 0,
             evidence: (input.evidence ?? undefined),
-            manualStatus: input.status,
+            manualStatus: knowledgeStatus,
             manualReason: input.manualReason,
             manualSource: actor.id || actor.type,
         },

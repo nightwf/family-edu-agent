@@ -346,7 +346,7 @@ function App() {
       age: Number(form.get("age")),
       grade: form.get("grade"),
       gender: form.get("gender") === "female" ? "female" : "male",
-      subjects: String(form.get("subjects") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+      subjects: String(form.get("subjects") || "").split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
       textbook_version: form.get("textbook_version"),
     };
     if (editingChild) {
@@ -401,7 +401,7 @@ function App() {
         education_philosophy: form.get("education_philosophy"),
         communication_style: form.get("communication_style"),
         strictness: form.get("strictness"),
-        parent_goals: String(form.get("parent_goals") || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
+        parent_goals: String(form.get("parent_goals") || "").split(/[,，、]/).map((item) => item.trim()).filter(Boolean),
       }),
     }, token);
     await load();
@@ -933,7 +933,7 @@ function App() {
               <option value="male">男生</option>
               <option value="female">女生</option>
             </select>
-            <input name="subjects" defaultValue={editingChild?.subjects.join("、")} className="w-full rounded-lg border border-line px-3 py-2" placeholder="学科" />
+            <label className="block text-sm text-muted">关注学科<input name="subjects" defaultValue={editingChild?.subjects.join("、")} className="mt-1 w-full rounded-lg border border-line px-3 py-2" placeholder="数学、语文、英语" /><span className="mt-1 block text-xs text-muted">多个学科用顿号分隔</span></label>
             <input name="textbook_version" defaultValue={editingChild?.textbookVersion} className="w-full rounded-lg border border-line px-3 py-2" placeholder="教材版本" />
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setChildDialog(false); setEditingChild(null); }} className="rounded-lg border border-line px-3 py-2">取消</button>

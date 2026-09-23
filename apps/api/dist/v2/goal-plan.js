@@ -1,4 +1,5 @@
 import { prisma } from "../prisma.js";
+import { PLAN_ITEM_STATUSES, PLAN_ITEM_TYPES, requireEnumValue } from "./enum-normalize.js";
 import { writeAudit } from "./audit.js";
 const MIN_GOAL_DAYS = 28;
 const MAX_GOAL_DAYS = 63;
@@ -144,7 +145,8 @@ export async function createWeeklyPlan(familyId, stageGoalId, weekStart, items, 
             contextVersion: goal.contextVersion,
             items: {
                 create: items.map((item, index) => ({
-                    type: item.type,
+                    // 任务类型必须是枚举内的值；非法取值会直接报出全部合法值，避免调用方反复试错
+                    type: requireEnumValue(PLAN_ITEM_TYPES, item.type, "周计划任务类型（items[].type）"),
                     title: item.title,
                     description: item.description,
                     ownerUserId: item.ownerUserId,
@@ -215,15 +217,16 @@ export async function updatePlanItemStatus(familyId, planItemId, input, actor = 
     if (!item || item.weeklyPlan.familyId !== familyId) {
         throw new Error("计划任务不存在或不属于当前家庭");
     }
-    if (input.status === "COMPLETED" && (!input.evidence || Object.keys(input.evidence).length === 0)) {
+    const status = requireEnumValue(PLAN_ITEM_STATUSES, input.status, "计划任务状态（status）");
+    if (status === "COMPLETED" && (!input.evidence || Object.keys(input.evidence).length === 0)) {
         throw new Error("完成任务必须提供完成证据");
     }
     const updated = await prisma.planItem.update({
         where: { id: planItemId },
         data: {
-            status: input.status,
+            status: status,
             completionEvidence: (input.evidence ?? undefined),
-            completedAt: input.status === "COMPLETED" ? new Date() : item.completedAt,
+            completedAt: status === "COMPLETED" ? new Date() : item.completedAt,
         },
     });
     await writeAudit({

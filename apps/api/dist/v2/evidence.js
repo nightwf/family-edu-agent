@@ -1,5 +1,6 @@
 import { prisma } from "../prisma.js";
 import { writeAudit } from "./audit.js";
+import { EVIDENCE_REVIEW_ACTIONS, EVIDENCE_TYPES, requireEnumValue } from "./enum-normalize.js";
 async function assertChildInFamily(familyId, childId) {
     const child = await prisma.child.findFirst({ where: { id: childId, familyId } });
     if (!child)
@@ -8,11 +9,12 @@ async function assertChildInFamily(familyId, childId) {
 }
 export async function createEvidenceRecord(familyId, input, actor = { type: "workbuddy" }) {
     await assertChildInFamily(familyId, input.childId);
+    const evidenceType = requireEnumValue(EVIDENCE_TYPES, input.type, "证据类型（type）");
     const record = await prisma.evidenceRecord.create({
         data: {
             familyId,
             childId: input.childId,
-            type: input.type,
+            type: evidenceType,
             taskDescription: input.taskDescription,
             environment: input.environment,
             observedBehavior: input.observedBehavior,
@@ -68,10 +70,11 @@ export async function reviewEvidenceRecord(familyId, evidenceId, action, actor, 
     });
     if (!record)
         throw new Error("证据不存在或不属于当前家庭");
+    const resolvedAction = requireEnumValue(EVIDENCE_REVIEW_ACTIONS, action, "证据审核动作（action）");
     const updated = await prisma.evidenceRecord.update({
         where: { id: evidenceId },
         data: {
-            reviewStatus: action === "confirm" ? "CONFIRMED" : "CORRECTED",
+            reviewStatus: resolvedAction === "confirm" ? "CONFIRMED" : "CORRECTED",
             reviewedAt: new Date(),
             reviewedBy: actor.id || actor.type,
             reviewNote: note,
@@ -81,7 +84,7 @@ export async function reviewEvidenceRecord(familyId, evidenceId, action, actor, 
         familyId,
         actorType: actor.type,
         actorId: actor.id,
-        action: `evidence.${action}`,
+        action: `evidence.${resolvedAction}`,
         entityType: "EvidenceRecord",
         entityId: evidenceId,
         before: record,

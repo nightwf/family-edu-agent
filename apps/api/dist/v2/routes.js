@@ -4,6 +4,8 @@ import { confirmStageGoal, confirmWeeklyPlan, createAssessment, createWeeklyPlan
 import { ensureEducationMethods, listEducationMethods, saveMethodEffect } from "./education-methods-v2.js";
 import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeRelationsBatch, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
 import { getLatestRelationship, listRelationshipHistory, saveRelationshipSnapshot, } from "./relationship.js";
+import { ensurePlanningRequest, getLearningPriorities, getPlanningRequest, linkQuestionKnowledgeNodes, linkQuestionTypeKnowledgeNodes, listPlanningRequests, listQuestionKnowledgeNodes, listQuestionTypeKnowledgeNodes, listRecommendationOutcomes, recordRecommendationOutcome, resolveLearningSignal, syncLearningSignals, unlinkQuestionTypeKnowledgeNode, updatePlanningRequestStatus, } from "./learning-engine.js";
+import { verifyStoredQuestion } from "../question-bank.js";
 async function respond(reply, action) {
     try {
         return await action();
@@ -217,5 +219,114 @@ export function registerV2Routes(app, requireAuth, getAuth) {
             confidence: body.confidence,
             evidenceRef: body.evidence_ref,
         }, { type: "workbuddy", id }));
+    });
+    // ---- 学习决策层：学习优先级、信号、知识关联、待规划事项、推荐效果 ----
+    app.get("/api/v2/children/:childId/learning-priorities", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { childId } = request.params;
+        const query = request.query;
+        return getLearningPriorities(familyId, childId, { limit: query.limit ? Number(query.limit) : undefined });
+    });
+    app.get("/api/v2/children/:childId/learning-signals", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { childId } = request.params;
+        const query = request.query;
+        if (query.refresh === "false")
+            return syncLearningSignals(familyId, childId, new Date());
+        return syncLearningSignals(familyId, childId);
+    });
+    app.post("/api/v2/learning-signals/:signalId/resolve", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { signalId } = request.params;
+        const body = request.body;
+        return resolveLearningSignal(familyId, signalId, { status: body?.status, note: body?.note });
+    });
+    app.get("/api/v2/question-types/:questionTypeId/knowledge-nodes", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { questionTypeId } = request.params;
+        return listQuestionTypeKnowledgeNodes(familyId, questionTypeId);
+    });
+    app.post("/api/v2/question-types/:questionTypeId/knowledge-nodes", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { questionTypeId } = request.params;
+        const body = request.body;
+        return linkQuestionTypeKnowledgeNodes(familyId, questionTypeId, body?.links || []);
+    });
+    app.delete("/api/v2/question-types/:questionTypeId/knowledge-nodes/:knowledgeNodeId", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { questionTypeId, knowledgeNodeId } = request.params;
+        return unlinkQuestionTypeKnowledgeNode(familyId, questionTypeId, knowledgeNodeId);
+    });
+    app.get("/api/v2/questions/:questionId/knowledge-nodes", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { questionId } = request.params;
+        return listQuestionKnowledgeNodes(familyId, questionId);
+    });
+    app.post("/api/v2/questions/:questionId/knowledge-nodes", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { questionId } = request.params;
+        const body = request.body;
+        return linkQuestionKnowledgeNodes(familyId, questionId, body?.links || []);
+    });
+    app.post("/api/v2/questions/:questionId/verify-answer", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { questionId } = request.params;
+        return verifyStoredQuestion(familyId, questionId);
+    });
+    app.get("/api/v2/planning-requests", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const query = request.query;
+        return listPlanningRequests(familyId, {
+            child_id: query.child_id,
+            status: query.status,
+            limit: query.limit ? Number(query.limit) : undefined,
+        });
+    });
+    app.post("/api/v2/planning-requests", auth, async (request, reply) => {
+        const { familyId } = getAuth(request);
+        const body = request.body;
+        const created = await ensurePlanningRequest(familyId, body?.child_id);
+        if (!created)
+            return reply.code(200).send({ created: false, reason: "当前没有达到需要重新规划的阈值" });
+        return reply.code(201).send({ created: true, planning_request: created });
+    });
+    app.get("/api/v2/planning-requests/:planningRequestId", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { planningRequestId } = request.params;
+        return getPlanningRequest(familyId, planningRequestId);
+    });
+    app.patch("/api/v2/planning-requests/:planningRequestId", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const { planningRequestId } = request.params;
+        const body = request.body;
+        return updatePlanningRequestStatus(familyId, planningRequestId, {
+            status: body?.status,
+            stage_goal_id: body?.stage_goal_id,
+            note: body?.note,
+        });
+    });
+    app.get("/api/v2/recommendation-outcomes", auth, async (request) => {
+        const { familyId } = getAuth(request);
+        const query = request.query;
+        return listRecommendationOutcomes(familyId, {
+            child_id: query.child_id,
+            source_type: query.source_type,
+            source_id: query.source_id,
+            limit: query.limit ? Number(query.limit) : undefined,
+        });
+    });
+    app.post("/api/v2/recommendation-outcomes", auth, async (request, reply) => {
+        const { familyId } = getAuth(request);
+        const body = request.body;
+        return respond(reply.code(201), () => recordRecommendationOutcome(familyId, {
+            child_id: body?.child_id,
+            source_type: body?.source_type,
+            source_id: body?.source_id,
+            action_type: body?.action_type,
+            status: body?.status,
+            metrics: body?.metrics,
+            note: body?.note,
+            measured_at: body?.measured_at,
+        }));
     });
 }

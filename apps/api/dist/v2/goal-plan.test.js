@@ -81,6 +81,18 @@ describe("goal and plan", () => {
             }),
         }));
     });
+    it("accepts Chinese plan item types and normalizes them to enum keys", async () => {
+        await createWeeklyPlan("family-1", "goal-1", "2026-09-07", [
+            { type: "学校作业", title: "数学练习册第 3 页" },
+            { type: "复测", title: "乘法口诀延迟复测" },
+        ]);
+        const payload = weeklyPlanCreate.mock.calls.at(-1)[0];
+        expect(payload.data.items.create.map((item) => item.type)).toEqual(["SCHOOL_HOMEWORK", "RETEST"]);
+    });
+    it("lists all valid plan item types when the type is unknown", async () => {
+        await expect(createWeeklyPlan("family-1", "goal-1", "2026-09-07", [{ type: "布鲁姆记忆层", title: "每日 10 题" }])).rejects.toThrow(/SCHOOL_HOMEWORK（学校作业）/);
+        expect(weeklyPlanCreate).not.toHaveBeenCalled();
+    });
     it("requires completion evidence when completing a plan item", async () => {
         planItemFindFirst.mockResolvedValue({
             id: "item-1",
