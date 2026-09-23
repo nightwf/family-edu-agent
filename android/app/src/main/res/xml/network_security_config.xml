@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 正式域名强制 HTTPS；仅为服务器 IP 直连调试放开明文 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">49.234.4.212</domain>
+    </domain-config>
+</network-security-config>

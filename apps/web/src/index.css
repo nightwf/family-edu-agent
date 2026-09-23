@@ -30,6 +30,25 @@ button {
   font-family: inherit;
 }
 
+/* 窄屏适配：平板竖屏 / 手机把多列栅格降为两列或单列，
+   避免卡片被压成细条；桌面与平板横屏（>=1024px）布局保持原样。 */
+@media (max-width: 1023px) {
+  .grid.grid-cols-3,
+  .grid.grid-cols-4,
+  .grid.grid-cols-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .grid.grid-cols-2,
+  .grid.grid-cols-3,
+  .grid.grid-cols-4,
+  .grid.grid-cols-5 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
 @media print {
   @page {
     size: A4;

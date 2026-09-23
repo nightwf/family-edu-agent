@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">禾芽家庭私教</string>
+    <string name="brand_short">禾</string>
+    <string name="loading_hint">正在加载孩子的成长数据…</string>
+    <string name="error_title">网络连接失败</string>
+    <string name="error_retry">重新加载</string>
+    <string name="qr_saved">二维码已保存到相册，可在微信「扫一扫 → 相册」中识别</string>
+    <string name="qr_saving">正在保存二维码…</string>
+    <string name="qr_long_press_hint">长按二维码可保存到相册，再用微信「扫一扫 → 相册」识别</string>
+    <string name="qr_save_failed">保存失败，请稍后重试</string>
+    <string name="exit_hint">再按一次返回键退出</string>
+    <string name="refreshing">正在刷新…</string>
+    <string name="external_open_failed">没有可打开该链接的应用</string>
+    <string name="permission_denied">未获得存储权限，无法保存二维码</string>
+</resources>

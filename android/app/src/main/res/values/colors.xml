@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="heya_cream">#F7F1DF</color>
+    <color name="heya_teal">#0F766E</color>
+    <color name="heya_teal_deep">#205159</color>
+    <color name="heya_gold">#F3C969</color>
+    <color name="heya_ink">#203238</color>
+    <color name="heya_muted">#728186</color>
+    <color name="heya_line">#E8DDC5</color>
+</resources>

@@ -15,6 +15,13 @@ rsync -az \
   --exclude 'progress.md' \
   --exclude 'test-results' \
   --exclude 'playwright-report' \
+  --exclude 'apps/web/dist' \
+  --exclude 'dist' \
+  --exclude 'android/.gradle' \
+  --exclude 'android/build' \
+  --exclude 'android/app/build' \
+  --exclude 'android/keystore' \
+  --exclude 'android/local.properties' \
   -e "ssh ${SSH_OPTS[*]}" \
   ./ "$HOST:$REMOTE_DIR/"
 

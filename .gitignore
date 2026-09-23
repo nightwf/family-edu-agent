@@ -5,3 +5,13 @@ data/uploads/*
 .env
 .DS_Store
 apps/web/test-results/
+apps/web/dist/
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/keystore/
+android/.idea/
+designs/tmp/
+project.private.config.json
+*.textClipping

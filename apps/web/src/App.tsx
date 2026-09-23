@@ -218,6 +218,8 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
 function App() {
   const [token, setToken] = useState(localStorage.getItem("familyEduToken") || "");
   const [entryView, setEntryView] = useState<"landing" | "login">("landing");
+  // 手机和小屏平板：左侧导航收进抽屉，避免固定侧边栏挤掉正文
+  const [navOpen, setNavOpen] = useState(false);
   const [page, setPage] = useState<PageId>("home");
   const [home, setHome] = useState<HomeData | null>(null);
   const [childDialog, setChildDialog] = useState(false);
@@ -262,6 +264,20 @@ function App() {
   useEffect(() => {
     load().catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [navOpen]);
 
   useEffect(() => {
     if (page !== "reports" || !home?.children.length) return;
@@ -502,6 +518,20 @@ function App() {
   return (
     <div className="app-bg flex min-h-screen">
       <Sidebar page={page} onNavigate={setPage} onLogout={logout} />
+      {navOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-ink/45" onClick={() => setNavOpen(false)} />
+          <Sidebar
+            className="absolute inset-y-0 left-0 flex w-64 shadow-2xl"
+            page={page}
+            onNavigate={(next) => {
+              setPage(next);
+              setNavOpen(false);
+            }}
+            onLogout={logout}
+          />
+        </div>
+      )}
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           title={
@@ -519,6 +549,7 @@ function App() {
           }
           familyName={settings?.family?.name || home?.stats?.familyName}
           childName={home?.children?.[0]?.name}
+          onOpenNav={() => setNavOpen(true)}
         />
         <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-7">
           <div className="mx-auto max-w-[1180px] space-y-5">

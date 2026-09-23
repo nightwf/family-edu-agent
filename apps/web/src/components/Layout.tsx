@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   LayoutDashboard,
   Library,
+  Menu,
   LogOut,
   Settings,
   TrendingUp,
@@ -60,13 +61,15 @@ export function Sidebar({
   page,
   onNavigate,
   onLogout,
+  className = "hidden lg:flex",
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
   onLogout: () => void;
+  className?: string;
 }) {
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-line bg-panel px-3 py-5">
+    <aside className={`h-screen w-60 shrink-0 flex-col border-r border-line bg-panel px-3 py-5 ${className}`}>
       <div className="mb-7 flex items-center gap-3 px-2">
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold text-lg font-black text-teal-deep">禾</span>
         <div>
@@ -110,17 +113,37 @@ export function Topbar({
   title,
   familyName,
   childName,
+  onOpenNav,
 }: {
   title: string;
   familyName?: string;
   childName?: string;
+  onOpenNav?: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-cream/85 px-5 backdrop-blur md:px-7">
-      <div className="text-lg font-black text-ink">{title}</div>
-      <div className="flex items-center gap-2 text-xs text-muted">
-        {familyName && <span className="rounded-full border border-line bg-panel px-3 py-1.5">家庭：{familyName}</span>}
-        {childName && <span className="rounded-full border border-line bg-panel px-3 py-1.5">{childName}</span>}
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-cream/85 px-3 backdrop-blur md:px-7">
+      <div className="flex min-w-0 items-center gap-2">
+        {onOpenNav && (
+          <button
+            type="button"
+            aria-label="打开导航"
+            onClick={onOpenNav}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-panel text-teal lg:hidden"
+          >
+            <Menu size={18} />
+          </button>
+        )}
+        <div className="truncate text-lg font-black text-ink">{title}</div>
+      </div>
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
+        {familyName && (
+          <span className="hidden max-w-[160px] truncate rounded-full border border-line bg-panel px-3 py-1.5 sm:inline-block">
+            家庭：{familyName}
+          </span>
+        )}
+        {childName && (
+          <span className="max-w-[110px] truncate rounded-full border border-line bg-panel px-3 py-1.5">{childName}</span>
+        )}
       </div>
     </header>
   );

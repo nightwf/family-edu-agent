@@ -1,0 +1,515 @@
+package top.heyaagent.familyedu;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.ContentValues;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.util.Base64;
+import android.util.Log;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
+import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Locale;
+
+/**
+ * 禾芽家庭私教（安卓平板 / 手机客户端）。
+ *
+ * 客户端只负责承载线上站点：页面、登录、数据都在 https://heyaagent.top 上，
+ * 所以服务端更新后 App 无需重新发版。这里额外处理的是原生体验：
+ * 系统栏适配、返回键、下拉刷新、断网重试，以及把登录二维码长按保存到相册，
+ * 方便只有一台设备时用微信「扫一扫 - 相册」完成扫码登录。
+ */
+public class MainActivity extends Activity {
+
+    private static final String TAG = "HeYaApp";
+    private static final String HOME_URL = "https://heyaagent.top/";
+    private static final String ALLOWED_HOST_SUFFIX = "heyaagent.top";
+    private static final int REQUEST_WRITE_STORAGE = 1001;
+    private static final long BACK_PRESS_INTERVAL_MS = 2000L;
+
+    private WebView webView;
+    private ProgressBar progressBar;
+    private View loadingOverlay;
+    private View errorView;
+    private TextView errorDetail;
+
+    private boolean firstPageFinished = false;
+    private boolean qrHintShown = false;
+    private boolean qrHintWatching = false;
+    private int qrHintChecks = 0;
+    private long lastBackPressedAt = 0L;
+    private String pendingQrImageUrl = null;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        webView = findViewById(R.id.web_view);
+        progressBar = findViewById(R.id.progress_bar);
+        loadingOverlay = findViewById(R.id.loading_overlay);
+        errorView = findViewById(R.id.error_view);
+        errorDetail = findViewById(R.id.error_detail);
+
+        styleSystemBars();
+        applyWindowInsets(findViewById(R.id.root));
+
+        if (BuildConfig.DEBUG) {
+            WebView.setWebContentsDebuggingEnabled(true);
+        }
+
+        configureWebView();
+
+        Button retry = findViewById(R.id.retry_button);
+        retry.setOnClickListener(view -> reload());
+
+        if (savedInstanceState != null) {
+            webView.restoreState(savedInstanceState);
+        } else {
+            webView.loadUrl(HOME_URL);
+        }
+    }
+
+    /** 状态栏、导航栏使用品牌米色配深色图标，避免浏览器默认黑边。 */
+    private void styleSystemBars() {
+        Window window = getWindow();
+        window.setStatusBarColor(getColor(R.color.heya_cream));
+        window.setNavigationBarColor(getColor(R.color.heya_cream));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                controller.setSystemBarsAppearance(
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                                | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                                | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            }
+        } else {
+            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+            window.getDecorView().setSystemUiVisibility(flags);
+        }
+    }
+
+    /** 刘海屏 / 手势条：给内容留出安全区域，页面不会被系统栏遮挡。 */
+    private void applyWindowInsets(final View root) {
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int top = 0;
+            int bottom = 0;
+            int left = 0;
+            int right = 0;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                top = bars.top;
+                bottom = bars.bottom;
+                left = bars.left;
+                right = bars.right;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+                left = insets.getSystemWindowInsetLeft();
+                right = insets.getSystemWindowInsetRight();
+            }
+            if (view.getPaddingTop() != top || view.getPaddingBottom() != bottom
+                    || view.getPaddingLeft() != left || view.getPaddingRight() != right) {
+                view.setPadding(left, top, right, bottom);
+            }
+            return insets;
+        });
+        root.requestApplyInsets();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void configureWebView() {
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(false);
+        settings.setSupportZoom(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+
+        String ua = settings.getUserAgentString();
+        if (ua != null && !ua.contains("HeYaAndroid")) {
+            settings.setUserAgentString(ua + " HeYaAndroid/1.0");
+        }
+
+        CookieManager cookies = CookieManager.getInstance();
+        cookies.setAcceptCookie(true);
+        cookies.setAcceptThirdPartyCookies(webView, true);
+
+        webView.setBackgroundColor(getColor(R.color.heya_cream));
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.setWebViewClient(new HeYaWebViewClient());
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int newProgress) {
+                if (newProgress >= 100) {
+                    progressBar.setVisibility(View.GONE);
+                } else {
+                    progressBar.setVisibility(View.VISIBLE);
+                    progressBar.setProgress(newProgress);
+                }
+            }
+        });
+
+        webView.setOnLongClickListener(view -> handleLongPress());
+
+        final GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent first, MotionEvent second, float velocityX, float velocityY) {
+                // 页面已在顶部时向下甩动 = 刷新，替代移动端常见的下拉刷新
+                if (first != null && velocityY > 900f && webView.getScrollY() == 0) {
+                    toast(getString(R.string.refreshing));
+                    reload();
+                    return true;
+                }
+                return false;
+            }
+        });
+        webView.setOnTouchListener((view, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return false;
+        });
+    }
+
+    private void reload() {
+        errorView.setVisibility(View.GONE);
+        if (webView.getUrl() == null) {
+            webView.loadUrl(HOME_URL);
+        } else {
+            webView.reload();
+        }
+    }
+
+    private boolean handleNavigation(String url) {
+        if (url == null || url.isEmpty()) return false;
+        Uri uri = Uri.parse(url);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+
+        if (("http".equals(scheme) || "https".equals(scheme))) {
+            boolean inSite = host.equals(ALLOWED_HOST_SUFFIX) || host.endsWith("." + ALLOWED_HOST_SUFFIX);
+            if (inSite) return false;
+            return openExternally(uri);
+        }
+        if ("weixin".equals(scheme) || "wechat".equals(scheme) || "alipays".equals(scheme)
+                || "tel".equals(scheme) || "mailto".equals(scheme) || "sms".equals(scheme)) {
+            return openExternally(uri);
+        }
+        return true;
+    }
+
+    private boolean openExternally(Uri uri) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception error) {
+            toast(getString(R.string.external_open_failed));
+        }
+        return true;
+    }
+
+    /** 长按图片：登录二维码可以存进相册，再用微信「扫一扫 - 相册」识别。 */
+    private boolean handleLongPress() {
+        WebView.HitTestResult result = webView.getHitTestResult();
+        if (result != null && result.getType() == WebView.HitTestResult.IMAGE_TYPE) {
+            String url = result.getExtra();
+            if (url != null && !url.isEmpty()) {
+                saveImageToGallery(url);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void saveImageToGallery(String url) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            pendingQrImageUrl = url;
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_WRITE_STORAGE);
+            return;
+        }
+        Log.i(TAG, "长按二维码，开始保存：" + url);
+        toast(getString(R.string.qr_saving));
+        // CookieManager 和 WebView#getSettings 只能在主线程调用，
+        // 先在这里取好，再交给后台线程下载，否则会抛 WebView 线程检查异常。
+        String cookie = CookieManager.getInstance().getCookie(url);
+        String userAgent = webView.getSettings().getUserAgentString();
+        new Thread(() -> {
+            try {
+                Bitmap bitmap = downloadImage(url, cookie, userAgent);
+                if (bitmap == null) throw new IllegalStateException("图片解码失败");
+                writeBitmap(bitmap);
+                Log.i(TAG, "二维码已保存到相册");
+                runOnUiThread(() -> toast(getString(R.string.qr_saved)));
+            } catch (Exception error) {
+                Log.w(TAG, "二维码保存失败", error);
+                runOnUiThread(() -> toast(getString(R.string.qr_save_failed)));
+            }
+        }).start();
+    }
+
+    private Bitmap downloadImage(String url, String cookie, String userAgent) throws Exception {
+        if (url.startsWith("data:image")) return decodeDataUrl(url);
+        HttpURLConnection connection = (HttpURLConnection) resolveImageUrl(url).openConnection();
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(20000);
+        if (cookie != null) connection.setRequestProperty("Cookie", cookie);
+        if (userAgent != null) connection.setRequestProperty("User-Agent", userAgent);
+        InputStream input = connection.getInputStream();
+        try {
+            return BitmapFactory.decodeStream(input);
+        } finally {
+            input.close();
+        }
+    }
+
+    /** 少数页面把二维码画成 data: URL 图片，这种情况直接解码，不走网络。 */
+    private Bitmap decodeDataUrl(String url) {
+        int comma = url.indexOf(',');
+        if (comma < 0) throw new IllegalArgumentException("invalid data url");
+        byte[] bytes = Base64.decode(url.substring(comma + 1), Base64.DEFAULT);
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+    }
+
+    /**
+     * 长按命中图片时，WebView 多数情况下给出的是图片地址。
+     * 少数情况下给出的是页面地址（例如背景图或 svg 包裹的图），
+     * 这里做一个兜底，避免拿去下载 HTML 导致解码失败。
+     */
+    private URL resolveImageUrl(String raw) throws Exception {
+        URL candidate = new URL(raw);
+        String path = candidate.getPath() == null ? "" : candidate.getPath().toLowerCase(Locale.ROOT);
+        if (!path.endsWith(".png") && !path.endsWith(".jpg") && !path.endsWith(".jpeg")
+                && !path.endsWith(".webp") && !path.endsWith(".gif") && !path.contains("qrcode")) {
+            Log.w(TAG, "长按命中的不是图片地址，按图片资源处理：" + raw);
+        }
+        return candidate;
+    }
+
+    private void writeBitmap(Bitmap bitmap) throws Exception {
+        String fileName = "heya-login-qrcode-" + System.currentTimeMillis() + ".png";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/禾芽");
+            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+            Uri target = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (target == null) throw new IllegalStateException("insert failed");
+            OutputStream output = getContentResolver().openOutputStream(target);
+            try {
+                if (output == null) throw new IllegalStateException("open failed");
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
+            } finally {
+                if (output != null) output.close();
+            }
+            values.clear();
+            values.put(MediaStore.Images.Media.IS_PENDING, 0);
+            getContentResolver().update(target, values, null, null);
+            return;
+        }
+
+        File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "禾芽");
+        if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("mkdir failed");
+        File file = new File(dir, fileName);
+        FileOutputStream output = new FileOutputStream(file);
+        try {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
+        } finally {
+            output.close();
+        }
+        android.media.MediaScannerConnection.scanFile(this, new String[]{file.getAbsolutePath()}, null, null);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != REQUEST_WRITE_STORAGE) return;
+        String url = pendingQrImageUrl;
+        pendingQrImageUrl = null;
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED && url != null) {
+            saveImageToGallery(url);
+        } else {
+            toast(getString(R.string.permission_denied));
+        }
+    }
+
+    private void showError(String detail) {
+        errorDetail.setText(detail == null || detail.isEmpty() ? HOME_URL : detail);
+        errorView.setVisibility(View.VISIBLE);
+        loadingOverlay.setVisibility(View.GONE);
+        progressBar.setVisibility(View.GONE);
+    }
+
+    private void toast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastBackPressedAt < BACK_PRESS_INTERVAL_MS) {
+            super.onBackPressed();
+            return;
+        }
+        lastBackPressedAt = now;
+        toast(getString(R.string.exit_hint));
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) webView.saveState(outState);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) webView.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null && isFinishing()) {
+            webView.loadUrl("about:blank");
+            webView.destroy();
+        }
+        super.onDestroy();
+    }
+
+    /**
+     * 只有一台手机（或平板）时，用户没法用同一块屏幕扫码，
+     * 需要把二维码存进相册再用微信「扫一扫 → 相册」识别。
+     * 登录二维码是点击「登录」之后才出现的，所以这里做一段有上限的轮询，
+     * 一旦页面上出现二维码就提示一次，避免用户不知道可以长按。
+     */
+    private void watchForQrCode() {
+        if (qrHintShown) return;
+        if (qrHintWatching) return;
+        qrHintWatching = true;
+        qrHintChecks = 0;
+        webView.postDelayed(qrHintProbe, 1500L);
+    }
+
+    private final Runnable qrHintProbe = new Runnable() {
+        @Override
+        public void run() {
+            qrHintChecks += 1;
+            if (qrHintShown || qrHintChecks > 40 || isFinishing()) {
+                qrHintWatching = false;
+                return;
+            }
+            webView.evaluateJavascript(
+                    "(function(){var i=document.querySelector('img[src*=qrcode]');"
+                            + "return !!i && i.offsetParent !== null && i.naturalWidth > 100;})()",
+                    value -> {
+                        if ("true".equals(value) && !qrHintShown) {
+                            qrHintShown = true;
+                            Log.i(TAG, "检测到登录二维码，提示长按保存");
+                            toast(getString(R.string.qr_long_press_hint));
+                        }
+                    });
+            webView.postDelayed(this, 2500L);
+        }
+    };
+
+    private class HeYaWebViewClient extends WebViewClient {
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            return handleNavigation(request.getUrl().toString());
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            return handleNavigation(url);
+        }
+
+        @Override
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            errorView.setVisibility(View.GONE);
+            if (!firstPageFinished) {
+                loadingOverlay.setVisibility(View.VISIBLE);
+            }
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            firstPageFinished = true;
+            loadingOverlay.setVisibility(View.GONE);
+            progressBar.setVisibility(View.GONE);
+            watchForQrCode();
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            if (request.isForMainFrame()) {
+                showError(error.getDescription() == null ? "" : String.valueOf(error.getDescription()));
+            }
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+            if (failingUrl != null && failingUrl.equals(view.getUrl())) {
+                showError(description);
+            }
+        }
+    }
+}

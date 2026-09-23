@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 无 ActionBar 全屏容器：状态栏、导航栏都跟随品牌米色 -->
+    <style name="Theme.HeYa" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/heya_cream</item>
+        <item name="android:colorAccent">@color/heya_teal</item>
+        <item name="android:statusBarColor">@color/heya_cream</item>
+        <item name="android:navigationBarColor">@color/heya_cream</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>
