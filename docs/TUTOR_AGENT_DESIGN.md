@@ -738,7 +738,7 @@ MODERATION_API_KEY=
 
 | 验证 | 命令 | 结果 |
 |---|---|---|
-| API 单测（含私教 79 条） | `npm test` | 33 文件 210 用例全部通过 |
+| API 单测（含私教 84 条） | `npm test` | 34 文件 215 用例全部通过 |
 | 小程序校验 | `npm run check:miniprogram` | 19 页 / 21 json / 28 js / 19 wxml / 20 wxss 通过 |
 | 前端构建 | `npm run build` | 构建成功 |
 | 响应式与入口可见性 | `npm run verify:web-responsive` | 4 个形态（平板横屏 / 平板竖屏 / 手机 / 安卓 WebView）：无横向溢出；私教入口只在安卓 UA 下出现；聊天页可输入、发送键不越界；首页四学科与空状态正常 |
@@ -749,6 +749,17 @@ MODERATION_API_KEY=
 
 `assertChildInFamily` 原先抛普通 `Error`，客户端传了不属于本家庭的 `child_id` 会返回 500。已改为带 `statusCode: 404` 的错误
 （Fastify 5 默认错误处理会采用该状态码），把客户端错误与服务器故障区分开。`routes.test.ts` 覆盖了跨家庭读会话、跨家庭读孩子两个方向。
+
+### 21.3.1 供应商错误不再原文透给家长
+
+模型报错以前把上游原文（英文报错、`429`、密钥提示、堆栈）直接写进 SSE 的 `message`，前端会原样显示给家长。
+现在由 `humanizeProviderError`（`apps/api/src/tutor/runtime.ts`）按类型转成一句话（超时 / 限流 / 密钥未配置 / 网络 / 内容审核），
+上游原文放进新增的 `detail` 字段，只用于排查，前端不显示。`runtime.test.ts` 覆盖五类映射，`routes.flow.test.ts` 校验端到端只吐出友好文案。
+
+### 21.3.2 一轮完整对话的端到端用例
+
+`apps/api/src/tutor/routes.flow.test.ts` 用假供应商 + 假工具集跑通「发消息 → SSE 逐字 → 助手消息落库 → 额度递减 → 沉淀待确认证据」，
+并覆盖模型报错降级、重复证据不重复写入。它补上了此前只测单点（鉴权、配额、守卫）而没测整轮链路的空白。
 
 ### 21.4 仍需真实凭据才能完成的收尾
 

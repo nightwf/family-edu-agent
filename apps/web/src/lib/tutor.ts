@@ -44,7 +44,7 @@ export type TutorStreamEvent =
   | { type: "tool"; name: string; ok: boolean }
   | { type: "replace"; reason: string }
   | { type: "done"; messageId: string; quotaLeft: number; usage: { promptTokens: number; completionTokens: number } }
-  | { type: "error"; message: string; retryable: boolean };
+  | { type: "error"; message: string; retryable: boolean; detail?: string };
 
 /**
  * 发一条消息并按 SSE 逐事件回调。

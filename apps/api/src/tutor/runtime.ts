@@ -15,7 +15,30 @@ export type TutorEvent =
   | { type: "tool"; name: string; ok: boolean }
   | { type: "replace"; reason: string }
   | { type: "done"; usage: { promptTokens: number; completionTokens: number }; toolCalls: { name: string; ok: boolean }[] }
-  | { type: "error"; message: string; retryable: boolean };
+  | { type: "error"; message: string; retryable: boolean; detail?: string };
+
+/**
+ * 供应商错误转成家长能看懂的一句话。
+ * 家长端直接显示 message，所以不能把上游英文报错、密钥提示或堆栈原文抛出去；
+ * 原文放进 detail，只用于排查（前端不显示）。
+ */
+export function humanizeProviderError(message: string, retryable: boolean): { message: string; retryable: boolean; detail?: string } {
+  const raw = (message || "").trim();
+  const text = raw.toLowerCase();
+  let friendly = "私教暂时不可用，稍后再试一次";
+  if (/timeout|timed out|超时|etimedout|aborted|abort/.test(text)) {
+    friendly = "这次想得有点久，可以再发一次";
+  } else if (/rate|429|too many|quota|limit|限流|额度|繁忙/.test(text)) {
+    friendly = "现在用的人比较多，过一会儿再试";
+  } else if (/401|403|unauthor|invalid[^a-z]*key|api key|密钥|鉴权/.test(text)) {
+    friendly = "私教还没配置好，请联系管理员";
+  } else if (/network|econnreset|econnrefused|enotfound|socket|fetch failed|网络/.test(text)) {
+    friendly = "网络不太稳，稍后再试一次";
+  } else if (/content|moderation|审核|违规|敏感/.test(text)) {
+    friendly = "这条内容我不能回答，换个说法试试";
+  }
+  return { message: friendly, retryable, detail: raw && raw !== friendly ? raw : undefined };
+}
 
 export type TutorTurnInput = {
   familyId: string;
@@ -116,7 +139,7 @@ export async function* runTutorTurn(input: TutorTurnInput): AsyncGenerator<Tutor
           };
         } else if (event.type === "error") {
           failed = true;
-          yield { type: "error", message: event.message, retryable: event.retryable };
+          yield { type: "error", ...humanizeProviderError(event.message, event.retryable) };
         }
       }
     } finally {

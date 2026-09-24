@@ -122,6 +122,10 @@ npm run verify:web-responsive
 
 ## 版本记录
 
+- **1.1.0**：配合内置学习私教上线。新增 `RECORD_AUDIO` 与 `MODIFY_AUDIO_SETTINGS` 权限，
+  `WebChromeClient.onPermissionRequest` 把网页的录音请求转成系统授权弹窗，拒绝后提示改用文字输入。
+  私教入口本身靠 UA（`HeYaAndroid/1.0`）判定，属于网页行为，**这一条不依赖新版 APK**；
+  只有"按住说话"需要这次的新包。
 - **1.0.1**：修复长按保存二维码必失败的问题。原实现在后台线程里调用
   `WebView#getSettings()` 取 User-Agent，触发 WebView 的线程检查异常（
   `A WebView method was called on thread ...`），导致保存链路始终抛错。

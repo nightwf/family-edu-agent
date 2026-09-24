@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runTutorTurn } from "./runtime.js";
+import { humanizeProviderError, runTutorTurn } from "./runtime.js";
 // 安全事件与引用校验都落库，测试里打桩，只关心 runtime 的行为
 const recordSafetyEvent = vi.fn();
 const validateReferences = vi.fn().mockResolvedValue({ ok: true });
@@ -127,8 +127,19 @@ describe("Agent 循环", () => {
     it("模型报错：直接终止，不留半截回答", async () => {
         const provider = providerFromRounds([[{ type: "error", message: "模型服务连接失败", retryable: true }]]);
         const events = await collect(baseInput({ provider }));
-        expect(events).toEqual([{ type: "error", message: "模型服务连接失败", retryable: true }]);
+        // 上游原文不直接给家长看，换成友好提示，原文放 detail
+        expect(events).toEqual([
+            { type: "error", message: "私教暂时不可用，稍后再试一次", retryable: true, detail: "模型服务连接失败" },
+        ]);
         expect(events.some((event) => event.type === "done")).toBe(false);
+    });
+    it("供应商错误按类型给出可读提示：超时、限流、密钥分别不同", () => {
+        expect(humanizeProviderError("Request timed out after 45s", true).message).toBe("这次想得有点久，可以再发一次");
+        expect(humanizeProviderError("429 Too Many Requests", true).message).toBe("现在用的人比较多，过一会儿再试");
+        expect(humanizeProviderError("401 Unauthorized: invalid api key", false).message).toBe("私教还没配置好，请联系管理员");
+        expect(humanizeProviderError("fetch failed: ECONNRESET", true).message).toBe("网络不太稳，稍后再试一次");
+        // 已经可读的原文不重复包一层，也不塞进 detail
+        expect(humanizeProviderError("私教暂时不可用，稍后再试一次", true).detail).toBeUndefined();
     });
     it("输入侧拦截：有害内容不发模型", async () => {
         const provider = providerFromRounds([[{ type: "text", delta: "不该出现" }, { type: "done", usage: { promptTokens: 0, completionTokens: 0 } }]]);

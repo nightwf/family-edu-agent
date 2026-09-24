@@ -197,7 +197,8 @@ export async function registerTutorRoutes(
         } else if (event.type === "replace") {
           sseWrite(reply, "replace", { reason: event.reason });
         } else if (event.type === "error") {
-          sseWrite(reply, "error", { message: event.message, retryable: event.retryable });
+          // message 是给家长看的友好提示；detail 是上游原文，仅供排查。
+          sseWrite(reply, "error", { message: event.message, retryable: event.retryable, detail: event.detail });
         } else if (event.type === "done") {
           const assistant = await prisma.tutorMessage.create({
             data: {
