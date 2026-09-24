@@ -11,6 +11,7 @@
     "pages/settings/settings",
     "pages/child-state/child-state",
     "pages/student-detail/student-detail",
+    "pages/child-education/child-education",
     "pages/weakness-detail/weakness-detail",
     "pages/monthly-report/monthly-report",
     "pages/wrong-book/wrong-book",

@@ -9,6 +9,7 @@ import {
   Menu,
   LogOut,
   Settings,
+  Sparkles,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -26,10 +27,18 @@ export type PageId =
   | "wrong-book"
   | "homework"
   | "knowledge"
+  | "tutor"
   | "settings";
 
 type NavChild = { id: PageId; label: string };
-type NavItem = { id: PageId; label: string; icon: typeof LayoutDashboard; children?: NavChild[] };
+type NavItem = {
+  id: PageId;
+  label: string;
+  icon: typeof LayoutDashboard;
+  children?: NavChild[];
+  /** 只在这个设备形态下出现，见 lib/tutor.ts 的入口判定。 */
+  apkOnly?: boolean;
+};
 
 /**
  * 导航以小程序为基准：只保留首页 / 学生 / 成长 / 学习 / 我的五个一级入口，
@@ -56,6 +65,7 @@ const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
   {
     title: "学习",
     items: [
+      { id: "tutor", label: "学习私教", icon: Sparkles, apkOnly: true },
       { id: "homework", label: "作业", icon: ClipboardCheck },
       { id: "wrong-book", label: "错题本", icon: BookX },
       { id: "questions", label: "题库", icon: BookMarked },
@@ -73,13 +83,19 @@ export function Sidebar({
   page,
   onNavigate,
   onLogout,
+  showTutorEntry = false,
   className = "hidden lg:flex",
 }: {
   page: PageId;
   onNavigate: (page: PageId) => void;
   onLogout: () => void;
+  /** 私教入口只在安卓 APK 端出现，由调用方按 UA 判定后传入。 */
+  showTutorEntry?: boolean;
   className?: string;
 }) {
+  const groups = showTutorEntry
+    ? NAV_GROUPS
+    : NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter((item) => !item.apkOnly) }));
   return (
     <aside className={`h-screen w-60 shrink-0 flex-col border-r border-line bg-panel px-3 py-5 ${className}`}>
       <div className="mb-7 flex items-center gap-3 px-2">
@@ -90,7 +106,7 @@ export function Sidebar({
         </div>
       </div>
       <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto">
-        {NAV_GROUPS.map((group, groupIndex) => (
+        {groups.map((group, groupIndex) => (
           <div key={group.title || `group-${groupIndex}`}>
             {group.title && (
               <div className="mb-2 px-3 text-[11px] font-bold tracking-wider text-muted">{group.title}</div>

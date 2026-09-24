@@ -38,6 +38,8 @@ model Family {
   remediationPlans    RemediationPlan[]
   oauthBindingSessions OAuthBindingSession[]
   oauthAuthorizationCodes OAuthAuthorizationCode[]
+  tutorConversations  TutorConversation[]
+  tutorSafetyEvents   TutorSafetyEvent[]
   oauthAccessTokens    OAuthAccessToken[]
   wechatWebLoginSessions WechatWebLoginSession[]
   joinRequests        FamilyJoinRequest[]
@@ -154,6 +156,8 @@ model Child {
   learningSignals   LearningSignal[]
   planningRequests  PlanningRequest[]
   recommendationOutcomes RecommendationOutcome[]
+  skillProfiles     ChildSkillProfile[]
+  tutorConversations TutorConversation[]
 }
 
 model Record {
@@ -297,10 +301,33 @@ model SkillOverride {
   updatedAt     DateTime           @updatedAt
 }
 
+// 教育方式按孩子维度分层：孩子级配置覆盖家庭级配置，未配置时自动继承家庭设置。
+// 同家庭不同孩子可以有不同的教育理念、沟通风格、严格程度和家长目标。
+model ChildSkillProfile {
+  id                 String   @id @default(cuid())
+  childId            String
+  child              Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  familyId           String
+  skillId            String
+  baseVersion        String   @default("1.0.0")
+  active             Boolean  @default(true)
+  philosophy         String?
+  communicationStyle String?
+  strictness         String?
+  parentGoals        String[]
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([childId, skillId])
+  @@index([familyId, skillId])
+}
+
 model PolicyChange {
   id         String    @id @default(cuid())
   familyId   String
   skillId    String?
+  childId    String?
   type       String
   summary    String?
   before     Json?
@@ -311,6 +338,8 @@ model PolicyChange {
   effective  Boolean?
   createdAt  DateTime  @default(now())
   reviewedAt DateTime?
+
+  @@index([familyId, childId])
 }
 
 model McpToken {
@@ -1332,4 +1361,65 @@ model RecommendationOutcome {
   updatedAt  DateTime  @updatedAt
 
   @@index([familyId, childId, sourceType, sourceId])
+}
+
+/// 内置学习私教：一次对话。childId 为空表示家庭级会话（不针对具体孩子）。
+/// userId 仅用于标注这段对话由哪位家庭管理者发起；本期不做权限分层。
+model TutorConversation {
+  id            String         @id @default(cuid())
+  familyId      String
+  family        Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId       String?
+  child         Child?         @relation(fields: [childId], references: [id], onDelete: SetNull)
+  userId        String?
+  persona       String         @default("child_tutor")
+  title         String?
+  status        String         @default("active")
+  summary       String?
+  summarizedAt  DateTime?
+  lastMessageAt DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  messages      TutorMessage[]
+
+  @@index([familyId, childId, lastMessageAt])
+  @@index([familyId, status, lastMessageAt])
+}
+
+/// 内置学习私教：单条消息。toolCalls 留审计，attachments 存对象存储的 key。
+model TutorMessage {
+  id               String            @id @default(cuid())
+  conversationId   String
+  conversation     TutorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  familyId         String
+  childId          String?
+  role             String
+  content          String?
+  contentJson      Json?
+  attachments      Json?
+  toolCalls        Json?
+  moderationStatus String            @default("passed")
+  model            String?
+  promptTokens     Int?
+  completionTokens Int?
+  createdAt        DateTime          @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([familyId, childId, createdAt])
+}
+
+/// 内置学习私教：内容安全命中记录，家长可见。
+model TutorSafetyEvent {
+  id             String   @id @default(cuid())
+  familyId       String
+  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  childId        String?
+  conversationId String?
+  stage          String
+  reason         String
+  excerpt        String?
+  action         String
+  createdAt      DateTime @default(now())
+
+  @@index([familyId, createdAt])
 }

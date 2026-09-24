@@ -1,11 +1,6 @@
 import { prisma } from "../prisma.js";
 import { writeAudit } from "./audit.js";
-async function assertChildInFamily(familyId, childId) {
-    const child = await prisma.child.findFirst({ where: { id: childId, familyId } });
-    if (!child)
-        throw new Error("学生不存在或不属于当前家庭");
-    return child;
-}
+import { assertChildInFamily } from "./guards.js";
 export async function saveRelationshipSnapshot(familyId, input, actor = { type: "workbuddy" }) {
     await assertChildInFamily(familyId, input.childId);
     const snapshot = await prisma.childRelationshipSnapshot.create({

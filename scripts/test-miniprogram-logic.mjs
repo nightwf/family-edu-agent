@@ -275,6 +275,76 @@ console.log("\n家庭切换缓存隔离");
   assert(removed.includes("familyEduLearningModule"), "切换家庭清除上一个家庭的学习模块状态");
 }
 
+console.log("\n孩子级教育方式页");
+{
+  const calls = [];
+  const education = requirePage(
+    "pages/child-education/child-education.js",
+    {
+      "utils/api": {
+        childEducationProfile: async () => [
+          {
+            skill_id: "writing-coach",
+            name: "写作教练",
+            child_name: "JOJO",
+            inherits_family: true,
+            child_overrides: [],
+            effective_settings: { philosophy: "习惯优先", communicationStyle: "鼓励为主", strictness: "宽松", parentGoals: [] },
+            profile: null,
+          },
+          {
+            skill_id: "reading-coach",
+            name: "阅读引导",
+            child_name: "JOJO",
+            inherits_family: false,
+            child_overrides: ["strictness"],
+            effective_settings: { philosophy: "习惯优先", communicationStyle: "鼓励为主", strictness: "严格", parentGoals: ["每天读 20 分钟"] },
+            profile: { notes: "识字量偏低，需要先听后读" },
+          },
+        ],
+        updateChildEducationProfile: async (childId, data) => {
+          calls.push({ childId, data });
+          return { ok: true };
+        },
+      },
+    },
+    {
+      wx: {
+        getStorageSync: () => "",
+        showToast: () => {},
+        showModal: ({ success }) => success && success({ confirm: true }),
+      },
+    },
+  );
+
+  const context = makeContext({ childId: "child-1", saving: false, skills: [], activeIndex: 0 });
+  for (const [key, value] of Object.entries(education)) {
+    if (typeof value === "function") context[key] = value;
+  }
+  global.wx = {
+    getStorageSync: () => "",
+    showToast: () => {},
+    showModal: ({ success }) => success && success({ confirm: true }),
+  };
+  await education.load.call(context);
+  assert(context.data.skills.length === 2, "读取到每个教育场景的配置");
+  assert(context.data.inheritsFamily === true && context.data.philosophy === "习惯优先", "默认场景展示合并后的最终设置");
+
+  education.onSkillTap.call(context, { currentTarget: { dataset: { index: 1 } } });
+  assert(context.data.strictness === "严格" && context.data.parentGoals === "每天读 20 分钟", "切换场景读取该场景设置");
+  assert(context.data.notes === "识字量偏低，需要先听后读", "孩子个体说明按场景回填");
+
+  education.onParentGoals.call(context, { detail: { value: "每天读 20 分钟、每周总结" } });
+  await education.save.call(context);
+  assert(calls[0].childId === "child-1" && calls[0].data.skill_id === "reading-coach", "保存写入当前场景");
+  assert(Array.isArray(calls[0].data.parent_goals) && calls[0].data.parent_goals.length === 2, "家长目标按分隔符拆分");
+
+  education.onSkillTap.call(context, { currentTarget: { dataset: { index: 1 } } });
+  await education.resetToFamily.call(context);
+  assert(calls[1].data.clear === true, "恢复继承家庭设置走 clear 分支");
+  delete global.wx;
+}
+
 if (failures) {
   console.error(`\n小程序逻辑测试失败：${failures} 项`);
   process.exit(1);

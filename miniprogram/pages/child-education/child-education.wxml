@@ -1,0 +1,85 @@
+<view class="page ce-page">
+  <view wx:if="{{error}}" class="error-tip">{{error}}</view>
+  <view wx:if="{{loading}}" class="loading-block">正在读取教育方式...</view>
+  <block wx:else>
+    <view class="ce-hero">
+      <view class="ce-avatar">{{childInitial}}</view>
+      <view class="ce-hero-main">
+        <view class="ce-name">{{childName}}</view>
+        <view class="ce-status">{{inheritsFamily ? '当前继承家庭设置' : '已按这个孩子单独设置'}}</view>
+      </view>
+    </view>
+
+    <view class="ce-skills">
+      <view
+        wx:for="{{skills}}"
+        wx:key="skillId"
+        class="ce-skill {{index === activeIndex ? 'is-active' : ''}}"
+        data-index="{{index}}"
+        bindtap="onSkillTap"
+      >
+        <text>{{item.name}}</text>
+        <text wx:if="{{!item.inheritsFamily}}" class="ce-dot"></text>
+      </view>
+    </view>
+
+    <view class="ce-card">
+      <view class="ce-count">{{skills[activeIndex].name}} · 已覆盖 {{skills[activeIndex].overrides.length}} 项</view>
+
+      <view class="form-item">
+        <view class="form-label">教育理念</view>
+        <view class="ce-options">
+          <view
+            wx:for="{{philosophies}}"
+            wx:key="*this"
+            class="ce-option {{index === philosophyIndex ? 'is-active' : ''}}"
+            data-index="{{index}}"
+            bindtap="onPhilosophyChange"
+          >{{item}}</view>
+        </view>
+      </view>
+
+      <view class="form-item">
+        <view class="form-label">沟通风格</view>
+        <view class="ce-options">
+          <view
+            wx:for="{{communicationStyles}}"
+            wx:key="*this"
+            class="ce-option {{index === communicationIndex ? 'is-active' : ''}}"
+            data-index="{{index}}"
+            bindtap="onCommunicationChange"
+          >{{item}}</view>
+        </view>
+      </view>
+
+      <view class="form-item">
+        <view class="form-label">严格程度</view>
+        <view class="ce-options">
+          <view
+            wx:for="{{strictnessOptions}}"
+            wx:key="*this"
+            class="ce-option {{index === strictnessIndex ? 'is-active' : ''}}"
+            data-index="{{index}}"
+            bindtap="onStrictnessChange"
+          >{{item}}</view>
+        </view>
+      </view>
+
+      <view class="form-item">
+        <view class="form-label">这个孩子的家长目标</view>
+        <input class="input" value="{{parentGoals}}" bindinput="onParentGoals" placeholder="例如：先建立阅读习惯" />
+        <view class="form-hint">多个目标用顿号分隔，留空则继承家庭目标</view>
+      </view>
+
+      <view class="form-item">
+        <view class="form-label">这个孩子的学习特点</view>
+        <textarea class="textarea" value="{{notes}}" bindinput="onNotes" maxlength="200" placeholder="例如：坐不住但动手能力强，先操作再讲解" />
+        <view class="form-hint">只用于这个孩子，会影响 AI 的讲解和沟通方式</view>
+      </view>
+
+      <button class="btn btn-primary" loading="{{saving}}" bindtap="save">保存这个孩子的教育方式</button>
+      <button class="btn btn-outline ce-second" bindtap="saveAll">应用到全部场景</button>
+      <view wx:if="{{!inheritsFamily}}" class="ce-reset" bindtap="resetToFamily">恢复为继承家庭设置</view>
+    </view>
+  </block>
+</view>

@@ -23,6 +23,8 @@ import WrongBook from "./components/WrongBook";
 import ChildOverview from "./components/ChildOverview";
 import GoalPlan from "./components/GoalPlan";
 import ChildStateDetail from "./components/ChildStateDetail";
+import ChildEducation from "./components/ChildEducation";
+import TutorChat from "./components/TutorChat";
 import SubjectDetail from "./components/SubjectDetail";
 import ParentRelation from "./components/ParentRelation";
 import { Landing } from "./components/Landing";
@@ -36,6 +38,7 @@ import {
   Topbar,
   type PageId,
 } from "./components/Layout";
+import { isTutorEntryVisible } from "./lib/tutor";
 
 type Child = { id: string; name: string; gender?: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
@@ -233,12 +236,14 @@ function App() {
   const [policies, setPolicies] = useState<any[]>([]);
   const [policyChanges, setPolicyChanges] = useState<any[]>([]);
   const [educationSettings, setEducationSettings] = useState<any>({});
-  const [educationMethods, setEducationMethods] = useState<any>(null);
   const [v2EducationMethods, setV2EducationMethods] = useState<any[]>([]);
   const [familyPolicy, setFamilyPolicy] = useState<any>({});
   const [memberships, setMemberships] = useState<any>({});
   // 学科详情是二级页，需要带上「哪个孩子、哪一科」的参数
   const [subjectTarget, setSubjectTarget] = useState<{ childId: string; subject: string } | null>(null);
+  const [educationChild, setEducationChild] = useState<Child | null>(null);
+  // 私教入口只在安卓 APK 端出现；调试时可用 ?tutor=1 打开
+  const showTutorEntry = useMemo(() => isTutorEntryVisible(), []);
 
   async function load() {
     if (!token) return;
@@ -520,7 +525,7 @@ function App() {
 
   return (
     <div className="app-bg flex min-h-screen">
-      <Sidebar page={page} onNavigate={setPage} onLogout={logout} />
+      <Sidebar page={page} onNavigate={setPage} onLogout={logout} showTutorEntry={showTutorEntry} />
       {navOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-ink/45" onClick={() => setNavOpen(false)} />
@@ -532,6 +537,7 @@ function App() {
               setNavOpen(false);
             }}
             onLogout={logout}
+            showTutorEntry={showTutorEntry}
           />
         </div>
       )}
@@ -549,7 +555,8 @@ function App() {
             page === "questions" ? "题库" :
             page === "wrong-book" ? "错题本" :
             page === "homework" ? "作业" :
-            page === "knowledge" ? "知识库" : "设置"
+            page === "knowledge" ? "知识库" :
+            page === "tutor" ? "学习私教" : "设置"
           }
           familyName={settings?.family?.name || home?.stats?.familyName}
           childName={home?.children?.[0]?.name}
@@ -595,7 +602,7 @@ function App() {
           {page === "students" && home && (
             <Panel
               title="学生档案"
-              description="管理家庭里的孩子基础信息。编辑和删除操作保留在每一行右侧。"
+              description="管理家庭里的孩子基础信息。教育方式可以按孩子单独设置，未设置时跟随家庭默认。"
               actions={<button onClick={() => { setEditingChild(null); setChildDialog(true); }} className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white"><Plus size={16} />新建孩子</button>}
             >
               <div className="overflow-x-auto">
@@ -606,6 +613,7 @@ function App() {
                       <th className="px-2 py-2">年龄 / 年级</th>
                       <th className="px-2 py-2">学科</th>
                       <th className="px-2 py-2">教材版本</th>
+                      <th className="px-2 py-2">教育方式</th>
                       <th className="px-2 py-2">操作</th>
                     </tr>
                   </thead>
@@ -616,6 +624,11 @@ function App() {
                         <td className="px-2 py-3">{child.gender === "female" ? "女生" : "男生"} · {child.age} 岁 / {child.grade}</td>
                         <td className="px-2 py-3">{child.subjects.join("、")}</td>
                         <td className="px-2 py-3">{child.textbookVersion || "未设置"}</td>
+                        <td className="px-2 py-3">
+                          <button onClick={() => setEducationChild(child)} className="rounded-lg border border-teal px-3 py-1 text-teal">
+                            教育方式
+                          </button>
+                        </td>
                         <td className="px-2 py-3">
                           <button onClick={() => { setEditingChild(child); setChildDialog(true); }} className="text-teal"><Edit size={16} /></button>
                           <button onClick={() => deleteChild(child)} className="ml-2 text-accent"><Trash size={16} /></button>
@@ -695,6 +708,10 @@ function App() {
             </Panel>
           )}
 
+          {page === "tutor" && home && showTutorEntry && (
+            <TutorChat token={token} apiBase={apiBase} children={home.children} request={request} />
+          )}
+
           {page === "settings" && (
             <Panel title="账号设置" description="管理家庭、连接和数据边界">
               <div className="space-y-3 text-sm">
@@ -702,6 +719,34 @@ function App() {
                 <div className="flex justify-between"><span className="text-muted">家庭编号</span><span>{settings?.family?.id || "-"}</span></div>
                 <div className="flex justify-between"><span className="text-muted">家庭角色</span><span>{settings?.member?.role === "owner" ? "创建者" : "管理者"}</span></div>
                 <div className="flex justify-between"><span className="text-muted">孩子数量</span><span>{settings?.child_count || 0} 个</span></div>
+              </div>
+              <div className="mt-6 rounded-lg border border-line bg-white p-4">
+                <h3 className="font-semibold">家庭教育方式（全家默认）</h3>
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  这是全家的默认教育方式。个别孩子可以单独设置，见「学生 → 教育方式」；单独设置过的孩子不再跟随这里。
+                </p>
+                <form onSubmit={saveEducationSettings} className="mt-4 space-y-3">
+                  <label className="block text-sm text-muted">
+                    教育理念
+                    <select name="education_philosophy" defaultValue={educationSettings.educationPhilosophy || "以引导和鼓励为主"} className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-ink">
+                      {["以引导和鼓励为主", "兴趣优先", "习惯优先", "成绩与能力并重", "自主探索"].map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label className="block text-sm text-muted">
+                    沟通风格
+                    <select name="communication_style" defaultValue={educationSettings.communicationStyle || "温和直接"} className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-ink">
+                      {["温和直接", "鼓励为主", "简洁明确", "陪伴讨论"].map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label className="block text-sm text-muted">
+                    严格程度
+                    <select name="strictness" defaultValue={educationSettings.strictness || "适中"} className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-ink">
+                      {["宽松", "适中", "严格"].map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <input name="parent_goals" defaultValue={(educationSettings.parentGoals || []).join("、")} className="w-full rounded-lg border border-line px-3 py-2" placeholder="家长目标，多个用顿号分隔" />
+                  <button className="rounded-lg bg-teal px-4 py-2 text-white">保存家庭教育方式</button>
+                </form>
               </div>
               <div className="mt-6 rounded-lg border border-line bg-white p-4">
                 <h3 className="font-semibold">家庭边界</h3>
@@ -921,6 +966,16 @@ function App() {
           </div>
         </main>
       </div>
+
+      {educationChild && (
+        <ChildEducation
+          token={token}
+          childId={educationChild.id}
+          childName={educationChild.name}
+          request={request}
+          onClose={() => setEducationChild(null)}
+        />
+      )}
 
       {childDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

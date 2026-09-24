@@ -41,9 +41,11 @@ export function buildAgentBootstrap(input: {
           "未说明学生且家庭有多个孩子时，先询问选择，不猜测。",
           "确定 child_id 后调用 get_child_context，再按任务读取作业、错题、掌握度或成长记录。",
           "教育方法优先调用 get_effective_skill，使用当前家庭已经个性化后的规则。",
+          "教育方式按孩子区分：执行某个孩子的任务时，先调用 get_effective_skill 并传 child_id，再按返回的合并结果执行；不要把一个孩子的偏好用到另一个孩子身上。",
         ],
     workflow_router: {
       understand_child: ["get_child_state", "get_family_policy", "get_learning_priorities", "get_planning_context"],
+      education_style: ["list_children", "get_child_education_profile", "get_effective_skill(child_id)", "update_child_education_profile"],
       stage_goal: ["get_learning_priorities", "get_planning_context", "propose_stage_goals", "list_stage_goals", "confirm_stage_goal"],
       planning_request: ["list_planning_requests", "get_planning_request", "get_learning_priorities", "propose_stage_goals", "update_planning_request_status"],
       weekly_plan: ["get_stage_goal", "create_weekly_plan", "update_plan_item_status", "create_assessment"],
@@ -114,9 +116,17 @@ ${connectionNote}
 2. 工具变化或不确定同步规则时，再调用 get_sync_spec 读取最新版详细规范。
 3. 每次涉及具体孩子时，先确认 child_id；可以先调用 list_children 或 get_family_summary 获取孩子列表，再调用 get_child_context 获取具体上下文。
 4. 处理教育问题前，先调用 get_child_context 获取孩子上下文。
-5. 再调用 get_effective_skill 获取当前家庭个性化后的教育 Skill；没有家庭配置时才回退 get_education_skill。
+5. 再调用 get_effective_skill 并带上 child_id，获取「家庭策略 + 该孩子个体调整」合并后的教育 Skill；没有家庭配置时才回退 get_education_skill。
 6. 不确定使用哪个 Skill 时，先调用 list_education_skills。
 7. 生成结果后，按场景调用保存工具。
+
+教育方式（按孩子维度）：
+- 同一个家庭的不同孩子可以有各自的教育理念、沟通风格、严格程度和家长目标，执行任务时先确认是哪个孩子
+- 读取某个孩子的教育方式调用 get_effective_skill(child_id) 或 get_child_education_profile
+- 家庭级统一设置用 list_family_policies / update_family_policy（不带 child_id）
+- 孩子级调整用 update_child_education_profile；家长说“这个孩子单独这样带”时写入孩子级，说“全家都这样”时写入家庭级
+- 家长要求恢复默认时用 clear=true 清空孩子级配置，回到继承家庭设置
+- 不要把一个孩子的偏好、目标或学习特点用到另一个孩子身上
 
 写作 / 日记：
 - 使用 writing-coach Skill

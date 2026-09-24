@@ -15,6 +15,7 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 
 | 场景 | 主要工具 |
 | --- | --- |
+| 学科概览 | `get_subject_overview`、`get_learning_priorities` |
 | 教育方式（按孩子） | `get_child_education_profile`、`get_effective_skill`、`update_child_education_profile`、`update_family_policy` |
 | 写作 / 日记 | `save_writing_record`、`save_learning_record` |
 | 阅读 / 复述 | `save_reading_record` |
@@ -84,6 +85,13 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 6. 练习或计划执行后，用 `record_recommendation_outcome` 记录这次建议的真实效果
    （`improved` / `unchanged` / `worse` / `unmeasurable`）。
 7. 已经解决的信号用 `resolve_learning_signal` 处理，保持首页只显示当前真正需要关注的问题。
+
+## 学科概览流程
+
+1. 家长问“哪一科要优先处理”“各科现在什么情况”时，先调用 `get_subject_overview`，不要用单点成绩或一次对话推断学科全貌。
+2. 概览会列出孩子**全部关注学科**，包括暂时没有数据的学科；没有数据的学科按空状态说明，不跳过、不编造。
+3. 说完学科结论后，再用 `get_learning_priorities` 给出具体要处理的事，并引用返回的 `reason` 与 `priority_score`。
+4. 学科概览是只读的，不写入任何数据。
 
 ## 教育方式流程（按孩子维度）
 

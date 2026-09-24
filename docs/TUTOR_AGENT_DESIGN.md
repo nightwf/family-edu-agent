@@ -708,3 +708,54 @@ MODERATION_API_KEY=
 - 版本号递进（当前 `2.5` → `2.6`），让 WorkBuddy 能感知规范变了。
 
 这两条在 `docs/workbuddy-sync-spec.md` 的通用规则里已有约定，本次核对确认没有冲突。
+
+---
+
+## 21. 落地状态（2026-09-24）
+
+本方案的代码已落地并跑通测试。执行目标与验收口径见 `docs/goal-tutor-agent.md`。
+
+### 21.1 已完成
+
+| 模块 | 位置 | 说明 |
+|---|---|---|
+| 数据模型 | `prisma/schema.prisma`、`prisma/migrations/20260924120000_tutor_agent/` | `TutorConversation` / `TutorMessage` / `TutorSafetyEvent` 三张表，纯新增 |
+| 孩子维度教育方式 | `prisma/migrations/20260924090000_child_skill_profile/`、`apps/api/src/personalization.ts`、`apps/api/src/v2/guards.ts` | `ChildSkillProfile` 三层解析（全局技能 → 家庭策略 → 孩子级调整），`assertChildInFamily` 统一守卫 |
+| 模型接入 | `apps/api/src/tutor/llm/` | `ChatProvider` 抽象 + 豆包 OpenAI 兼容流式实现（SSE 缓冲、工具调用分片拼接）+ 测试用 `FakeChatProvider` |
+| 工具接入 | `apps/api/src/tutor/mcp-tools.ts`、`tool-policy.ts` | 进程内 MCP 客户端（`InMemoryTransport.createLinkedPair()`）；工具授权表默认拒绝 |
+| 人格渲染 | `apps/api/src/tutor/persona.ts` | 纯函数 `renderTutorPrompt` + 取数 `buildTutorPersona`，含 L2 五条硬规则 |
+| 内容安全 | `apps/api/src/tutor/safety.ts` | L1 输入侧、L3 输出侧、引用校验、`TutorSafetyEvent` 记账 |
+| 运行时 | `apps/api/src/tutor/runtime.ts`、`quota.ts` | 轮次上限 / 单轮超时 / 工具结果截断；每日配额 |
+| 记忆 | `apps/api/src/tutor/memory.ts` | 短期窗口 + 会话摘要 + 证据回流（去重，一律 `PENDING_CONFIRMATION`） |
+| 接口 | `apps/api/src/tutor/routes.ts` | `/api/tutor/*`，含 SSE、附件、证据、语音 |
+| 语音 | `apps/api/src/tutor/voice/` | ASR/TTS 抽象 + 火山引擎适配（协议待用真实凭据核实） |
+| 前端 | `apps/web/src/components/TutorChat.tsx`、`lib/tutor.ts`、`Layout.tsx` | APK 端入口判定（UA `HeYaAndroid`）、SSE 客户端；桌面与小程序不显示入口 |
+| 安卓 | `android/.../AndroidManifest.xml`、`MainActivity.java` | `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS`，`onPermissionRequest` 转系统授权 |
+| MCP 增量 | `apps/api/src/v2/mcp-tools.ts`、`apps/api/src/mcp.ts` | 新增只读工具 `get_subject_overview`；`get_sync_spec` 升到 `2.7`（新增 `subject_overview`、`education_style`、`child_dimension_rule`） |
+| 开放平台包 | `workbuddy-open-platform/` | Connector 2.3.0 / Expert 1.7.0 / Skill 2.7.0，`check:workbuddy` 与 `package:workbuddy` 通过 |
+
+### 21.2 验证证据
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| API 单测（含私教 79 条） | `npm test` | 33 文件 210 用例全部通过 |
+| 小程序校验 | `npm run check:miniprogram` | 19 页 / 21 json / 28 js / 19 wxml / 20 wxss 通过 |
+| 前端构建 | `npm run build` | 构建成功 |
+| 响应式与入口可见性 | `npm run verify:web-responsive` | 4 个形态（平板横屏 / 平板竖屏 / 手机 / 安卓 WebView）：无横向溢出；私教入口只在安卓 UA 下出现；聊天页可输入、发送键不越界；首页四学科与空状态正常 |
+| 迁移与模型一致 | `prisma validate` + 逐表比对 | 三张私教表与 `ChildSkillProfile` 的字段、索引与 migration 完全一致 |
+| WorkBuddy 包 | `npm run check:workbuddy`、`npm run package:workbuddy` | 校验通过并生成三个可提审 ZIP |
+
+### 21.3 执行中修正的一处行为
+
+`assertChildInFamily` 原先抛普通 `Error`，客户端传了不属于本家庭的 `child_id` 会返回 500。已改为带 `statusCode: 404` 的错误
+（Fastify 5 默认错误处理会采用该状态码），把客户端错误与服务器故障区分开。`routes.test.ts` 覆盖了跨家庭读会话、跨家庭读孩子两个方向。
+
+### 21.4 仍需真实凭据才能完成的收尾
+
+以下三项**不影响开发与自动化测试**（全部用假 provider 打桩），但线上真机验证前必须由 jojo 提供：
+
+1. 豆包 API Key，以及对话模型与视觉模型的接入点（Endpoint ID）或模型名；
+2. 火山「语音技术」是否已开通 —— 识别与合成各需 App ID / Access Token（协议实现已按火山文档写好，待真实凭据核实）；
+3. 每日配额默认值与儿童语音原始音频是否留存（当前默认：每孩子 60 条消息、不留存原始音频）。
+
+在拿到凭据前，`TUTOR_ENABLED` 保持关闭：接口返回 503，前端隐藏入口，线上行为与上线前一致。

@@ -12,6 +12,9 @@ import {
   listFamilyPolicies,
   getEffectiveSkill,
   updateFamilyProfile,
+  listChildProfiles,
+  updateChildProfile,
+  clearChildProfile,
   proposePolicyChange,
   reviewPolicyChange,
   getPolicyHistory,
@@ -158,13 +161,17 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
   });
 
   server.tool("get_sync_spec", "读取禾芽最新版详细同步规范。新会话先调用 get_agent_bootstrap；工具变化、复杂任务或不确定应保存什么时再调用本工具。", {}, async () => textResult({
-    version: "2.5",
+    version: "2.7",
     startup_rule: "新会话首次使用禾芽时先调用 get_agent_bootstrap；连接后无需让家长重复粘贴提示词。",
     family_identity: "家庭身份只由连接授权（OAuth Access Token 或家庭 Token）决定，不传入或猜测 family_id。",
     child_rule: "涉及具体学生时先调用 list_children 确认 child_id，再读取 get_child_context。",
+    child_dimension_rule:
+      "同一家庭的不同孩子可以有各自的教育方式。执行某个孩子的任务前先调用 get_effective_skill 并传 child_id，拿到「家庭策略 + 孩子个体调整」合并后的结果；只有传了 child_id 才会应用孩子级配置。家庭级配置用 list_family_policies / update_family_policy（不传 child_id），孩子级配置用 get_child_education_profile / update_child_education_profile。不要把一个孩子的偏好套用到另一个孩子身上。",
     save_rule: "普通闲聊不保存；家长明确要求保存、同步、写入、记录时调用对应工具。",
     workflows: {
       understand_child: ["get_child_state", "get_family_policy", "get_learning_priorities", "get_planning_context"],
+      subject_overview: ["get_subject_overview", "get_learning_priorities"],
+      education_style: ["list_children", "get_child_education_profile", "get_effective_skill(child_id)", "update_child_education_profile"],
       learning_priority: ["get_learning_priorities", "list_learning_signals", "resolve_learning_signal"],
       stage_goal: ["get_learning_priorities", "get_planning_context", "propose_stage_goals", "confirm_stage_goal"],
       planning_request: ["list_planning_requests", "get_planning_request", "get_learning_priorities", "propose_stage_goals", "update_planning_request_status"],
@@ -215,26 +222,50 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     },
   }));
 
-  server.tool("list_family_policies", { family_id: z.string().optional() }, async ({ family_id }) => {
-    return textResult(await listFamilyPolicies(familyId));
-  });
+  server.tool(
+    "list_family_policies",
+    "读取家庭级教育配置。传入 child_id 时会额外返回该孩子的个体配置和两者合并后的最终设置。",
+    { family_id: z.string().optional(), child_id: z.string().optional() },
+    async ({ child_id }) => {
+      return textResult(await listFamilyPolicies(familyId, child_id));
+    },
+  );
 
   server.tool("get_effective_skill", {
     family_id: z.string().optional(),
     skill_id: z.string(),
-  }, async ({ family_id, skill_id }) => {
-    const effective = await getEffectiveSkill(familyId, skill_id);
+    child_id: z
+      .string()
+      .optional()
+      .describe("孩子 ID。传入后按「家庭策略 + 孩子个体调整」返回最终生效的教育方式；不传则只按家庭策略返回。"),
+  }, async ({ skill_id, child_id }) => {
+    const effective = await getEffectiveSkill(familyId, skill_id, child_id);
     return effective ? textResult(effective) : textResult({ error: "education skill not found" });
   });
 
   server.tool("update_family_policy", {
     family_id: z.string().optional(),
+    child_id: z
+      .string()
+      .optional()
+      .describe("孩子 ID。传入后写入这个孩子的个体教育方式（覆盖家庭设置）；不传则写入家庭级配置。"),
     skill_id: z.string(),
     philosophy: z.string().optional(),
     communication_style: z.string().optional(),
     strictness: z.string().optional(),
     parent_goals: z.array(z.string()).optional(),
+    notes: z.string().optional().describe("孩子学习特点说明，只在传 child_id 时生效。"),
   }, async (input) => {
+    if (input.child_id) {
+      const profile = await updateChildProfile(familyId, input.child_id, input.skill_id, {
+        philosophy: input.philosophy,
+        communicationStyle: input.communication_style,
+        strictness: input.strictness,
+        parentGoals: input.parent_goals,
+        notes: input.notes,
+      }, "workbuddy");
+      return textResult(profile);
+    }
     const profile = await updateFamilyProfile(familyId, input.skill_id, {
       philosophy: input.philosophy,
       communicationStyle: input.communication_style,
@@ -243,6 +274,43 @@ export function createEducationMcpServer(familyId = env.MCP_FAMILY_ID) {
     }, "workbuddy");
     return textResult(profile);
   });
+
+  server.tool(
+    "get_child_education_profile",
+    "读取某个孩子各教育 Skill 的个体配置，以及与家庭设置合并后的最终生效设置。",
+    { family_id: z.string().optional(), child_id: z.string() },
+    async ({ child_id }) => textResult(await listChildProfiles(familyId, child_id)),
+  );
+
+  server.tool(
+    "update_child_education_profile",
+    "写入某个孩子的个体教育方式（教育理念、沟通风格、严格程度、家长目标、学习特点）。只覆盖传入的字段，其余字段继续继承家庭设置。",
+    {
+      family_id: z.string().optional(),
+      child_id: z.string(),
+      skill_id: z.string(),
+      philosophy: z.string().optional(),
+      communication_style: z.string().optional(),
+      strictness: z.string().optional(),
+      parent_goals: z.array(z.string()).optional(),
+      notes: z.string().optional(),
+      clear: z.boolean().optional().describe("传 true 时清空这个孩子的个体配置，恢复继承家庭设置。"),
+    },
+    async (input) => {
+      if (input.clear) {
+        return textResult(await clearChildProfile(familyId, input.child_id, input.skill_id, "workbuddy"));
+      }
+      return textResult(
+        await updateChildProfile(familyId, input.child_id, input.skill_id, {
+          philosophy: input.philosophy,
+          communicationStyle: input.communication_style,
+          strictness: input.strictness,
+          parentGoals: input.parent_goals,
+          notes: input.notes,
+        }, "workbuddy"),
+      );
+    },
+  );
 
   server.tool("propose_policy_change", {
     family_id: z.string().optional(),

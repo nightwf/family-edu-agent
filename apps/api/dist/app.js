@@ -10,10 +10,11 @@ import { prisma } from "./prisma.js";
 import { env } from "./env.js";
 import { hashPassword, verifyPassword, createRefreshTokenHash, hashRefreshToken } from "./auth.js";
 import { registerMcpHttp } from "./mcp.js";
+import { registerTutorRoutes } from "./tutor/routes.js";
 import { buildDoubaoPrompt, buildWorkbuddyOpenPlatformConfig, buildWorkbuddyPrompt } from "./workbuddy-prompt.js";
 import { saveFile } from "./storage.js";
 import { getOrCreateFamilyMcpToken, listLegacyMcpConnections, revokeLegacyMcpConnection } from "./mcp-token.js";
-import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
+import { listFamilyPolicies, getEffectiveSkill, updateFamilyProfile, listChildProfiles, updateChildProfile, clearChildProfile, getPolicyHistory, reviewPolicyChange, getFamilyEducationSettings, updateFamilyEducationSettings, } from "./personalization.js";
 import { recommendEducationMethods, EDUCATION_METHODS } from "./education-methods.js";
 import { listQuestions, listQuestionTypes, listStudentMastery } from "./question-bank.js";
 import { listPracticePapers, listRemediationPlans, listWrongQuestions } from "./wrong-book.js";
@@ -1068,11 +1069,13 @@ export async function buildApp() {
         };
     });
     app.get("/api/policies", { preHandler: requireAuth }, async (request) => {
-        return listFamilyPolicies(getAuth(request).familyId);
+        const childId = request.query?.child_id;
+        return listFamilyPolicies(getAuth(request).familyId, childId);
     });
     app.get("/api/policies/:skillId/effective", { preHandler: requireAuth }, async (request) => {
         const { skillId } = request.params;
-        const effective = await getEffectiveSkill(getAuth(request).familyId, skillId);
+        const childId = request.query?.child_id;
+        const effective = await getEffectiveSkill(getAuth(request).familyId, skillId, childId);
         if (!effective)
             return { error: "skill not found" };
         return effective;
@@ -1080,12 +1083,51 @@ export async function buildApp() {
     app.patch("/api/policies/:skillId", { preHandler: requireAuth }, async (request) => {
         const { skillId } = request.params;
         const body = request.body;
-        return updateFamilyProfile(getAuth(request).familyId, skillId, {
+        const familyId = getAuth(request).familyId;
+        const childId = body.child_id || body.childId;
+        if (childId) {
+            return updateChildProfile(familyId, childId, skillId, {
+                philosophy: body.philosophy,
+                communicationStyle: body.communication_style,
+                strictness: body.strictness,
+                parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : undefined,
+                notes: body.notes,
+            });
+        }
+        return updateFamilyProfile(familyId, skillId, {
             philosophy: body.philosophy,
             communicationStyle: body.communication_style,
             strictness: body.strictness,
             parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : undefined,
         });
+    });
+    // 孩子级教育方式：同家庭不同孩子可以有各自的教育理念、沟通风格和家长目标。
+    app.get("/api/children/:childId/education-profile", { preHandler: requireAuth }, async (request, reply) => {
+        const { familyId } = getAuth(request);
+        const { childId } = request.params;
+        if (!(await ownsResource(familyId, "child", childId)))
+            return reply.code(404).send({ error: "学生不存在" });
+        return listChildProfiles(familyId, childId);
+    });
+    app.patch("/api/children/:childId/education-profile", { preHandler: requireAuth }, async (request, reply) => {
+        const { familyId, id } = getAuth(request);
+        const { childId } = request.params;
+        if (!(await ownsResource(familyId, "child", childId)))
+            return reply.code(404).send({ error: "学生不存在" });
+        const body = request.body;
+        const skillId = body.skill_id || body.skillId;
+        if (!skillId)
+            return reply.code(400).send({ error: "缺少 skill_id" });
+        if (body.clear) {
+            return clearChildProfile(familyId, childId, skillId, id);
+        }
+        return updateChildProfile(familyId, childId, skillId, {
+            philosophy: body.philosophy,
+            communicationStyle: body.communication_style ?? body.communicationStyle,
+            strictness: body.strictness,
+            parentGoals: body.parent_goals ? parseStringList(body.parent_goals) : body.parentGoals,
+            notes: body.notes,
+        }, id);
     });
     app.get("/api/policy-changes", { preHandler: requireAuth }, async (request) => {
         return getPolicyHistory(getAuth(request).familyId);
@@ -1123,6 +1165,7 @@ export async function buildApp() {
     registerQuestionBankRoutes(app, requireAuth, (request) => getAuth(request).familyId);
     registerWrongBookRoutes(app, requireAuth, (request) => getAuth(request).familyId);
     registerV2Routes(app, requireAuth, (request) => getAuth(request));
+    await registerTutorRoutes(app, requireAuth);
     await registerOAuthRoutes(app, {
         requireUserAuth: requireUserAuth,
         getUserAuth,

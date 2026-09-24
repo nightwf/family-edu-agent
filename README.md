@@ -1,6 +1,6 @@
 # 禾芽家庭 AI 教育
 
-禾芽以 WorkBuddy / 豆包工作作为 Agent 对话与执行入口，项目本身提供家庭教育知识、学生长期数据、家庭专属 MCP 和家长 Web/小程序管理端。
+禾芽以 WorkBuddy / 豆包工作作为 Agent 对话与执行入口，项目本身提供家庭教育知识、学生长期数据、家庭专属 MCP、家长 Web/小程序管理端，以及安卓端内置的学习私教。
 
 生产架构：TypeScript + Fastify + Prisma + PostgreSQL 16 + React/Vite + Tailwind CSS + 腾讯云 COS。
 
@@ -18,6 +18,7 @@
 - 微信小程序家长端，支持微信一键登录、家庭编码与加入申请审核。
 - WorkBuddy 开放平台 Connector、Skill、Expert 提交包，使用 MCP OAuth 2.1 + PKCE：首次连接自动打开禾芽授权网页，微信扫码选择家庭即可，不需要复制 Token。
 - 安卓平板 / 手机客户端（一个 APK 通吃，微信扫码登录，带原生下拉刷新与断网重试），详见 [安卓客户端文档](docs/android-app.md)。
+- **内置学习私教**（Education Agent Layer）：安卓 APK 内可对话的桌面端私教，支持流式回答、拍图讲错题、按住说话、孩子记忆、证据回流与家长确认；人格按孩子维度解析（全局技能 → 家庭策略 → 孩子级调整），与 WorkBuddy 共用同一份数据。见 [内置学习私教](docs/TUTOR_AGENT_DESIGN.md)。
 
 ## 本地启动
 
@@ -104,7 +105,23 @@ GET    /api/practice-papers/:practicePaperId
 GET    /api/remediation-plans
 POST   /api/remediation-plans
 PATCH  /api/remediation-plans/:planId/tasks/:taskId/status
+
+GET    /api/tutor/status
+GET    /api/tutor/quota
+GET    /api/tutor/conversations
+POST   /api/tutor/conversations
+GET    /api/tutor/conversations/:conversationId/messages
+POST   /api/tutor/conversations/:conversationId/messages   # SSE 流式
+POST   /api/tutor/conversations/:conversationId/attachments
+POST   /api/tutor/conversations/:conversationId/evidence
+DELETE /api/tutor/conversations/:conversationId
+GET    /api/tutor/voice/status
+POST   /api/tutor/voice/transcribe
+POST   /api/tutor/voice/speak
 ```
+
+私教接口只从登录会话推导 `familyId`，不接受客户端传入；`childId` 在会话创建时固定，运行时覆盖模型传入的值。
+`TUTOR_ENABLED=false` 时全部返回 503，前端同时隐藏入口。模型与语音凭据只写在服务器 `.env`（`TUTOR_*`）。
 
 ## WorkBuddy / 豆包工作接入
 
@@ -153,4 +170,17 @@ docs/                         架构、同步、存储与备份说明
 deploy/                       腾讯云独立部署配置
 ```
 
-更多说明见 [技术架构](docs/ARCHITECTURE.md)、[WorkBuddy 同步规范](docs/workbuddy-sync-spec.md)、[内置学习私教方案](docs/TUTOR_AGENT_DESIGN.md)（规划中，含与 WorkBuddy 的分工边界）和 [教育方式按孩子维度分层](docs/CHILD_SCOPED_EDUCATION_DESIGN.md)（设计稿，同一家庭不同孩子可以有各自的教育方式）。
+更多说明见 [技术架构](docs/ARCHITECTURE.md)、[WorkBuddy 同步规范](docs/workbuddy-sync-spec.md)、[内置学习私教](docs/TUTOR_AGENT_DESIGN.md)（含与 WorkBuddy 的分工边界、落地状态与验收口径）和 [教育方式按孩子维度分层](docs/CHILD_SCOPED_EDUCATION_DESIGN.md)（同一家庭不同孩子可以有各自的教育方式）。
+
+私教相关的环境变量集中在服务器 `.env`（见 `apps/api/src/env.ts` 的 `TUTOR_*`）：
+
+| 变量 | 用途 |
+| --- | --- |
+| `TUTOR_ENABLED` | 总开关，关闭时接口返回 503 且前端隐藏入口 |
+| `TUTOR_CHAT_API_KEY` / `TUTOR_CHAT_BASE_URL` / `TUTOR_CHAT_MODEL` | 豆包（火山方舟）对话模型，默认接入点 `ark.cn-beijing.volces.com/api/v3` |
+| `TUTOR_VISION_MODEL` | 拍图识题用的视觉模型 |
+| `TUTOR_ASR_APP_ID` / `TUTOR_ASR_ACCESS_TOKEN` / `TUTOR_ASR_CLUSTER` | 语音识别（火山「语音技术」单独开通） |
+| `TUTOR_TTS_APP_ID` / `TUTOR_TTS_ACCESS_TOKEN` / `TUTOR_TTS_CLUSTER` / `TUTOR_TTS_VOICE_TYPE` | 语音合成 |
+| `TUTOR_DAILY_MESSAGE_LIMIT` / `TUTOR_DAILY_TOKEN_LIMIT` | 配额：每孩子每日消息数（默认 60）与 token 上限（0 = 不单独限制） |
+| `TUTOR_MAX_TOOL_ROUNDS` / `TUTOR_REQUEST_TIMEOUT_MS` / `TUTOR_TOOL_RESULT_LIMIT` | 单轮工具调用上限（6 轮）、超时（45 秒）、工具结果截断（6KB） |
+| `TUTOR_CONTEXT_WINDOW_TURNS` / `TUTOR_MODERATION_ENABLED` | 上下文窗口轮数（12）与内容审核开关 |

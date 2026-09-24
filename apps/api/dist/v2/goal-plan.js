@@ -1,14 +1,9 @@
 import { prisma } from "../prisma.js";
 import { PLAN_ITEM_STATUSES, PLAN_ITEM_TYPES, requireEnumValue } from "./enum-normalize.js";
 import { writeAudit } from "./audit.js";
+import { assertChildInFamily } from "./guards.js";
 const MIN_GOAL_DAYS = 28;
 const MAX_GOAL_DAYS = 63;
-async function assertChildInFamily(familyId, childId) {
-    const child = await prisma.child.findFirst({ where: { id: childId, familyId } });
-    if (!child)
-        throw new Error("学生不存在或不属于当前家庭");
-    return child;
-}
 function dateRangeDays(start, end) {
     return Math.round((end.getTime() - start.getTime()) / 86_400_000);
 }

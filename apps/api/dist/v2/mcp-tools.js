@@ -4,6 +4,7 @@ import { getFamilyPolicy, proposeFamilyPolicyChange, reviewFamilyPolicyChange } 
 import { createEvidenceRecord, reviewEvidenceRecord } from "./evidence.js";
 import { getChildState } from "./child-state.js";
 import { getPlanningContext } from "./planning-context.js";
+import { getSubjectOverview } from "./subject-overview.js";
 import { confirmStageGoal, createAssessment, createWeeklyPlan, getStageGoal, getWeeklyPlan, listStageGoals, proposeStageGoals, updatePlanItemStatus, } from "./goal-plan.js";
 import { ensureEducationMethods, listEducationMethods, saveMethodEffect } from "./education-methods-v2.js";
 import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSourceDocuments, saveKnowledgeRelationsBatch, saveKnowledgeNodesBatch, upsertChildKnowledgeState, } from "./knowledge.js";
@@ -296,6 +297,8 @@ export function registerV2McpTools(server, familyId) {
     })));
     // ---- 学习决策层：信号、优先级、知识关联、待规划事项 ----
     server.tool("get_learning_priorities", "读取学生当前的学习优先级。禾芽按“前置缺口 > 重复出错 > 复测到期 > 掌握度偏低 > 变式不足”的规则算好，制定目标前必须先读，并说明每条优先级的依据。", { child_id: z.string(), limit: z.number().min(1).max(20).optional() }, async ({ child_id, limit }) => safe(() => getLearningPriorities(familyId, child_id, { limit })));
+    // ---- 学科概览：只读。回答“哪一科需要优先处理”时先读这个，别拿单点数据猜全貌。----
+    server.tool("get_subject_overview", "读取学生各学科的整体概览（含没有数据的学科）。用于回答“哪一科要优先处理”“各科现在什么情况”。", { child_id: z.string() }, async ({ child_id }) => safe(() => getSubjectOverview(familyId, child_id)));
     server.tool("list_learning_signals", "列出学生学习信号的当前状态。信号来自真实作答与错题，不是模型推断。", { child_id: z.string(), refresh: z.boolean().optional() }, async ({ child_id, refresh }) => safe(() => refresh === false
         ? prisma.learningSignal.findMany({ where: { familyId, childId: child_id, status: "active" }, orderBy: [{ severity: "desc" }, { detectedAt: "desc" }] })
         : syncLearningSignals(familyId, child_id)));

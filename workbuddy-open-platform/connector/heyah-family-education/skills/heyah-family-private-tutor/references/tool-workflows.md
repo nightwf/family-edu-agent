@@ -6,6 +6,24 @@
 
 先确认当前孩子状态、活跃目标和家庭边界，再给出判断。不要只根据一次成绩或一条记录下结论。
 
+## 学科概览
+
+`get_subject_overview` → 按需 `get_learning_priorities`
+
+1. 家长问“哪一科要优先处理”“各科现在什么情况”时先读概览，不要用单点成绩或一次对话推断学科全貌。
+2. 概览列出孩子全部关注学科，包括暂时没有数据的学科；没有数据的按空状态说明，不跳过、不编造。
+3. 说完学科结论后再用学习优先级给出具体要处理的事，引用返回的 `reason` 与 `priority_score`。
+4. 概览只读，不写入任何数据。
+
+## 教育方式（按孩子）
+
+`list_children` → `get_child_education_profile` → `get_effective_skill(child_id)` → 需要修改时 `update_child_education_profile`
+
+1. 同一家庭不同孩子可以有各自的教育方式，解析顺序是「全局基础技能 → 家庭策略 → 孩子级调整」，孩子级为空的字段继承家庭设置。
+2. 执行某孩子的任务前必须用带 `child_id` 的 `get_effective_skill`，按 `resolved_settings` 与 `effective_content` 执行。
+3. 家长说“这个孩子单独这样带”写孩子级；说“全家都这样”写 `update_family_policy`（不带 `child_id`）。
+4. 家长目标与学习特点属于孩子级信息，不得跨孩子套用；单次对话里的临时偏好不算长期设置。
+
 ## 学习优先级与待规划
 
 `get_learning_priorities` → `list_planning_requests` → `get_planning_context` → `propose_stage_goals` → `update_planning_request_status`

@@ -23,6 +23,7 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -55,6 +56,7 @@ public class MainActivity extends Activity {
     private static final String HOME_URL = "https://heyaagent.top/";
     private static final String ALLOWED_HOST_SUFFIX = "heyaagent.top";
     private static final int REQUEST_WRITE_STORAGE = 1001;
+    private static final int REQUEST_WEB_MEDIA = 1002;
     private static final long BACK_PRESS_INTERVAL_MS = 2000L;
 
     private WebView webView;
@@ -69,6 +71,8 @@ public class MainActivity extends Activity {
     private int qrHintChecks = 0;
     private long lastBackPressedAt = 0L;
     private String pendingQrImageUrl = null;
+    /** WebView 请求的媒体权限（私教「按住说话」要麦克风）。 */
+    private PermissionRequest pendingMediaPermission = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -192,6 +196,33 @@ public class MainActivity extends Activity {
                     progressBar.setVisibility(View.VISIBLE);
                     progressBar.setProgress(newProgress);
                 }
+            }
+
+            /**
+             * 网页里要用麦克风（私教「按住说话」）时，WebView 会先问这里。
+             * 不实现这个方法，页面上能用的功能在 App 里会静默失败。
+             */
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    request.grant(request.getResources());
+                    return;
+                }
+                boolean wantsAudio = false;
+                for (String resource : request.getResources()) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) wantsAudio = true;
+                }
+                if (!wantsAudio) {
+                    request.deny();
+                    return;
+                }
+                if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+                    return;
+                }
+                // 先挂起授权结果，拿到系统回调后再回应网页
+                pendingMediaPermission = request;
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_WEB_MEDIA);
             }
         });
 
@@ -369,6 +400,19 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == REQUEST_WEB_MEDIA) {
+            PermissionRequest request = pendingMediaPermission;
+            pendingMediaPermission = null;
+            if (request == null) return;
+            boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+            if (granted) {
+                request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            } else {
+                request.deny();
+                toast(getString(R.string.mic_permission_denied));
+            }
+            return;
+        }
         if (requestCode != REQUEST_WRITE_STORAGE) return;
         String url = pendingQrImageUrl;
         pendingQrImageUrl = null;

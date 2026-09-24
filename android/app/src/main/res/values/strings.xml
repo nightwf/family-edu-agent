@@ -13,4 +13,5 @@
     <string name="refreshing">正在刷新…</string>
     <string name="external_open_failed">没有可打开该链接的应用</string>
     <string name="permission_denied">未获得存储权限，无法保存二维码</string>
+    <string name="mic_permission_denied">未获得麦克风权限，无法使用语音提问</string>
 </resources>

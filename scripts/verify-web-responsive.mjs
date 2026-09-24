@@ -89,12 +89,24 @@ const stubs = [
   [/\/api\/family\/memberships(\?|$)/, () => []],
   [/\/api\/education-settings(\?|$)/, () => ({})],
   [/\/api\/v2\/education-methods(\?|$)/, () => []],
+  // 私教接口：只用于验证安卓端入口与聊天页骨架，不触发任何真实模型调用。
+  [/\/api\/tutor\/status(\?|$)/, () => ({ enabled: true, ready: true, model_configured: true, quota: { message_limit: 60, used_messages: 0, left_messages: 60 } })],
+  [/\/api\/tutor\/voice\/status(\?|$)/, () => ({ asr: true, tts: true })],
+  [/\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/, () => ({ messages: [] })],
+  [
+    /\/api\/tutor\/conversations(\?|$)/,
+    () => ({ conversations: [{ id: "conv-1", childId: "c1", persona: "child_tutor", status: "active" }], conversation: { id: "conv-1", childId: "c1", persona: "child_tutor", status: "active" } }),
+  ],
+  [/\/api\/tutor\/quota(\?|$)/, () => ({ allowed: true, used_messages: 0, message_limit: 60, left_messages: 60 })],
 ];
 
 const viewports = [
   { name: "pad-landscape", width: 1366, height: 940, expectSidebar: true },
   { name: "pad-portrait", width: 800, height: 1200, expectSidebar: false },
   { name: "phone", width: 393, height: 851, expectSidebar: false },
+  // 安卓 APK 是 WebView 承载同一个站点，MainActivity 在 UA 里附加 HeYaAndroid/1.0。
+  // 用同一个 UA 跑一遍，验证私教入口只在这个形态下出现、且聊天页在窄屏下不溢出。
+  { name: "apk-webview", width: 393, height: 851, expectSidebar: false, apk: true },
 ];
 
 // 本地起一个只读静态服务，把构建产物挂在 /family-edu/ 下（与线上路径一致）
@@ -130,6 +142,12 @@ try {
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
+      ...(viewport.apk
+        ? {
+            userAgent:
+              "Mozilla/5.0 (Linux; Android 14; V2312A Build/UP1A) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 HeYaAndroid/1.0",
+          }
+        : {}),
     });
     const page = await context.newPage();
     const errors = [];
@@ -189,6 +207,8 @@ try {
           primaryNav: navButtons.filter((button) => button.querySelector("svg")).map((button) => button.textContent.trim()),
           secondaryNav: navButtons.filter((button) => !button.querySelector("svg")).map((button) => button.textContent.trim()),
           hasHero: !!document.querySelector('[data-testid="child-hero"]'),
+          // 私教入口是设备形态开关：非安卓端不该出现在导航里
+          tutorInNav: (document.querySelector("aside")?.innerText || "").includes("学习私教"),
           subjectCards: document.querySelectorAll('[data-testid="subject-card"]').length,
           subjectNamesOnCard: [...document.querySelectorAll('[data-testid="subject-card"]')].map((card) => card.textContent.trim().slice(0, 2)),
           declaredSubjectsShown: ["语文", "数学", "英语", "科学"].every((subject) => text.includes(subject)),
@@ -233,6 +253,7 @@ try {
           homeLayout.order.subjects < homeLayout.order.tasks,
         allDeclaredSubjects: homeLayout.subjectCards === 4 && homeLayout.declaredSubjectsShown,
         honestEmptyState: homeLayout.emptyStateShown,
+        tutorNavMatchesDevice: viewport.apk ? homeLayout.tutorInNav === true : homeLayout.tutorInNav === false,
         // 窄屏下侧边栏是收起来的抽屉，导航结构留到抽屉那块再核对
         fivePrimaryAreas: viewport.expectSidebar
           ? homeLayout.primaryNav.length === 9 && homeLayout.secondaryNav.length === 3
@@ -287,6 +308,47 @@ try {
       await page.waitForTimeout(300);
     }
 
+    // 私教入口：只在安卓 APK 形态下出现，且聊天页在窄屏下要能正常输入。
+    let tutorProbe = null;
+    if (viewport.apk) {
+      await page.click("header button[aria-label='打开导航']");
+      await page.waitForTimeout(400);
+      // 桌面侧边栏和移动抽屉都渲染在 aside 里，窄屏下只有抽屉可见，所以要按可见性取。
+      const tutorNav = page.locator("aside nav button:visible", { hasText: "学习私教" }).first();
+      const entryVisible = await tutorNav.isVisible();
+      await tutorNav.click();
+      await page.waitForTimeout(600);
+      const tutor = await page.evaluate(() => {
+        const composer = document.querySelector('textarea[placeholder="说说你卡在哪一步"]');
+        const sendButton = document.querySelector('button[aria-label="发送"]');
+        const heading = document.querySelector("header div")?.textContent?.trim() || "";
+        const rect = (el) => (el ? el.getBoundingClientRect() : null);
+        const send = rect(sendButton);
+        return {
+          heading,
+          hasComposer: !!composer,
+          hasSend: !!sendButton,
+          // 发送键必须完整落在视口内，不能被裁掉
+          sendInsideViewport: send ? send.left >= 0 && send.right <= window.innerWidth + 1 : false,
+          overflowX: document.documentElement.scrollWidth - window.innerWidth,
+          emptyHint: (document.querySelector("main")?.innerText || "").includes("拍一张错题照片"),
+          evidenceNote: (document.querySelector("main")?.innerText || "").includes("要你确认后才进成长记录"),
+        };
+      });
+      await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-tutor.png`), fullPage: true });
+      tutorProbe = {
+        ...tutor,
+        entryVisible,
+        checks: {
+          entryOnlyOnApk: entryVisible,
+          chatReachable: tutor.heading === "学习私教" && tutor.hasComposer && tutor.hasSend,
+          composerFits: tutor.sendInsideViewport && tutor.overflowX <= 0,
+          honestEvidenceBoundary: tutor.evidenceNote,
+        },
+      };
+      await page.keyboard.press("Escape").catch(() => {});
+    }
+
     await page.screenshot({ path: path.join(outDir, `web-${viewport.name}.png`), fullPage: false });
 
     let drawer = null;
@@ -306,7 +368,7 @@ try {
       await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-drawer.png`), fullPage: false });
     }
 
-    report.push({ viewport: viewport.name, ...before, homeLayout, pageProbe, drawer, errors: [...new Set(errors)].slice(0, 4) });
+    report.push({ viewport: viewport.name, ...before, homeLayout, pageProbe, tutorProbe, drawer, errors: [...new Set(errors)].slice(0, 4) });
     await context.close();
   }
 } finally {
