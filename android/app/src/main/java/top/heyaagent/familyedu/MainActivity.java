@@ -14,8 +14,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -246,23 +244,6 @@ public class MainActivity extends Activity {
         });
 
         webView.setOnLongClickListener(view -> handleLongPress());
-
-        final GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
-            @Override
-            public boolean onFling(MotionEvent first, MotionEvent second, float velocityX, float velocityY) {
-                // 页面已在顶部时向下甩动 = 刷新，替代移动端常见的下拉刷新
-                if (first != null && velocityY > 900f && webView.getScrollY() == 0) {
-                    toast(getString(R.string.refreshing));
-                    reload();
-                    return true;
-                }
-                return false;
-            }
-        });
-        webView.setOnTouchListener((view, event) -> {
-            gestureDetector.onTouchEvent(event);
-            return false;
-        });
     }
 
     private void reload() {

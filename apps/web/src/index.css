@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 下拉不刷新页面。
+
+   手机上从顶部往下拉会触发浏览器的"下拉刷新"，整页重载、位置和正在做的事全丢；
+   这个页面本身每处都有「刷新」按钮，数据刷新走按钮就够，不需要整页重载。
+   contain 只挡掉"继续把滚动传给浏览器"这一步，页面内外的正常滚动不受影响。 */
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+
 body {
   margin: 0;
   min-width: 320px;

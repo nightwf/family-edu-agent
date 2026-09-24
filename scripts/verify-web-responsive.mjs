@@ -936,6 +936,37 @@ try {
 
     await page.screenshot({ path: path.join(outDir, `web-${viewport.name}.png`), fullPage: false });
 
+    // 下拉不刷新：页面里要挡掉浏览器的"下拉刷新"，但页面自己的滚动必须照常。
+    // 只加 CSS 不验证，很容易连正常滚动一起弄坏，所以这里两头都测。
+    const overscroll = await page.evaluate(() => {
+      const style = getComputedStyle(document.body);
+      const htmlStyle = getComputedStyle(document.documentElement);
+      return { body: style.overscrollBehaviorY, html: htmlStyle.overscrollBehaviorY };
+    });
+    const scrollGuard = await page.evaluate(async () => {
+      const read = () => ({
+        y: Math.round(window.scrollY),
+        mainTop: Math.round(document.querySelector("main")?.scrollTop ?? 0),
+      });
+      const before = read();
+      // 程序里的滚动只用来判断"还能不能滚"，真机上是手指滑动
+      window.scrollTo(0, 400);
+      document.querySelector("main")?.scrollTo(0, 400);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const after = read();
+      window.scrollTo(0, before.y);
+      document.querySelector("main")?.scrollTo(0, before.mainTop);
+      const scrollable = document.documentElement.scrollHeight > window.innerHeight + 4;
+      return {
+        moved: after.y > before.y || after.mainTop > before.mainTop,
+        scrollable,
+      };
+    });
+    const pullDown = {
+      blocked: overscroll.body === "contain" && overscroll.html === "contain",
+      scrollingStillWorks: !scrollGuard.scrollable || scrollGuard.moved,
+    };
+
     let drawer = null;
     if (!viewport.expectSidebar) {
       await page.click("header button[aria-label='打开导航']");
@@ -953,7 +984,7 @@ try {
       await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-drawer.png`), fullPage: false });
     }
 
-    report.push({ viewport: viewport.name, ...before, homeLayout, pageProbe, tutorProbe, drawer, errors: [...new Set(errors)].slice(0, 4) });
+    report.push({ viewport: viewport.name, ...before, homeLayout, pageProbe, tutorProbe, pullDown, drawer, errors: [...new Set(errors)].slice(0, 4) });
     await context.close();
   }
 
