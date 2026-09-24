@@ -29,7 +29,8 @@
     "smoke:plan-enum": "node scripts/mcp-plan-enum-smoke.mjs",
     "android:apk": "bash scripts/build-android-apk.sh",
     "android:icons": "node scripts/render-android-icons.mjs",
-    "verify:web-responsive": "node scripts/verify-web-responsive.mjs"
+    "verify:web-responsive": "node scripts/verify-web-responsive.mjs",
+    "check:doubao": "node scripts/check-doubao-models.mjs"
   },
   "devDependencies": {
     "prisma": "^6.5.0",

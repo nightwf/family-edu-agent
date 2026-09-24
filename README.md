@@ -180,6 +180,8 @@ deploy/                       腾讯云独立部署配置
 
 更多说明见 [技术架构](docs/ARCHITECTURE.md)、[WorkBuddy 同步规范](docs/workbuddy-sync-spec.md)、[内置学习私教](docs/TUTOR_AGENT_DESIGN.md)（含与 WorkBuddy 的分工边界、落地状态与验收口径）和 [教育方式按孩子维度分层](docs/CHILD_SCOPED_EDUCATION_DESIGN.md)（同一家庭不同孩子可以有各自的教育方式）。
 
+模型与语音凭据的开通步骤见 [豆包与火山语音开通清单](docs/doubao-setup.md)；拿到 Key 后用 `npm run check:doubao` 自检（会告出哪些模型 ID 真的能调，并给出该写入 `.env` 的值）。
+
 私教相关的环境变量集中在服务器 `.env`（见 `apps/api/src/env.ts` 的 `TUTOR_*`）：
 
 | 变量 | 用途 |

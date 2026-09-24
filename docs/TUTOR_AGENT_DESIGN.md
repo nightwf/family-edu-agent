@@ -835,3 +835,17 @@ MODERATION_API_KEY=
 3. 每日配额默认值与儿童语音原始音频是否留存（当前默认：每孩子 60 条消息、不留存原始音频）。
 
 在拿到凭据前，`TUTOR_ENABLED` 保持关闭：接口返回 503，前端隐藏入口，线上行为与上线前一致。
+
+### 21.5 凭据开通与自检
+
+开通步骤、按项对照的变量清单、以及"哪些地方最容易填错"见 [豆包与火山语音开通清单](doubao-setup.md)。
+
+拿到 API Key 后先跑自检，避免在控制台与 `.env` 之间反复试错：
+
+```bash
+TUTOR_CHAT_API_KEY=xxx npm run check:doubao
+npm run check:doubao -- --key=xxx --models=<模型ID> --vision
+```
+
+`scripts/check-doubao-models.mjs` 只发最小请求（`max_tokens=8`），会逐个探活候选模型 ID，
+把 401 / 未开通 / 欠费 / 限流翻成人话，并直接输出该写入 `.env` 的三行。视觉通道用 1x1 PNG 探活，不占流量。
