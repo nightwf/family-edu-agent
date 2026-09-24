@@ -120,6 +120,17 @@ export function useTutorVoice(options: {
     setSpeakingId("");
   }, []);
 
+  /**
+   * 立刻闭嘴，两路一起停：边到边念的队列，和孩子手动点「朗读」放的那一条。
+   *
+   * 只停其中一路就会留下"明明按停了还在念"的怪状态——孩子按录音、发新题、
+   * 开口插话时都得两路一起收，所以这里合成一个动作，别让调用方自己记着停两个。
+   */
+  const stopAllSpeech = useCallback(() => {
+    stopSpeech();
+    stopSpeaking();
+  }, [stopSpeech, stopSpeaking]);
+
   /** 念一条回答。再点一次同一条就是停止。 */
   const speak = useCallback(
     async (text: string, id: string) => {
@@ -290,6 +301,7 @@ export function useTutorVoice(options: {
     speaking,
     enqueueSpeech,
     stopSpeech,
+    stopAllSpeech,
     continuous,
     toggleContinuous,
     loopState,

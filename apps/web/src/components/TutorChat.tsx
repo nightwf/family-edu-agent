@@ -72,6 +72,30 @@ const LOOP_STATE_HINT: Record<string, string> = {
 };
 
 /**
+ * 自动朗读是个"偏好"，不是"这一次的选择"。
+ * 得存在本地：关掉之后再打开私教、换个孩子、刷新页面，它还得是关的。
+ * 浮窗一关 TutorChat 就卸载了，只放在组件里的话，下次打开又会自己开始念。
+ */
+const AUTO_READ_KEY = "familyEduTutorAutoRead";
+
+function readAutoReadPreference() {
+  try {
+    return localStorage.getItem(AUTO_READ_KEY) !== "0";
+  } catch {
+    // 拿不到 localStorage（无痕模式等）就按默认开着，不影响别的功能
+    return true;
+  }
+}
+
+function writeAutoReadPreference(value: boolean) {
+  try {
+    localStorage.setItem(AUTO_READ_KEY, value ? "1" : "0");
+  } catch {
+    // 存不下就算了，只是下次进来会回到默认值
+  }
+}
+
+/**
  * 内置学习私教的对话主体，装在外层浮窗里。
  * 与 WorkBuddy 接入共用同一份数据：这里聊出来的证据同样要家长确认后才生效。
  */
@@ -92,7 +116,7 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   const [notice, setNotice] = useState("");
   const [quotaLeft, setQuotaLeft] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
-  const [autoRead, setAutoRead] = useState(true);
+  const [autoRead, setAutoRead] = useState(readAutoReadPreference);
   /** 次要操作（记录/打印/新对话）按移动端惯例收进「更多」，标题栏才放得下孩子名字 */
   const [actionsOpen, setActionsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -100,8 +124,15 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   const recorderRef = useRef<MediaRecorder | null>(null);
   const pressTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
-  const autoReadRef = useRef(true);
+  const autoReadRef = useRef(autoRead);
   const voiceStatusRef = useRef(voiceStatus);
+  /**
+   * 这一轮回答的朗读被孩子自己打断了：他按了录音、发了新消息、关了开关，
+   * 或者干脆开口插了话。打断之后就不再自动接着念——剩下的片段、收尾时
+   * 整段兜底的那次朗读都算"自动"。想听只能自己点某条消息上的「朗读」。
+   * 发下一条新问题时清掉，否则开关开着也永远不会再出声。
+   */
+  const speechCutRef = useRef(false);
   const sendRef = useRef<(text: string) => void | Promise<void>>(async () => {});
   /** 私教正在说话时孩子插的话：先排队，等还在跑的那一轮收尾再发出去 */
   const pendingSpeechRef = useRef<string[]>([]);
@@ -142,6 +173,7 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
 
   useEffect(() => {
     autoReadRef.current = autoRead;
+    writeAutoReadPreference(autoRead);
   }, [autoRead]);
 
   // 录音期间被切到后台（来电、锁屏、切 App），抬起事件不会再来，
@@ -197,8 +229,21 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   const enqueueSpeechRef = useRef(voice.enqueueSpeech);
   enqueueSpeechRef.current = voice.enqueueSpeech;
   voiceStatusRef.current = voiceStatus;
-  const stopSpeechRef = useRef(voice.stopSpeech);
-  stopSpeechRef.current = voice.stopSpeech;
+  const stopAllSpeechRef = useRef(voice.stopAllSpeech);
+  stopAllSpeechRef.current = voice.stopAllSpeech;
+
+  /**
+   * 现在这条回答还允许自动出声吗。
+   * 开关关着、或者这一轮已经被孩子打断过，就都不许——
+   * 两处（流式片段、收尾兜底）必须是同一个判断，漏一个就会出现"关掉了还在念"。
+   */
+  const maySpeakAutomatically = () => autoReadRef.current && !speechCutRef.current;
+
+  /** 孩子自己动手打断：立刻停嘴，并且这一轮不再自动接着念。 */
+  const cutSpeech = () => {
+    speechCutRef.current = true;
+    stopAllSpeechRef.current();
+  };
 
   // 私教正在说话（生成中或正在念）时，把麦克风门槛抬高，
   // 免得喇叭里的声音被收回来，变成"自己打断自己"。
@@ -213,7 +258,9 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   bargeInRef.current = () => {
     const tutorTalking = busyRef.current || voice.speaking;
     if (!tutorTalking) return;
-    stopSpeechRef.current();
+    // 已经排进队列、或者下一秒还会到的那几句，都不能再放出来，
+    // 否则孩子一开口、私教停一下、然后接着念，听着像没理他。
+    cutSpeech();
     if (!conversationId) return;
     void fetch(`${apiBase}/api/tutor/conversations/${conversationId}/interrupt`, {
       method: "POST",
@@ -309,6 +356,11 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
       if (!conversationId || busyRef.current) return;
       if (!text && !extraAttachments.length) return;
 
+      // 孩子开始打新问题了：上一条还没念完的先停掉，别等他问完了喇叭还在念旧题。
+      // "这一轮别念"的标记保持清空——问的是新问题，按开关正常出声。
+      stopAllSpeechRef.current();
+      speechCutRef.current = false;
+
       const userMessage: Message = { id: `local-${Date.now()}`, role: "user", content: text || "（图片）" };
       const assistantId = `stream-${Date.now()}`;
       setMessages((current) => [
@@ -358,9 +410,11 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
             } else if (event.type === "replace") {
               setNotice(`有一段内容被替换了：${event.reason}`);
             } else if (event.type === "speech") {
-              // 边到边念：文本已经先一步出现在屏幕上，不等整段合成完
+              // 边到边念：文本已经先一步出现在屏幕上，不等整段合成完。
+              // 注意 speechStreamed 要无条件置上：服务端已经按句合成了，
+              // 收尾时就不该再整段念一遍——包括恰好在这一句上被孩子喊停的情况。
               speechStreamed = true;
-              enqueueSpeechRef.current(event.chunk, event.format);
+              if (maySpeakAutomatically()) enqueueSpeechRef.current(event.chunk, event.format);
             } else if (event.type === "speech_error") {
               setNotice(event.message);
             } else if (event.type === "interrupted") {
@@ -385,7 +439,7 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
         );
         // 自动朗读放在最后：先让孩子看到字，再听到声音，避免声音先于内容出现
         // 服务端没做按句合成（例如语音未开通）时才退回整段朗读，免得念两遍
-        if (answer.trim() && autoReadRef.current && !interrupted && !speechStreamed) {
+        if (answer.trim() && maySpeakAutomatically() && !interrupted && !speechStreamed) {
           void speakRef.current(answer, assistantId);
         }
         // 收尾了再叫醒排队等着的那几句插话
@@ -405,6 +459,8 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
     abortRef.current?.abort();
     busyRef.current = false;
     setBusy(false);
+    // 按下"停止"就是不想再听了：别再把这半截回答念出来
+    cutSpeech();
   }
 
   /**
@@ -414,6 +470,9 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
    */
   async function startRecording() {
     if (recording || recorderRef.current) return;
+    // 他要开口说话了：先把喇叭掐掉，别让私教的声音盖着他，
+    // 也别让没念完的那半句混进麦克风里被当成他在说。
+    cutSpeech();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks: Blob[] = [];
@@ -624,7 +683,19 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
                 type="button"
                 role="switch"
                 aria-checked={autoRead}
-                onClick={() => setAutoRead((current) => !current)}
+                onClick={() => {
+                  const next = !autoReadRef.current;
+                  // 立刻写进 ref：流式回来的下一句不该等到这次渲染提交才被拦住
+                  autoReadRef.current = next;
+                  setAutoRead(next);
+                  if (next) {
+                    // 重新打开就允许接着念
+                    speechCutRef.current = false;
+                  } else {
+                    // 关掉就是当场闭嘴。开关说关了还在念，等于开关是假的。
+                    cutSpeech();
+                  }
+                }}
                 aria-label={autoRead ? "关闭自动朗读" : "开启自动朗读"}
                 className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-white/70 pl-2.5 pr-1.5 font-bold text-ink-soft"
               >
@@ -647,7 +718,8 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
             {voice.speaking && (
               <button
                 type="button"
-                onClick={voice.stopSpeech}
+                // 这也是一次"我不想听了"：按完不能再自己接着念下一句
+                onClick={cutSpeech}
                 aria-label="停止朗读"
                 className="inline-flex h-8 items-center gap-1 rounded-full border border-line px-3 font-bold text-ink-soft"
               >
@@ -767,7 +839,12 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
                 {message.role === "assistant" && voiceStatus.tts && message.content && !message.pending && (
                   <button
                     type="button"
-                    onClick={() => void voice.speak(message.content, message.id)}
+                    onClick={() => {
+                      // 点「朗读」是明确要听：把"这一轮别再自动念"的标记松开，
+                      // 免得刚点了朗读、后面几段却又被自己之前的按键拦住。
+                      if (voice.speakingId !== message.id) speechCutRef.current = false;
+                      void voice.speak(message.content, message.id);
+                    }}
                     aria-label={voice.speakingId === message.id ? "停止朗读" : "朗读这段"}
                     className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-ink-soft hover:text-teal"
                   >

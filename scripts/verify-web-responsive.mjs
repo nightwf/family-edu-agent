@@ -105,7 +105,7 @@ function tutorTurnSse() {
 }
 
 /** 记录这一轮桩接口被打了哪些关键请求（每个形态重置一次）。 */
-const netProbe = { messagePosts: 0, interruptCalls: 0, conversationCreates: 0 };
+const netProbe = { messagePosts: 0, interruptCalls: 0, conversationCreates: 0, speakFlags: [] };
 
 /**
  * 给 Chromium 喂一段可控的"麦克风输入"：说 0.7 秒、停 1.6 秒，循环 5 遍。
@@ -241,6 +241,42 @@ const MIC_PROBE_SCRIPT = () => {
     ),
     streamsOpened: streams.length,
     trackStops,
+  });
+};
+
+/**
+ * 盯住所有 <audio> 的播放与停止。
+ *
+ * "有没有出声"这件事光看界面看不出来：按钮变成"停止"只代表它打算放，
+ * 不代表真的放了，也不代表后来真的停了。这里在原型上记一笔，
+ * 判定改成"应用有没有真的发起播放 / 有没有真的掐断"，并且看 currentTime
+ * 有没有往前走（证明那段 WAV 能解码、确实在放）。
+ */
+const AUDIO_PROBE_SCRIPT = () => {
+  const probe = { plays: [], pauses: 0, live: 0, elements: [] };
+  const mediaProto = HTMLMediaElement.prototype;
+  const originalPlay = mediaProto.play;
+  const originalPause = mediaProto.pause;
+  mediaProto.play = function play(...args) {
+    probe.plays.push(String(this.src || "").slice(0, 40));
+    probe.live += 1;
+    probe.elements.push(this);
+    this.addEventListener("ended", () => {
+      probe.live = Math.max(0, probe.live - 1);
+    });
+    return originalPlay.apply(this, args);
+  };
+  mediaProto.pause = function pause(...args) {
+    if (!this.paused) probe.live = Math.max(0, probe.live - 1);
+    probe.pauses += 1;
+    return originalPause.apply(this, args);
+  };
+  window.__audioProbe = () => ({
+    plays: probe.plays.length,
+    pauses: probe.pauses,
+    live: probe.live,
+    // 已经放到第几秒：>0 说明解码器真的吐出了音频，不是"点了没响"
+    maxTime: Math.max(0, ...probe.elements.map((element) => element.currentTime || 0)),
   });
 };
 
@@ -398,6 +434,9 @@ try {
       // 发消息：SSE 桩，含文本、语音片段与收尾，用来验证流式朗读
       if (/\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/.test(url) && route.request().method() === "POST") {
         netProbe.messagePosts += 1;
+        // 记下前端有没有让服务端合成语音：开关关掉时这里必须是 false，
+        // 光看界面上不出声不算数——服务端还在合成就是在白烧配额。
+        netProbe.speakFlags.push(route.request().postDataJSON?.()?.speak === true);
         await route.fulfill({
           status: 200,
           contentType: "text/event-stream; charset=utf-8",
@@ -1304,6 +1343,229 @@ try {
     });
     await idleContext.close();
     await idleBrowser.close();
+  }
+
+  /**
+   * 朗读开关和"打断"单独跑一遍。
+   *
+   * 两件事要在真实浏览器里验，光读代码看不出来：
+   * 1) 开关关掉之后必须一直是关的。浮窗一关，对话组件就整个卸载了，
+   *    只把开关放在组件里的话，下次打开它又自己开始念——这就是"关了还在自动朗读"。
+   * 2) 孩子一动手（按录音、发新问题），正在念的声音要立刻停，而且不能自己接上；
+   *    但新问题该念还得念，否则开关就成了摆设。
+   */
+  if (!liveUrlArg) {
+    const speechBrowser = await chromium.launch({
+      channel: "chrome",
+      args: [
+        "--use-fake-ui-for-media-stream",
+        "--use-fake-device-for-media-stream",
+        "--autoplay-policy=no-user-gesture-required",
+      ],
+    });
+    const speechContext = await speechBrowser.newContext({
+      viewport: { width: 393, height: 851 },
+      deviceScaleFactor: 2,
+      permissions: ["microphone"],
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14; V2312A Build/UP1A) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 HeYaAndroid/1.0",
+    });
+    const speechPage = await speechContext.newPage();
+    const speechErrors = [];
+    speechPage.on("pageerror", (error) => speechErrors.push(String(error.message).slice(0, 160)));
+    speechPage.on("console", (message) => {
+      if (message.type() === "error") speechErrors.push(message.text().slice(0, 160));
+    });
+
+    // 记下每一轮"前端有没有让服务端合成语音"：开关关掉时必须是 false。
+    // 只在界面上不出声不算数——服务端还在合成就是在白烧孩子的语音配额。
+    const speechNet = { speakFlags: [] };
+    await speechPage.route("**/api/**", async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (/\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/.test(url) && method === "POST") {
+        speechNet.speakFlags.push(route.request().postDataJSON?.()?.speak === true);
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream; charset=utf-8",
+          headers: { "access-control-allow-origin": "*" },
+          body: tutorTurnSse(),
+        });
+        return;
+      }
+      if (/\/api\/tutor\/voice\/speak(\?|$)/.test(url)) {
+        await route.fulfill({ status: 200, contentType: "audio/wav", body: speechWav });
+        return;
+      }
+      const match = stubs.find(([pattern]) => pattern.test(url));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify(match ? match[1]() : {}),
+      });
+    });
+    await speechPage.addInitScript(() => localStorage.setItem("familyEduToken", "responsive-check-token"));
+    await speechPage.addInitScript(AUDIO_PROBE_SCRIPT);
+    await speechPage.goto(baseUrl, { waitUntil: "networkidle" });
+    await speechPage.waitForTimeout(800);
+
+    const openTutor = async () => {
+      await speechPage.locator('[data-testid="tutor-dock-bubble"]').click();
+      await speechPage.locator('[data-testid="tutor-dock-window"]').waitFor({ state: "visible", timeout: 6000 });
+      // 会话要建好才能发消息，等输入框和发送键就位
+      await speechPage.locator('button[aria-label="发送"]').first().waitFor({ state: "visible", timeout: 8000 });
+      await speechPage.waitForTimeout(300);
+    };
+    const closeTutor = async () => {
+      await speechPage.locator('[data-testid="tutor-dock-window"] button[aria-label="收起私教"]').first().click();
+      await speechPage.waitForTimeout(500);
+    };
+    const autoReadSwitch = () =>
+      speechPage.locator('[data-testid="tutor-dock-window"] button[role="switch"]').first();
+    const audio = () => speechPage.evaluate(() => window.__audioProbe());
+    /** 这一轮回答是否已经收尾（发送键回来 = 不再 busy） */
+    const sendMessage = async (text) => {
+      await speechPage.locator('textarea[placeholder="说说你卡在哪一步"]').first().fill(text);
+      await speechPage.locator('button[aria-label="发送"]').first().click();
+      await speechPage.locator('button[aria-label="发送"]').first().waitFor({ state: "visible", timeout: 8000 });
+      await speechPage.waitForTimeout(250);
+    };
+    const waitForPlays = async (target, timeoutMs = 12_000) => {
+      const deadline = Date.now() + timeoutMs;
+      let last = await audio();
+      while (Date.now() < deadline) {
+        if (last.plays >= target) return last;
+        await speechPage.waitForTimeout(200);
+        last = await audio();
+      }
+      return last;
+    };
+
+    const speechProbe = {
+      defaultOn: false,
+      afterClickOff: false,
+      stillOffAfterReopen: false,
+      stillOffAfterReload: false,
+      silentTurn: null,
+      spokenTurn: null,
+      cutByRecording: null,
+      cutByNewQuestion: null,
+    };
+
+    await openTutor();
+    speechProbe.defaultOn = (await autoReadSwitch().getAttribute("aria-checked")) === "true";
+
+    // 关掉开关 —— 这就是家长做的那一下
+    await autoReadSwitch().click();
+    await speechPage.waitForTimeout(300);
+    speechProbe.afterClickOff = (await autoReadSwitch().getAttribute("aria-checked")) === "false";
+
+    // 关掉浮窗再打开：以前这里会回到"开"，也就是家长看到的"关了还在自动朗读"
+    await closeTutor();
+    await openTutor();
+    speechProbe.stillOffAfterReopen = (await autoReadSwitch().getAttribute("aria-checked")) === "false";
+
+    // 再刷新整个页面：偏好得是存下来的，不是这一次会话的运气
+    await speechPage.reload({ waitUntil: "networkidle" });
+    await speechPage.waitForTimeout(800);
+    await openTutor();
+    speechProbe.stillOffAfterReload = (await autoReadSwitch().getAttribute("aria-checked")) === "false";
+
+    // 开关是关的：这一轮不许出声，也不许让服务端去合成
+    const silentBefore = await audio();
+    await sendMessage("开关关着，别念");
+    await speechPage.waitForTimeout(1200);
+    const silentAfter = await audio();
+    speechProbe.silentTurn = {
+      speakFlag: speechNet.speakFlags.at(-1),
+      playsDelta: silentAfter.plays - silentBefore.plays,
+    };
+
+    // 打开开关：这一轮要念，而且真的在走时间（不是"点了没响"）
+    await autoReadSwitch().click();
+    await speechPage.waitForTimeout(300);
+    const spokenBefore = await audio();
+    await sendMessage("开关开着，念给我听");
+    const spokenTurn = await waitForPlays(spokenBefore.plays + 2);
+    speechProbe.spokenTurn = {
+      speakFlag: speechNet.speakFlags.at(-1),
+      playsDelta: spokenTurn.plays - spokenBefore.plays,
+      live: spokenTurn.live,
+      maxTime: Number(spokenTurn.maxTime.toFixed(2)),
+    };
+
+    // 孩子按下录音：声音要当场停，而且排队里那半句不能再放出来
+    const playsBeforeHold = (await audio()).plays;
+    const holdButton = speechPage.locator('button[aria-label="按住说话"]').first();
+    const holdBox = await holdButton.boundingBox();
+    await speechPage.mouse.move(holdBox.x + holdBox.width / 2, holdBox.y + holdBox.height / 2);
+    await speechPage.mouse.down();
+    await speechPage.waitForTimeout(600);
+    const duringHold = await audio();
+    await speechPage.mouse.up();
+    await speechPage.waitForTimeout(1500);
+    const afterHold = await audio();
+    speechProbe.cutByRecording = {
+      liveDuringHold: duringHold.live,
+      paused: duringHold.pauses > spokenBefore.pauses,
+      playsWhileHeld: duringHold.plays - playsBeforeHold,
+      playsAfterRelease: afterHold.plays - playsBeforeHold,
+      liveAfterRelease: afterHold.live,
+    };
+
+    // 问新问题：上一轮没念完的先停，新问题照样念
+    await sendMessage("那这道题再讲一遍");
+    const midTurn = await waitForPlays(playsBeforeHold + 2);
+    await sendMessage("等一下，先换个问题");
+    const newTurn = await waitForPlays(playsBeforeHold + 4);
+    speechProbe.cutByNewQuestion = {
+      playsForFirstTurn: midTurn.plays - playsBeforeHold,
+      playsTotal: newTurn.plays - playsBeforeHold,
+      pausesGrew: newTurn.pauses > afterHold.pauses,
+      speakFlag: speechNet.speakFlags.at(-1),
+    };
+
+    await speechPage.screenshot({ path: path.join(outDir, "web-apk-speech-control.png"), fullPage: false });
+    report.push({
+      viewport: "apk-speech-control",
+      speechProbe,
+      speakFlags: speechNet.speakFlags,
+      checks: {
+        // 开关的记忆：点一下关、关浮窗再开、整页刷新，三次都得还是关的
+        autoReadDefaultOn: speechProbe.defaultOn,
+        toggleTurnsOff: speechProbe.afterClickOff,
+        autoReadOffSurvivesReopen: speechProbe.stillOffAfterReopen,
+        autoReadOffSurvivesReload: speechProbe.stillOffAfterReload,
+        // 关着就是真的不出声，也不让服务端白烧配额
+        silentWhenOff: speechProbe.silentTurn?.speakFlag === false && speechProbe.silentTurn?.playsDelta === 0,
+        // 开着要念、有声音真的在放
+        speaksWhenOn:
+          speechProbe.spokenTurn?.speakFlag === true &&
+          speechProbe.spokenTurn?.playsDelta === 2 &&
+          speechProbe.spokenTurn?.live >= 1 &&
+          speechProbe.spokenTurn?.maxTime > 0,
+        // 按下录音：当场停嘴
+        recordingStopsPlayback:
+          speechProbe.cutByRecording?.liveDuringHold === 0 && speechProbe.cutByRecording?.paused === true,
+        // 而且不能自己接着念：排队里那半句永远不放，松开后也不复活
+        recordingDoesNotResume:
+          speechProbe.cutByRecording?.playsWhileHeld === 0 &&
+          speechProbe.cutByRecording?.playsAfterRelease === 0 &&
+          speechProbe.cutByRecording?.liveAfterRelease === 0,
+        // 发新问题：上一轮剩下那半句被丢掉（否则这里会多出一次播放）
+        newQuestionDropsQueuedSentence:
+          speechProbe.cutByNewQuestion?.playsForFirstTurn === 2 &&
+          speechProbe.cutByNewQuestion?.playsTotal === 4 &&
+          speechProbe.cutByNewQuestion?.pausesGrew === true,
+        // 新问题本身要照常念，不然开关等于白开
+        newQuestionStillSpoken: speechProbe.cutByNewQuestion?.speakFlag === true,
+        noPageErrors: speechErrors.length === 0,
+      },
+      errors: [...new Set(speechErrors)].slice(0, 4),
+    });
+    await speechContext.close();
+    await speechBrowser.close();
   }
 } finally {
   await browser.close();
