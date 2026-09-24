@@ -16,6 +16,7 @@ import { getVoiceStatus, synthesize, transcribe, VoiceNotConfiguredError } from 
 import { splitSentences } from "./voice/sentences.js";
 import { interruptTurn, registerTurn, releaseTurn } from "./inflight.js";
 import { renderWorksheet } from "./worksheet.js";
+import { readUploadedFile } from "../uploads.js";
 
 /**
  * /api/tutor/*：内置私教的对外接口。
@@ -336,7 +337,6 @@ export async function registerTutorRoutes(
     }
   });
 
-  /** 图片上传：走现有对象存储，只返回 key，发消息时携带。 */
   /**
    * 打断当前回合（孩子插话）。
    *
@@ -358,16 +358,15 @@ export async function registerTutorRoutes(
     const conversation = await findOwnConversation(familyId, conversationId);
     if (!conversation) return reply.code(404).send({ error: "会话不存在" });
 
-    const file = await (request as any).file?.().catch(() => null);
+    const file = await readUploadedFile(request);
     if (!file) return reply.code(400).send({ error: "没有收到文件" });
-    const buffer = await file.toBuffer();
-    if (buffer.length > 8 * 1024 * 1024) return reply.code(413).send({ error: "图片过大（上限 8MB）" });
+    if (file.buffer.length > 8 * 1024 * 1024) return reply.code(413).send({ error: "图片过大（上限 8MB）" });
 
     const contentType = file.mimetype || "application/octet-stream";
     if (!/^image\//.test(contentType)) return reply.code(400).send({ error: "只支持图片" });
 
     const key = `tutor/${familyId}/${conversationId}/${Date.now()}-${file.filename || "image"}`;
-    const stored = await saveFile(key, buffer, contentType);
+    const stored = await saveFile(key, file.buffer, contentType);
     return { objectKey: stored, contentType };
   });
 
@@ -441,13 +440,12 @@ export async function registerTutorRoutes(
   app.get("/api/tutor/voice/status", { preHandler: requireTutor as any }, async () => getVoiceStatus());
 
   app.post("/api/tutor/voice/transcribe", { preHandler: requireTutor as any }, async (request, reply) => {
-    const file = await (request as any).file?.().catch(() => null);
+    const file = await readUploadedFile(request);
     if (!file) return reply.code(400).send({ error: "没有收到音频" });
-    const buffer = await file.toBuffer();
-    if (buffer.length > 5 * 1024 * 1024) return reply.code(413).send({ error: "录音过大（上限 5MB）" });
+    if (file.buffer.length > 5 * 1024 * 1024) return reply.code(413).send({ error: "录音过大（上限 5MB）" });
     const format = (file.filename?.split(".").pop() || "mp3").toLowerCase();
     try {
-      const text = await transcribe(buffer, format);
+      const text = await transcribe(file.buffer, format);
       return { text };
     } catch (error) {
       const status = error instanceof VoiceNotConfiguredError ? 503 : 502;

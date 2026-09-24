@@ -169,7 +169,13 @@ export async function buildApp() {
     await app.register(cors, { origin: true });
     await app.register(jwt, { secret: env.JWT_SECRET });
     await app.register(formbody);
-    await app.register(multipart, { attachFieldsToBody: true });
+    await app.register(multipart, {
+        attachFieldsToBody: true,
+        // @fastify/multipart 的 fileSize 默认跟随 Fastify 的 bodyLimit（1MB），手机拍的作业照
+        // 会在这里就被截断，用户看到的是框架级 413。统一放宽到 16MB（本仓库最大的业务上限是
+        // 题库附件的 15MB），各接口再用自己的上限给出可读的报错。
+        limits: { fileSize: 16 * 1024 * 1024 },
+    });
     await app.register(fastifyStatic, { root: path.resolve(process.cwd(), env.WEB_DIST), prefix: "/" });
     app.get("/api/health", async () => ({ ok: true, service: "family-edu-agent" }));
     app.post("/api/auth/register", async (request, reply) => {
