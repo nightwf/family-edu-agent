@@ -148,5 +148,10 @@ scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
 ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER mkdir -p /app/.verify/lib && docker cp /tmp/verify-online.mjs $CONTAINER:/app/.verify/verify-online.mjs && docker cp /tmp/sse-parse.mjs $CONTAINER:/app/.verify/lib/sse-parse.mjs"
 ssh "${SSH_OPTS[@]}" "$HOST" "docker exec -e BASE_URL=http://127.0.0.1:4100 $CONTAINER node /app/.verify/verify-online.mjs --roundtrip"
 
+say "行为验证：讲题不给答案 / 问到兄弟姐妹要收回（真模型，只读数据）"
+scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
+  "$REPO_ROOT/scripts/verify-tutor-behavior.mjs" "$HOST:/tmp/"
+ssh "${SSH_OPTS[@]}" "$HOST" "docker cp /tmp/verify-tutor-behavior.mjs $CONTAINER:/app/.verify/verify-tutor-behavior.mjs && docker exec $CONTAINER node /app/.verify/verify-tutor-behavior.mjs"
+
 echo ""
 echo "完成。若上面 roundTrip 里 textLength 大于 0，说明模型真的在回答。"

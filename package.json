@@ -31,7 +31,8 @@
     "android:icons": "node scripts/render-android-icons.mjs",
     "verify:web-responsive": "node scripts/verify-web-responsive.mjs",
     "check:doubao": "node scripts/check-doubao-models.mjs",
-    "test:ops": "node scripts/test-upsert-env.mjs && node scripts/test-sse-parse.mjs && node scripts/test-api-shapes.mjs"
+    "test:ops": "node scripts/test-upsert-env.mjs && node scripts/test-sse-parse.mjs && node scripts/test-api-shapes.mjs",
+    "verify:tutor-behavior": "node scripts/verify-tutor-behavior.mjs"
   },
   "devDependencies": {
     "prisma": "^6.5.0",
