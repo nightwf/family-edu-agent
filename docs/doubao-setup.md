@@ -108,7 +108,11 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=doubao-seed-1-6-250615
 语音凭据一起给的话直接追加参数即可：
 
 ```bash
-# 新版：一把 API Key + 一个音色 ID
+# 新版：一把 API Key + 一个音色 ID（最省事，两栏自动都填同一把 Key）
+bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
+  --voice-api-key=xxx --tts-speaker=zh_female_vv_uranus_bigtts
+
+# 等价写法：分别给两栏（只给其中一栏时，另一栏会自动用同一把 Key）
 bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
   --tts-api-key=xxx --tts-speaker=zh_female_vv_uranus_bigtts
 
@@ -156,6 +160,9 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
    **一把 Key 同时覆盖识别与合成**，不用去凑 App ID / Access Token / Cluster 三件套，
    也不用给识别和合成各建应用；
 3. 到「音色库」里抄一个**音色 ID**（形如 `zh_female_vv_uranus_bigtts`），给合成用。
+
+> 已与控制台确认：识别与合成**共用同一把 Key**。所以代码与配置脚本都按"填一栏等于两栏"处理，
+> 不会出现"Key 配了、但语音按钮还是不出现"的半开通状态。真出现两把不同的 Key 也能分别填，各用各的。
 
 只有在新版控制台找不到入口、或账号是老版时，才走下面的**旧版三件套**（代码两条路都兼容）：
 

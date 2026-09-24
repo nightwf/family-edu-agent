@@ -1,4 +1,5 @@
 import { env } from "../../env.js";
+import { resolveVoiceCredentials } from "./credentials.js";
 
 /**
  * 语音能力抽象：识别（ASR）与合成（TTS）。
@@ -16,12 +17,22 @@ export type VoiceStatus = {
   tts: boolean;
 };
 
+/** 识别与合成共用同一把 API Key（新版控制台），只填一栏也当两栏都有 */
+function credentials() {
+  return resolveVoiceCredentials({
+    asrApiKey: env.TUTOR_ASR_API_KEY,
+    ttsApiKey: env.TUTOR_TTS_API_KEY,
+    ttsSpeaker: env.TUTOR_TTS_SPEAKER,
+    ttsVoiceType: env.TUTOR_TTS_VOICE_TYPE,
+    asrAppId: env.TUTOR_ASR_APP_ID,
+    asrAccessToken: env.TUTOR_ASR_ACCESS_TOKEN,
+    ttsAppId: env.TUTOR_TTS_APP_ID,
+    ttsAccessToken: env.TUTOR_TTS_ACCESS_TOKEN,
+  });
+}
+
 export function getVoiceStatus(): VoiceStatus {
-  return {
-    asr: Boolean(env.TUTOR_ASR_API_KEY || (env.TUTOR_ASR_APP_ID && env.TUTOR_ASR_ACCESS_TOKEN)),
-    // 新版合成必须要音色 ID，没音色等于没开通
-    tts: Boolean((env.TUTOR_TTS_API_KEY && env.TUTOR_TTS_SPEAKER) || (env.TUTOR_TTS_APP_ID && env.TUTOR_TTS_ACCESS_TOKEN)),
-  };
+  return credentials().status;
 }
 
 export class VoiceNotConfiguredError extends Error {
@@ -37,15 +48,16 @@ export class VoiceNotConfiguredError extends Error {
  * 上层（前端与路由）不感知厂商差异。
  */
 export async function synthesize(text: string, voiceType?: string): Promise<{ audio: Buffer; contentType: string }> {
-  if (!getVoiceStatus().tts) throw new VoiceNotConfiguredError("tts");
+  const resolved = credentials();
+  if (!resolved.status.tts) throw new VoiceNotConfiguredError("tts");
 
-  if (env.TUTOR_TTS_API_KEY) {
+  if (resolved.ttsApiKey) {
     const { createVolcTtsV3 } = await import("./volcengine.js");
     return createVolcTtsV3({
-      apiKey: env.TUTOR_TTS_API_KEY,
+      apiKey: resolved.ttsApiKey,
       resourceId: env.TUTOR_TTS_RESOURCE_ID,
       // 前端传音色时以调用方为准，否则用后台配的那个
-      speaker: voiceType || env.TUTOR_TTS_SPEAKER,
+      speaker: voiceType || resolved.speaker,
       speechRate: env.TUTOR_TTS_SPEECH_RATE,
     }).synthesize(text);
   }
@@ -55,7 +67,7 @@ export async function synthesize(text: string, voiceType?: string): Promise<{ au
     appId: env.TUTOR_TTS_APP_ID,
     accessToken: env.TUTOR_TTS_ACCESS_TOKEN,
     cluster: env.TUTOR_TTS_CLUSTER,
-    voiceType: voiceType || env.TUTOR_TTS_VOICE_TYPE,
+    voiceType: voiceType || resolved.speaker,
   }).synthesize(text);
 }
 
@@ -64,10 +76,11 @@ export async function synthesize(text: string, voiceType?: string): Promise<{ au
  * 儿童语音识别准确率明显低于成人：上线前必须用真实儿童录音实测。
  */
 export async function transcribe(audio: Buffer, format: string): Promise<string> {
-  if (!getVoiceStatus().asr) throw new VoiceNotConfiguredError("asr");
+  const resolved = credentials();
+  if (!resolved.status.asr) throw new VoiceNotConfiguredError("asr");
   const { createVolcAsr } = await import("./volcengine.js");
   return createVolcAsr({
-    apiKey: env.TUTOR_ASR_API_KEY || undefined,
+    apiKey: resolved.asrApiKey || undefined,
     appId: env.TUTOR_ASR_APP_ID,
     accessToken: env.TUTOR_ASR_ACCESS_TOKEN,
     cluster: env.TUTOR_ASR_CLUSTER || env.TUTOR_ASR_RESOURCE_ID,

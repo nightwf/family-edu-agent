@@ -13,7 +13,9 @@
 #   bash scripts/enable-tutor.sh --disable          # 关掉私教（回滚）
 #
 # 语音凭据可选（推荐新版控制台的 API Key，一个 Key 覆盖识别与合成）：
+#   --voice-api-key= --tts-speaker=        # 最省事：一把 Key + 一个音色
 #   --asr-api-key= --tts-api-key= --tts-speaker= [--asr-resource-id=] [--tts-resource-id=] [--tts-speech-rate=]
+# 只给其中一栏时，另一栏自动用同一把 Key（识别与合成共用），不会出现半个功能关着。
 # 旧版控制台三件套也仍可用：
 #   --asr-app-id= --asr-token= --asr-cluster= --tts-app-id= --tts-token= --tts-cluster= --tts-voice=
 
@@ -39,6 +41,7 @@ for arg in "$@"; do
     --chat-model=*) CHAT_MODEL="${arg#*=}" ;;
     --vision-model=*) VISION_MODEL="${arg#*=}" ;;
     --base-url=*) BASE_URL="${arg#*=}" ;;
+    --voice-api-key=*) ASR_API_KEY="${arg#*=}"; TTS_API_KEY="${arg#*=}" ;;
     --asr-api-key=*) ASR_API_KEY="${arg#*=}" ;;
     --asr-resource-id=*) ASR_RESOURCE_ID="${arg#*=}" ;;
     --tts-api-key=*) TTS_API_KEY="${arg#*=}" ;;
@@ -59,6 +62,16 @@ for arg in "$@"; do
     *) echo "未知参数：${arg}（用 --help 看用法）" >&2; exit 2 ;;
   esac
 done
+
+# 火山新版控制台：识别与合成共用同一把 API Key。只填一栏时补另一栏，
+# 否则会出现"配了 Key，但语音按钮还是不出现"的怪状态。
+if [ -n "$ASR_API_KEY" ] && [ -z "$TTS_API_KEY" ]; then TTS_API_KEY="$ASR_API_KEY"; fi
+if [ -n "$TTS_API_KEY" ] && [ -z "$ASR_API_KEY" ]; then ASR_API_KEY="$TTS_API_KEY"; fi
+
+# 新版合成都到这里了却没音色，等于白配：当场说清楚，别等上线后才发现念不出声。
+if [ -n "$TTS_API_KEY" ] && [ -z "$TTS_SPEAKER" ] && [ -z "$TTS_VOICE" ]; then
+  echo "警告：给了语音 API Key 但没给音色（--tts-speaker=），合成会被判定为未开通。" >&2
+fi
 
 say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
