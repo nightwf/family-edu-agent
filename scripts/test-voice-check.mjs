@@ -35,6 +35,23 @@ it("token 类报错指向「语音技术凭据」，避免与方舟 API Key 混�
   assert.match(message, /方舟 API Key/);
 });
 
+it("新版 API Key 无效时给出的是 API Key 的处置，而不是误指向 Access Token", () => {
+  // 真实上游返回长这样：错误码藏在 header 里
+  const message = humanizeVoiceError({
+    part: "tts",
+    status: 401,
+    body: { header: { reqid: "1", code: 45000010, message: "Invalid X-Api-Key" } },
+  });
+  assert.match(message, /API Key 无效/);
+  assert.match(message, /code=45000010/);
+  assert.doesNotMatch(message, /Access Token 不对/);
+});
+
+it("错误码在 header 里时也能取出来展示", () => {
+  const message = humanizeVoiceError({ part: "asr", status: 200, body: { header: { code: 45000001, message: "boom" } } });
+  assert.match(message, /code=45000001/);
+});
+
 it("未开通 / 配额 / 音色 分别给出不同动作", () => {
   assert.match(humanizeVoiceError({ part: "asr", status: 200, body: { message: "service not activated" } }), /没开通/);
   assert.match(humanizeVoiceError({ part: "asr", status: 200, body: { message: "quota exceeded" } }), /配额/);

@@ -191,8 +191,9 @@ deploy/                       腾讯云独立部署配置
 | `TUTOR_ENABLED` | 总开关，关闭时接口返回 503 且前端隐藏入口 |
 | `TUTOR_CHAT_API_KEY` / `TUTOR_CHAT_BASE_URL` / `TUTOR_CHAT_MODEL` | 豆包（火山方舟）对话模型，默认接入点 `ark.cn-beijing.volces.com/api/v3` |
 | `TUTOR_VISION_MODEL` | 拍图识题用的视觉模型 |
-| `TUTOR_ASR_APP_ID` / `TUTOR_ASR_ACCESS_TOKEN` / `TUTOR_ASR_CLUSTER` | 语音识别（火山「语音技术」单独开通） |
-| `TUTOR_TTS_APP_ID` / `TUTOR_TTS_ACCESS_TOKEN` / `TUTOR_TTS_CLUSTER` / `TUTOR_TTS_VOICE_TYPE` | 语音合成 |
+| `TUTOR_ASR_API_KEY` / `TUTOR_ASR_RESOURCE_ID` | 语音识别（火山「语音技术」单独开通）。新版控制台一把 API Key 即可，资源标识默认 `volc.bigasr.auc_turbo` |
+| `TUTOR_TTS_API_KEY` / `TUTOR_TTS_SPEAKER` / `TUTOR_TTS_RESOURCE_ID` | 语音合成，Key 与识别共用同一把，`TUTOR_TTS_SPEAKER` 填控制台音色 ID，资源标识默认 `seed-tts-2.0` |
+| `TUTOR_ASR_APP_ID` / `TUTOR_ASR_ACCESS_TOKEN` / `TUTOR_ASR_CLUSTER` / `TUTOR_TTS_APP_ID` / `TUTOR_TTS_ACCESS_TOKEN` / `TUTOR_TTS_CLUSTER` / `TUTOR_TTS_VOICE_TYPE` | 旧版控制台的三件套回退路径，新版 API Key 到位后不需要填 |
 | `TUTOR_DAILY_MESSAGE_LIMIT` / `TUTOR_DAILY_TOKEN_LIMIT` | 配额：每孩子每日消息数（默认 60）与 token 上限（0 = 不单独限制） |
 | `TUTOR_MAX_TOOL_ROUNDS` / `TUTOR_REQUEST_TIMEOUT_MS` / `TUTOR_TOOL_RESULT_LIMIT` | 单轮工具调用上限（6 轮）、超时（45 秒）、工具结果截断（6KB） |
 | `TUTOR_CONTEXT_WINDOW_TURNS` / `TUTOR_MODERATION_ENABLED` | 上下文窗口轮数（12）与内容审核开关 |

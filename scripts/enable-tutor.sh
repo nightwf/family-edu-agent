@@ -12,7 +12,9 @@
 #   bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 --vision-model=m2 --dry-run
 #   bash scripts/enable-tutor.sh --disable          # 关掉私教（回滚）
 #
-# 语音凭据可选：
+# 语音凭据可选（推荐新版控制台的 API Key，一个 Key 覆盖识别与合成）：
+#   --asr-api-key= --tts-api-key= --tts-speaker= [--asr-resource-id=] [--tts-resource-id=] [--tts-speech-rate=]
+# 旧版控制台三件套也仍可用：
 #   --asr-app-id= --asr-token= --asr-cluster= --tts-app-id= --tts-token= --tts-cluster= --tts-voice=
 
 set -euo pipefail
@@ -26,6 +28,7 @@ SSH_OPTS=(-i "$SSH_KEY" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyCh
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 KEY=""; CHAT_MODEL=""; VISION_MODEL=""; BASE_URL=""
+ASR_API_KEY=""; ASR_RESOURCE_ID=""; TTS_API_KEY=""; TTS_RESOURCE_ID=""; TTS_SPEAKER=""; TTS_SPEECH_RATE=""
 ASR_APP_ID=""; ASR_TOKEN=""; ASR_CLUSTER=""
 TTS_APP_ID=""; TTS_TOKEN=""; TTS_CLUSTER=""; TTS_VOICE=""
 DRY_RUN=false; DISABLE=false; SKIP_PROBE=false
@@ -36,6 +39,12 @@ for arg in "$@"; do
     --chat-model=*) CHAT_MODEL="${arg#*=}" ;;
     --vision-model=*) VISION_MODEL="${arg#*=}" ;;
     --base-url=*) BASE_URL="${arg#*=}" ;;
+    --asr-api-key=*) ASR_API_KEY="${arg#*=}" ;;
+    --asr-resource-id=*) ASR_RESOURCE_ID="${arg#*=}" ;;
+    --tts-api-key=*) TTS_API_KEY="${arg#*=}" ;;
+    --tts-resource-id=*) TTS_RESOURCE_ID="${arg#*=}" ;;
+    --tts-speaker=*) TTS_SPEAKER="${arg#*=}" ;;
+    --tts-speech-rate=*) TTS_SPEECH_RATE="${arg#*=}" ;;
     --asr-app-id=*) ASR_APP_ID="${arg#*=}" ;;
     --asr-token=*) ASR_TOKEN="${arg#*=}" ;;
     --asr-cluster=*) ASR_CLUSTER="${arg#*=}" ;;
@@ -80,6 +89,12 @@ else
   PAIRS=(--set=TUTOR_ENABLED=true --set=TUTOR_CHAT_API_KEY="$KEY" --set=TUTOR_CHAT_MODEL="$CHAT_MODEL")
   [ -n "$VISION_MODEL" ] && PAIRS+=(--set=TUTOR_VISION_MODEL="$VISION_MODEL")
   [ -n "$BASE_URL" ] && PAIRS+=(--set=TUTOR_CHAT_BASE_URL="$BASE_URL")
+  [ -n "$ASR_API_KEY" ] && PAIRS+=(--set=TUTOR_ASR_API_KEY="$ASR_API_KEY")
+  [ -n "$ASR_RESOURCE_ID" ] && PAIRS+=(--set=TUTOR_ASR_RESOURCE_ID="$ASR_RESOURCE_ID")
+  [ -n "$TTS_API_KEY" ] && PAIRS+=(--set=TUTOR_TTS_API_KEY="$TTS_API_KEY")
+  [ -n "$TTS_RESOURCE_ID" ] && PAIRS+=(--set=TUTOR_TTS_RESOURCE_ID="$TTS_RESOURCE_ID")
+  [ -n "$TTS_SPEAKER" ] && PAIRS+=(--set=TUTOR_TTS_SPEAKER="$TTS_SPEAKER")
+  [ -n "$TTS_SPEECH_RATE" ] && PAIRS+=(--set=TUTOR_TTS_SPEECH_RATE="$TTS_SPEECH_RATE")
   [ -n "$ASR_APP_ID" ] && PAIRS+=(--set=TUTOR_ASR_APP_ID="$ASR_APP_ID")
   [ -n "$ASR_TOKEN" ] && PAIRS+=(--set=TUTOR_ASR_ACCESS_TOKEN="$ASR_TOKEN")
   [ -n "$ASR_CLUSTER" ] && PAIRS+=(--set=TUTOR_ASR_CLUSTER="$ASR_CLUSTER")

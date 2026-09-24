@@ -847,7 +847,11 @@ MODERATION_API_KEY=
 
 ### 21.4.1 仍未完成
 
-1. 火山「语音技术」尚未开通 —— 识别与合成各需 App ID / Access Token（协议实现已按火山文档写好，**待真实凭据核实**，尤其 cluster 与音色 ID）。**要开的只有两项**：语音合成、录音文件识别（极速版/大模型）；流式识别与端到端语音大模型都不用开。凭据到手跑 `npm run check:voice` 一步验通；
+1. 火山「语音技术」尚未开通 —— 协议实现已按火山文档写好并按**新版控制台 API Key 鉴权**改造，
+   **待真实凭据核实**（尤其音色 ID）。**要开的只有两项**：语音合成（大模型）、录音文件识别（极速版）；
+   流式识别、端到端语音大模型、以及**录音文件识别「标准版」**（异步 submit+轮询，本项目没走）都不用开。
+   新版一把 API Key 同时覆盖识别与合成，不必去凑 App ID / Access Token / Cluster；
+   代码保留旧版三件套作为回退路径。凭据到手跑 `npm run check:voice -- --api-key=xxx --speaker=xxx` 一步验通；
 2. 真机人工验收的剩余部分：拍**真实中文手写作业照**识题（合成题目图已通过，见 21.4.3）、多轮问答质量、孩子端体验。其中"讲题不给答案""问到兄弟姐妹要收回""跨孩子/跨家庭隔离"已由上面的行为验证与用例覆盖；
 3. 每日配额默认值与儿童语音原始音频是否留存由 jojo 确认（当前默认：每孩子 60 条消息、不留存原始音频）。
 
@@ -915,11 +919,18 @@ npm run check:doubao -- --key=xxx --models=<模型ID> --vision
 把 401 / 未开通 / 欠费 / 限流翻成人话，并直接输出该写入 `.env` 的三行。
 
 语音凭据用 `npm run check:voice` 自检（**合成一句 → 把音频回灌识别**的闭环，一次证明
-凭据 + cluster + 音色三样全对；火山语音的业务错误藏在 HTTP 200 的正文里、
+凭据 + 资源标识 + 音色三样全对；火山语音的业务错误藏在 HTTP 200 的正文里、
 识别失败时 code 在响应头里，脚本与服务端都会把上游原始 code/message 原样透出）。
-要开的具体就是两项：**语音合成** 与 **录音文件识别（极速版/大模型）**，
+优先用新版控制台的 API Key：`npm run check:voice -- --api-key=xxx --speaker=xxx`
+（`--speaker` 从控制台「音色库」抄）；旧版控制台的 App ID / Access Token 三件套仍可用。
+要开的具体就是两项：**语音合成（大模型）** 与 **录音文件识别（极速版）**，
 流式识别与端到端语音大模型都不用开（见 21.4.1）。
-自检判定逻辑的用例见 `scripts/test-voice-check.mjs`（9 项，已并入 `npm test`）。
+自检判定逻辑的用例见 `scripts/test-voice-check.mjs`（11 项，已并入 `npm test`）。
+合成新版走 `/api/v3/tts/unidirectional`，返回的是**一串 JSON 对象**（chunked 流，
+可能切在 JSON 中间），解析器 `apps/api/src/tutor/voice/json-stream.ts` 按大括号配对处理，
+用例 `json-stream.test.ts` 覆盖 1~7 字符任意切分与半截对象；旧版 `/api/v1/tts` 保留。
+另外 `scripts/test-compose-env.mjs` 会比对 `env.ts` 声明与 `docker-compose.yml` 白名单，
+防止"只改 `.env`、配置没进容器"再次发生（同样并入 `npm test`）。
 
 视觉通道用**自生成的 16x16 纯红 PNG** 探活（1x1 会被上游判成"尺寸过小"，
 看起来像"不支持读图"，实际是探针不合法），不占流量。

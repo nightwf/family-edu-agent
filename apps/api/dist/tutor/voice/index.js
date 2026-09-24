@@ -1,8 +1,9 @@
 import { env } from "../../env.js";
 export function getVoiceStatus() {
     return {
-        asr: Boolean(env.TUTOR_ASR_APP_ID && env.TUTOR_ASR_ACCESS_TOKEN),
-        tts: Boolean(env.TUTOR_TTS_APP_ID && env.TUTOR_TTS_ACCESS_TOKEN),
+        asr: Boolean(env.TUTOR_ASR_API_KEY || (env.TUTOR_ASR_APP_ID && env.TUTOR_ASR_ACCESS_TOKEN)),
+        // 新版合成必须要音色 ID，没音色等于没开通
+        tts: Boolean((env.TUTOR_TTS_API_KEY && env.TUTOR_TTS_SPEAKER) || (env.TUTOR_TTS_APP_ID && env.TUTOR_TTS_ACCESS_TOKEN)),
     };
 }
 export class VoiceNotConfiguredError extends Error {
@@ -19,6 +20,16 @@ export class VoiceNotConfiguredError extends Error {
 export async function synthesize(text, voiceType) {
     if (!getVoiceStatus().tts)
         throw new VoiceNotConfiguredError("tts");
+    if (env.TUTOR_TTS_API_KEY) {
+        const { createVolcTtsV3 } = await import("./volcengine.js");
+        return createVolcTtsV3({
+            apiKey: env.TUTOR_TTS_API_KEY,
+            resourceId: env.TUTOR_TTS_RESOURCE_ID,
+            // 前端传音色时以调用方为准，否则用后台配的那个
+            speaker: voiceType || env.TUTOR_TTS_SPEAKER,
+            speechRate: env.TUTOR_TTS_SPEECH_RATE,
+        }).synthesize(text);
+    }
     const { createVolcTts } = await import("./volcengine.js");
     return createVolcTts({
         appId: env.TUTOR_TTS_APP_ID,
@@ -36,8 +47,9 @@ export async function transcribe(audio, format) {
         throw new VoiceNotConfiguredError("asr");
     const { createVolcAsr } = await import("./volcengine.js");
     return createVolcAsr({
+        apiKey: env.TUTOR_ASR_API_KEY || undefined,
         appId: env.TUTOR_ASR_APP_ID,
         accessToken: env.TUTOR_ASR_ACCESS_TOKEN,
-        cluster: env.TUTOR_ASR_CLUSTER,
+        cluster: env.TUTOR_ASR_CLUSTER || env.TUTOR_ASR_RESOURCE_ID,
     }).transcribe(audio, format);
 }

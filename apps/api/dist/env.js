@@ -32,9 +32,17 @@ export const env = {
     TUTOR_DAILY_MESSAGE_LIMIT: Number(process.env.TUTOR_DAILY_MESSAGE_LIMIT || 60),
     TUTOR_DAILY_TOKEN_LIMIT: Number(process.env.TUTOR_DAILY_TOKEN_LIMIT || 0),
     TUTOR_MODERATION_ENABLED: process.env.TUTOR_MODERATION_ENABLED !== "false",
+    // 语音：新版控制台只要 API Key（单头鉴权）；旧版控制台才需要 AppID/Token/Cluster。
+    // 文档明确旧版控制台后续会下线，所以有 Key 就优先走 Key。
+    TUTOR_ASR_API_KEY: process.env.TUTOR_ASR_API_KEY || "",
+    TUTOR_ASR_RESOURCE_ID: process.env.TUTOR_ASR_RESOURCE_ID || "volc.bigasr.auc_turbo",
     TUTOR_ASR_APP_ID: process.env.TUTOR_ASR_APP_ID || "",
     TUTOR_ASR_ACCESS_TOKEN: process.env.TUTOR_ASR_ACCESS_TOKEN || "",
     TUTOR_ASR_CLUSTER: process.env.TUTOR_ASR_CLUSTER || "",
+    TUTOR_TTS_API_KEY: process.env.TUTOR_TTS_API_KEY || "",
+    TUTOR_TTS_RESOURCE_ID: process.env.TUTOR_TTS_RESOURCE_ID || "seed-tts-2.0",
+    TUTOR_TTS_SPEAKER: process.env.TUTOR_TTS_SPEAKER || "",
+    TUTOR_TTS_SPEECH_RATE: Number(process.env.TUTOR_TTS_SPEECH_RATE ?? 0),
     TUTOR_TTS_APP_ID: process.env.TUTOR_TTS_APP_ID || "",
     TUTOR_TTS_ACCESS_TOKEN: process.env.TUTOR_TTS_ACCESS_TOKEN || "",
     TUTOR_TTS_CLUSTER: process.env.TUTOR_TTS_CLUSTER || "",

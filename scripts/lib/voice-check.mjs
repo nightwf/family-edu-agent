@@ -14,7 +14,9 @@ export function humanizeVoiceError({ part, status, body }) {
   const raw = typeof body === "string" ? body : JSON.stringify(body ?? {});
   const text = raw.slice(0, 300);
   const lower = text.toLowerCase();
-  const code = body && typeof body === "object" ? (body.code ?? body.Code) : undefined;
+  // 火山语音的错误码位置不固定：有的是顶层 code，有的藏在 header.code 里
+  const code =
+    body && typeof body === "object" ? (body.code ?? body.Code ?? body.header?.code ?? body.header?.Code) : undefined;
   const detail = code !== undefined ? `（上游 code=${code}，原文：${text}）` : `（HTTP ${status}，原文：${text}）`;
 
   const what = part === "tts" ? "语音合成" : "语音识别";
@@ -22,7 +24,11 @@ export function humanizeVoiceError({ part, status, body }) {
   if (lower.includes("appid") || lower.includes("app id")) {
     return `${what}失败：App ID 不对${detail}`;
   }
-  if (status === 401 || status === 403 || lower.includes("token") || lower.includes("authentic") || lower.includes("unauthor")) {
+  // 先分辨是哪一套凭据，否则会把"API Key 填错"误导成"Access Token 填错"
+  if (lower.includes("x-api-key") || lower.includes("invalid api key") || lower.includes("apikey")) {
+    return `${what}失败：API Key 无效（去控制台「API Key 管理」重新复制；注意别和豆包方舟那把 ark- 开头的 Key 混）${detail}`;
+  }
+  if (status === 401 || status === 403 || lower.includes("token") || lower.includes("access key") || lower.includes("authentic") || lower.includes("unauthor")) {
     return `${what}失败：Access Token 不对或没权限（确认用的是「语音技术」应用的凭据，不是方舟 API Key）${detail}`;
   }
   if (lower.includes("cluster")) {

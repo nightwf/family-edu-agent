@@ -31,10 +31,10 @@
     "android:icons": "node scripts/render-android-icons.mjs",
     "verify:web-responsive": "node scripts/verify-web-responsive.mjs",
     "check:doubao": "node scripts/check-doubao-models.mjs",
-    "test:ops": "node scripts/test-upsert-env.mjs && node scripts/test-sse-parse.mjs && node scripts/test-api-shapes.mjs && node scripts/test-voice-check.mjs",
+    "test:ops": "node scripts/test-upsert-env.mjs && node scripts/test-sse-parse.mjs && node scripts/test-api-shapes.mjs && node scripts/test-voice-check.mjs && node scripts/test-compose-env.mjs",
     "verify:tutor-behavior": "node scripts/verify-tutor-behavior.mjs",
     "verify:upload-limits": "node scripts/verify-upload-limits.mjs",
-    "check:voice": "node scripts/check-voice.mjs"
+    "check:voice": "tsx scripts/check-voice.ts"
   },
   "devDependencies": {
     "prisma": "^6.5.0",

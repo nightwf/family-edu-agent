@@ -108,6 +108,11 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=doubao-seed-1-6-250615
 语音凭据一起给的话直接追加参数即可：
 
 ```bash
+# 新版：一把 API Key + 一个音色 ID
+bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
+  --tts-api-key=xxx --tts-speaker=zh_female_vv_uranus_bigtts
+
+# 旧版控制台的三件套（与新版二选一）
 bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
   --asr-app-id= --asr-token= --asr-cluster= \
   --tts-app-id= --tts-token= --tts-cluster= --tts-voice=
@@ -128,8 +133,8 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 
 | 要开的 | 私教用在哪 | 代码实际调用的接口 |
 |---|---|---|
-| **语音合成 TTS**（普通/大模型音色都行，选一个音色即可） | 把回答念出来 | `openspeech.bytedance.com/api/v1/tts`，需要 `cluster` + `voice_type` |
-| **语音识别 ASR —— 录音文件识别（极速版 / 大模型）** | 孩子「按住说话」把一段录音转文字 | `openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash`，资源标识 `volc.bigasr.auc_turbo` |
+| **语音合成（大模型）** | 把回答念出来 | `openspeech.bytedance.com/api/v3/tts/unidirectional`，资源标识 `seed-tts-2.0`，需要一把 `X-Api-Key` + 一个音色 ID |
+| **录音文件识别（极速版）** | 孩子「按住说话」把一段录音转文字 | `openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash`，资源标识 `volc.bigasr.auc_turbo` |
 
 不要开的：**流式语音识别**（WebSocket 协议，和上面的 HTTP 极速版不是同一个接口，
 代码没走它）、**实时对话式 AI / 端到端语音大模型**（那是另一套协议，本项目的编排在
@@ -138,15 +143,42 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 判断标准很简单：本项目是「孩子说完一整段再上传识别」，不是边说话边识别，
 所以只要能做**录音文件识别**的型号就够了。
 
+**注意别点错的那一个**：识别类目下还有「录音文件识别（标准版）」——那是**异步**接口
+（先 submit 拿 task id，再轮询查询），本项目没走它。认准「极速版」四个字，
+极速版是同步返回、不用轮询的。
+
 ### 1. 准备
 
+**首选新版控制台的 API Key**（推荐，官方文档明确旧版控制台后续会下线）：
+
+1. 控制台进「语音技术」，开通上面那两项服务；
+2. 「API Key 管理 / 访问控制」里创建一把 **API Key**。
+   **一把 Key 同时覆盖识别与合成**，不用去凑 App ID / Access Token / Cluster 三件套，
+   也不用给识别和合成各建应用；
+3. 到「音色库」里抄一个**音色 ID**（形如 `zh_female_vv_uranus_bigtts`），给合成用。
+
+只有在新版控制台找不到入口、或账号是老版时，才走下面的**旧版三件套**（代码两条路都兼容）：
+
 1. 控制台进「语音技术」，**创建应用**；
-2. 应用里能看到三样凭据：`App ID`、`Access Token`、`Secret Key`（识别与合成各需要 App ID + Access Token）；
+2. 应用里能看到三样凭据：`App ID`、`Access Token`、`Secret Key`；
 3. 分别开通两项服务：
    - **语音合成（TTS）** —— 私教把回答念出来；
    - **语音识别（ASR）** —— 孩子按住说话转文字。
 
 ### 2. 要填的项
+
+新版 API Key 只需要三项：
+
+| 变量 | 用途 |
+|---|---|
+| `TUTOR_TTS_API_KEY` | 语音合成的 API Key（新版控制台） |
+| `TUTOR_TTS_SPEAKER` | 音色 ID，从控制台「音色库」抄，填错会报"音色不存在" |
+| `TUTOR_ASR_API_KEY` | 语音识别的 API Key（与上面是同一把） |
+
+`TUTOR_TTS_RESOURCE_ID`（默认 `seed-tts-2.0`）与 `TUTOR_ASR_RESOURCE_ID`
+（默认 `volc.bigasr.auc_turbo`）保持默认即可，一般不用改。
+
+旧版三件套的项（仅在走旧版控制台时才填，与上面的 Key 二选一即可）：
 
 | 变量 | 用途 |
 |---|---|
@@ -161,7 +193,18 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 `TUTOR_ASR_CLUSTER` / `TUTOR_TTS_CLUSTER` / `TUTOR_TTS_VOICE_TYPE` 三个值**必须从你开通的那个服务的文档页抄**，
 代码里的适配（`apps/api/src/tutor/voice/volcengine.ts`）按火山文档写的，但没有真实凭据跑过，这三个值极可能要按你的实际开通项微调。
 
+合成还支持一个可选值 `TUTOR_TTS_SPEECH_RATE`（默认 `0` 即原速，范围约 -50~100），
+嫌念得太快可以调成负数。
+
 ### 2.5 拿到凭据先跑自检（合成一句再识别回来）
+
+新版 API Key（推荐）：
+
+```bash
+npm run check:voice -- --api-key=xxx --speaker=zh_female_vv_uranus_bigtts
+```
+
+旧版三件套：
 
 ```bash
 npm run check:voice -- --asr-app-id=xxx --asr-token=xxx --asr-cluster=volc.bigasr.auc_turbo \
@@ -169,7 +212,7 @@ npm run check:voice -- --asr-app-id=xxx --asr-token=xxx --asr-cluster=volc.bigas
 ```
 
 它做的是一圈**闭环**：先合成一句「今天我们一起把这道题弄明白」，再把这段音频回灌给识别，
-比对读回来的字。这一圈过了，等于同时证明**凭据、cluster、音色三样全对**，
+比对读回来的字。这一圈过了，等于同时证明**凭据、资源标识、音色三样全对**，
 而不是"单个接口没报错"。
 
 火山语音有个坑：**业务错误常常是 HTTP 200，正文里才带 `code`/`message`**；
@@ -197,13 +240,15 @@ npm run check:voice -- --asr-app-id=xxx --asr-token=xxx --asr-cluster=volc.bigas
 2. 方舟里开通一个对话模型（建议选带 vision 的多模态型号，省一次开通）+ 创建 API Key；
 3. 跑 `npm run check:doubao -- --key=xxx --vision`，把输出的三行发我（**工具调用那一栏必须是 ✅**）；
 4. 我执行 `bash scripts/enable-tutor.sh --key=xxx --chat-model=xxx`（含验证、配置、重启、线上对话校验），然后我们一起在 APK 里真机跑一遍；
-5. 语音想一起上，再去「语音技术」创建应用并开通 TTS/ASR，把 7 个值给我。
+5. 语音想一起上，再去「语音技术」开通**语音合成（大模型）**与**录音文件识别（极速版）**，
+   建一把 API Key 并抄一个音色 ID，把这两个值给我就够（不用给 App ID / Access Token）。
 
 ### 已经准备好的自动化
 
 | 工具 | 作用 |
 |---|---|
 | `npm run check:doubao` | 凭据与模型能力自检（对话 / 工具调用 / 读图） |
+| `npm run check:voice` | 语音凭据自检（合成一句 → 回灌识别 → 比对），新旧两种鉴权都支持 |
 | `bash scripts/enable-tutor.sh` | 一条命令完成：验证 → 写 `.env` → 重启 → 线上校验；`--dry-run` 可预演，`--disable` 可回滚 |
 | `scripts/verify-online.mjs --roundtrip` | 线上真发一轮对话，直接报文本长度、工具调用、错误；验证用会话会自动归档 |
-| `npm run test:ops` | 上面这些运维脚本自身的用例（.env 写入规则 17 项 + SSE 解析 10 项） |
+| `npm run test:ops` | 上面这些运维脚本自身的用例（.env 写入 17 项 + SSE 解析 11 项 + 接口结构 7 项 + 语音报错翻人话 11 项 + compose 白名单一致性） |
