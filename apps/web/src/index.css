@@ -36,6 +36,166 @@ body {
   }
 }
 
+/* 人物身后的一束追光。
+
+   孩子形象的素材是透明底、按浅色背景画的：直接放到深色舞台上，深色头发和
+   衣服的边缘会糊进背景，人像看不清。垫一层浅色光晕既保住对比，
+   看起来也像"舞台上的追光"，正好配免提这种仪式感。 */
+.voice-spotlight {
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 50% 46%,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(232, 248, 244, 0.82) 38%,
+    rgba(226, 246, 241, 0.34) 58%,
+    rgba(255, 255, 255, 0) 74%
+  );
+}
+
+/* 免提模式下整片背景换成薄荷色。和平时那片米色拉开距离，
+   但保持浅色：下面的消息还是深色文字，底色一变深就没法读了。 */
+.voice-room-bg {
+  background:
+    radial-gradient(80% 55% at 50% 0%, rgba(15, 118, 110, 0.16) 0%, transparent 70%),
+    linear-gradient(180deg, #e4f5f0 0%, #eef9f5 45%, #e6f4ef 100%);
+}
+
+/* 免提模式的对话舞台。
+
+   孩子在这个模式里是不看键盘的：有没有在听、有没有听懂，全靠画面回答。
+   所以背景换成明显不同的一片，把人物放大、让它随状态动起来，
+   一眼就能看出"现在轮到我说话"还是"它在想"。 */
+.voice-stage {
+  background:
+    radial-gradient(120% 90% at 50% 0%, #1c8f83 0%, transparent 58%),
+    radial-gradient(90% 70% at 12% 100%, #2fa79a 0%, transparent 60%),
+    linear-gradient(170deg, #0f766e 0%, #12907f 55%, #16796f 100%);
+}
+
+/* 背景里慢慢飘的光斑，给"它在听"一点活着的感觉 */
+.voice-orb {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.16);
+  filter: blur(2px);
+  animation: voice-orb-float 9s ease-in-out infinite;
+}
+
+@keyframes voice-orb-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(0, -16px, 0) scale(1.12);
+    opacity: 0.85;
+  }
+}
+
+/* 人物：安静听着的时候轻轻起伏 */
+.voice-figure {
+  animation: voice-breathe 3.4s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+@keyframes voice-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-7px) scale(1.015);
+  }
+}
+
+/* 听到孩子开口：点头一样地晃，配合"听到了" */
+.voice-figure.is-speech {
+  animation: voice-nod 1.15s ease-in-out infinite;
+}
+
+@keyframes voice-nod {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.2deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.2deg);
+  }
+}
+
+/* 正在识别 / 正在想：慢一点、幅度小一点 */
+.voice-figure.is-thinking {
+  animation: voice-think 2.3s ease-in-out infinite;
+}
+
+@keyframes voice-think {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(2deg);
+  }
+}
+
+/* 麦克风收声时一圈圈扩散的波纹 */
+.voice-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  animation: voice-ring-out 2.4s ease-out infinite;
+}
+
+@keyframes voice-ring-out {
+  0% {
+    transform: scale(0.72);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* 音量条：收声时上下跳，让人相信"它真的在听" */
+.voice-bar {
+  width: 5px;
+  height: 8px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: voice-bar-jump 1s ease-in-out infinite;
+}
+
+@keyframes voice-bar-jump {
+  0%,
+  100% {
+    height: 8px;
+    opacity: 0.55;
+  }
+  50% {
+    height: 26px;
+    opacity: 1;
+  }
+}
+
+/* 动效是把状态讲清楚的手段，不是装饰；系统要求少动就老实停住 */
+@media (prefers-reduced-motion: reduce) {
+  .voice-orb,
+  .voice-figure,
+  .voice-ring,
+  .voice-bar {
+    animation: none;
+  }
+  .voice-ring {
+    opacity: 0.35;
+  }
+}
+
 /* 与小程序一致的卡片：浅边框、圆角、轻阴影 */
 .card {
   border: 1px solid #e8ddc5;

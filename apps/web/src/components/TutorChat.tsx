@@ -14,10 +14,12 @@ import {
   User,
   Volume2,
   VolumeX,
+  X,
 } from "lucide-react";
 import { Badge, ChildTabs, Panel } from "./Layout";
 import { splitParagraphs, streamTutorMessage, type TutorStreamEvent } from "../lib/tutor";
 import { useTutorVoice } from "../lib/use-tutor-voice";
+import { stateAsset } from "../lib/presentation";
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
 
@@ -45,6 +47,28 @@ const LOOP_STATE_TEXT: Record<string, string> = {
   listening: "在听，直接说就行",
   speech: "听到了，继续说",
   transcribing: "正在识别…",
+};
+
+/**
+ * 免提模式下人物的姿态。
+ *
+ * 复用首页那套孩子形象，只是换姿势：安静听、听到你说话、正在想。
+ * 孩子在这个模式里不看键盘，全靠画面判断"轮到我说了没有"，所以姿态要跟着状态走，
+ * 不能一直用同一张图。
+ */
+const LOOP_STATE_POSE: Record<string, string> = {
+  idle: "stable",
+  listening: "stable",
+  speech: "progress",
+  transcribing: "thinking",
+};
+
+/** 免提模式里那句话下面的小提醒，说清"什么时候会发出去" */
+const LOOP_STATE_HINT: Record<string, string> = {
+  idle: "点下面的按钮开始，或者直接说话",
+  listening: "说完停一下，我会自动接上",
+  speech: "说完停一下，我就去回答",
+  transcribing: "听清了，正在想怎么讲",
 };
 
 /**
@@ -586,24 +610,38 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
                 onClick={voice.toggleContinuous}
                 aria-label={voice.continuous ? "关闭连续对话" : "开启连续对话"}
                 aria-pressed={voice.continuous}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-bold ${
-                  voice.continuous ? "border-teal bg-teal/10 text-teal" : "border-line text-ink-soft"
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-bold transition ${
+                  voice.continuous
+                    ? "bg-teal text-white shadow-[0_6px_16px_rgba(15,118,110,0.32)]"
+                    : "border border-teal/40 bg-white/70 text-teal"
                 }`}
               >
-                <Radio size={13} /> 连续对话
+                <Radio size={14} /> 连续对话
               </button>
             )}
             {voiceStatus.tts && (
               <button
                 type="button"
+                role="switch"
+                aria-checked={autoRead}
                 onClick={() => setAutoRead((current) => !current)}
                 aria-label={autoRead ? "关闭自动朗读" : "开启自动朗读"}
-                aria-pressed={autoRead}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-bold ${
-                  autoRead ? "border-teal bg-teal/10 text-teal" : "border-line text-ink-soft"
-                }`}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-white/70 pl-2.5 pr-1.5 font-bold text-ink-soft"
               >
-                <Volume2 size={13} /> 自动朗读
+                <Volume2 size={13} />
+                <span>自动朗读</span>
+                {/* 小开关：一眼看出开还是关，比两个不同颜色的按钮好认 */}
+                <span
+                  aria-hidden="true"
+                  className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition ${
+                    autoRead ? "bg-teal" : "bg-line"
+                  }`}
+                >
+                  <span
+                    className="absolute h-3 w-3 rounded-full bg-white shadow transition-all"
+                    style={{ left: autoRead ? "14px" : "2px" }}
+                  />
+                </span>
               </button>
             )}
             {voice.speaking && (
@@ -611,16 +649,92 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
                 type="button"
                 onClick={voice.stopSpeech}
                 aria-label="停止朗读"
-                className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 font-bold text-ink-soft"
+                className="inline-flex h-8 items-center gap-1 rounded-full border border-line px-3 font-bold text-ink-soft"
               >
                 <VolumeX size={13} /> 停一下
               </button>
             )}
-            {voice.continuous && <span className="text-muted">{LOOP_STATE_TEXT[voice.loopState] || ""}</span>}
           </div>
         )}
 
-        <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-cream/40 px-4 py-4">
+        <div
+          ref={scrollRef}
+          data-testid="tutor-scroll"
+          className={`min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 transition-colors ${
+            // 免提时整片换成薄荷底，和平时那片米色明显不同；
+            // 但保持浅色，否则消息里的深色文字会读不清。
+            voice.continuous ? "voice-room-bg" : "bg-cream/40"
+          }`}
+        >
+          {/*
+            免提模式的舞台。整块背景换成深绿，和平时那片米色拉开距离，
+            孩子扫一眼就知道"现在是说话模式"。人物按当前状态换姿势和动效，
+            右上角一个小叉随时退出。
+          */}
+          {voice.continuous && (
+            <section
+              data-testid="voice-stage"
+              className="voice-stage relative overflow-hidden rounded-2xl px-5 pb-5 pt-9 text-white shadow-[0_18px_40px_rgba(4,48,44,0.35)]"
+            >
+              <span className="voice-orb" style={{ width: 92, height: 92, left: "7%", top: "10%" }} />
+              <span
+                className="voice-orb"
+                style={{ width: 58, height: 58, right: "10%", top: "30%", animationDelay: "1.7s" }}
+              />
+              <span
+                className="voice-orb"
+                style={{ width: 40, height: 40, right: "26%", bottom: "12%", animationDelay: "3.1s" }}
+              />
+
+              {/* 小关闭按钮：退出免提，回到普通对话 */}
+              <button
+                type="button"
+                onClick={voice.toggleContinuous}
+                aria-label="退出免提模式"
+                title="退出免提"
+                className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/20 text-white backdrop-blur transition active:scale-95 hover:bg-white/30"
+              >
+                <X size={15} />
+              </button>
+
+              <div className="relative mx-auto grid h-36 w-36 place-items-center">
+                {/* 人物素材是透明底的，深色舞台上要垫一层浅色光晕才看得清 */}
+                <span aria-hidden="true" className="voice-spotlight absolute inset-0" />
+                {(voice.loopState === "listening" || voice.loopState === "speech") && (
+                  <>
+                    <span className="voice-ring" />
+                    <span className="voice-ring" style={{ animationDelay: "0.8s" }} />
+                  </>
+                )}
+                <img
+                  src={stateAsset(LOOP_STATE_POSE[voice.loopState] || "stable", selectedChild?.gender)}
+                  alt=""
+                  className={`voice-figure relative h-32 w-auto drop-shadow-[0_14px_20px_rgba(6,52,47,0.35)] ${
+                    voice.loopState === "speech"
+                      ? "is-speech"
+                      : voice.loopState === "transcribing"
+                        ? "is-thinking"
+                        : ""
+                  }`}
+                />
+              </div>
+
+              <div className="relative mt-3 text-center">
+                <div className="text-xl font-black tracking-normal">{LOOP_STATE_TEXT[voice.loopState] || ""}</div>
+                <div className="mt-1.5 text-xs text-white/80">{LOOP_STATE_HINT[voice.loopState] || ""}</div>
+              </div>
+
+              {/* 音量条：收声的时候跳起来，让"它在听"这件事看得见 */}
+              {(voice.loopState === "listening" || voice.loopState === "speech") && (
+                <div aria-hidden="true" className="relative mt-3 flex h-7 items-center justify-center gap-1.5 text-white/90">
+                  {[0, 1, 2, 3, 4, 5, 6].map((index) => (
+                    <span key={index} className="voice-bar" style={{ animationDelay: `${index * 0.11}s` }} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           {messages.length === 0 && (
             <p className="mx-auto max-w-md py-10 text-center text-sm leading-6 text-muted">{EMPTY_HINT}</p>
           )}
