@@ -879,16 +879,26 @@ prompt 占绝对大头，原因是每一轮工具调用都要把 30 个工具的
 |---|---|---|
 | 上传接口拿不到文件 | 图片上传恒定 `400 没有收到文件`；语音接口恒定 `400 没有收到音频` | `app.ts` 以 `attachFieldsToBody: true` 注册 `@fastify/multipart`，该模式下 **`request.file()` 不存在**，文件挂在 `request.body.<字段名>` 上。两个私教接口按普通写法调了 `request.file()` |
 | 上传体积被 1MB 卡死 | 手机拍的作业照（2–4MB）传不上去，报框架级 413 | `@fastify/multipart` 的 `fileSize` 默认跟随 Fastify 的 `bodyLimit`（1MB），而业务上限写的是 8MB / 5MB / 15MB，业务判定永远轮不到 |
+| 公网路径又被 nginx 卡在 1MB | 走域名上传 2.8MB 图片返回 **413 且响应体为空**（前端只能显示"上传失败"） | nginx `client_max_body_size` 默认为 1m，只有 `chat.heyaagent.top` 那个站显式设了 200m；禾芽的三个 server 块没设 |
 
 处置：新增 `apps/api/src/uploads.ts` 统一取文件（主路径用 `request.body.file`，并保留
 `request.file()` 作为防御性分支），两个私教接口改用它；multipart 全局 `limits.fileSize`
-放宽到 16MB（本仓库最大业务上限是题库附件的 15MB），各接口继续用自己的上限给出可读报错。
+放宽到 16MB（本仓库最大业务上限是题库附件的 15MB），各接口继续用自己的上限给出可读报错；
+nginx 侧在**只属于本项目的 location**（`heyaagent.top` 的 `/`、`/family-edu/`、`/family-edu/mcp`，
+`edu.skillstores.com` 与 IP 站的 `/family-edu/`）加 `client_max_body_size 16m`，
+不动 `conf.d/steward.conf`（另一个系统）。模板同步在 `deploy/nginx/`。
 
 回归用例 `apps/api/src/tutor/attachments.test.ts`（8 项）：3MB 上传成功（覆盖 1MB 卡死）、
 非图片被拒、超 8MB 报业务文案、没带文件报错、别家会话 404、语音收到音频并交出正确格式。
 
 线上复核：2.8MB 图片上传返回 200（自检后已清理该对象）；语音接口收到文件后返回
-`503 语音识别尚未开通`，而不是 `400 没有收到音频`。
+`503 语音识别尚未开通`，而不是 `400 没有收到音频`。公网三条路径
+（`https://heyaagent.top`、`/family-edu/`、`https://edu.skillstores.com/family-edu`）
+改 nginx 后均返回 200；同时确认 `prototype-studio-web-app-1` 与 `chat.heyaagent.top` 未受影响。
+
+以后改完上传相关代码或 nginx，在容器内跑 `node /app/.verify/verify-upload-limits.mjs`
+（本地）与 `BASE=https://heyaagent.top node /app/.verify/verify-upload-limits.mjs`（公网），
+两条都过才算上限真的放开了。脚本入库为 `scripts/verify-upload-limits.mjs`（`npm run verify:upload-limits`）。
 
 ### 21.5 凭据开通与自检
 
