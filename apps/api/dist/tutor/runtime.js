@@ -27,10 +27,28 @@ export function humanizeProviderError(message, retryable) {
     }
     return { message: friendly, retryable, detail: raw && raw !== friendly ? raw : undefined };
 }
-function withTimeout(ms) {
+/**
+ * 单轮超时 + 外部打断合并成一个信号。
+ * 两个来源都要能中止请求，所以不能在外部信号上再挂 timeout，
+ * 得各建一个再串起来。
+ */
+function withTimeout(ms, external) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ms);
-    return { signal: controller.signal, clear: () => clearTimeout(timer) };
+    const onExternalAbort = () => controller.abort();
+    if (external) {
+        if (external.aborted)
+            controller.abort();
+        else
+            external.addEventListener("abort", onExternalAbort, { once: true });
+    }
+    return {
+        signal: controller.signal,
+        clear: () => {
+            clearTimeout(timer);
+            external?.removeEventListener("abort", onExternalAbort);
+        },
+    };
 }
 /** 把模型请求的工具调用参数解析成对象；解析失败按空对象处理并计入审计。 */
 function parseArguments(raw) {
@@ -79,7 +97,10 @@ export async function* runTutorTurn(input) {
     let usage = { promptTokens: 0, completionTokens: 0 };
     let rounds = 0;
     while (rounds <= maxRounds) {
-        const guard = withTimeout(timeoutMs);
+        // 被打断就不再往下走：既不再请求模型，也不再调工具
+        if (input.signal?.aborted)
+            return;
+        const guard = withTimeout(timeoutMs, input.signal);
         const calls = [];
         let roundText = "";
         let failed = false;

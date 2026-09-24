@@ -12,6 +12,8 @@ import { getQuotaState } from "./quota.js";
 import { buildHistory, draftFromTurn, extractEvidence } from "./memory.js";
 import { listArchivedOrActiveConversations, isTutorReady } from "./service.js";
 import { getVoiceStatus, synthesize, transcribe, VoiceNotConfiguredError } from "./voice/index.js";
+import { splitSentences } from "./voice/sentences.js";
+import { interruptTurn, registerTurn, releaseTurn } from "./inflight.js";
 import { renderWorksheet } from "./worksheet.js";
 /**
  * /api/tutor/*：内置私教的对外接口。
@@ -30,9 +32,61 @@ const createConversationSchema = z.object({
 const sendMessageSchema = z.object({
     text: z.string().optional(),
     attachments: z.array(z.string()).optional(),
+    /** 要不要把回答念出来：连续对话时前端会打开，没开通语音时服务端自动跳过 */
+    speak: z.boolean().optional(),
 });
 function sseWrite(reply, event, data) {
     reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+/** 落一条助手消息。正常完成与被打断都走这里，保证"说出口的话"一定留档。 */
+async function persistAssistantMessage(input) {
+    return prisma.tutorMessage.create({
+        data: {
+            conversationId: input.conversationId,
+            familyId: input.familyId,
+            childId: input.childId,
+            role: "assistant",
+            content: input.content,
+            toolCalls: input.toolCalls?.length ? input.toolCalls : undefined,
+            model: input.model,
+            promptTokens: input.promptTokens || 0,
+            completionTokens: input.completionTokens || 0,
+        },
+    });
+}
+/**
+ * 按句合成并推送语音片段。
+ *
+ * 逐句发而不是整段发：第一句一合成就出声，孩子不用干等整段念完。
+ * 任意一句失败就收尾，不把整个回合判为失败 —— 文字已经拿到手，
+ * 少了声音不该变成一次报错。被打断则立刻停下，后面的句子不再花钱合成。
+ */
+async function streamSpeech(input) {
+    const sentences = splitSentences(input.text);
+    sseWrite(input.reply, "speech_start", { total: sentences.length });
+    for (const [index, sentence] of sentences.entries()) {
+        if (input.signal.aborted) {
+            sseWrite(input.reply, "interrupted", { reason: "孩子插话", spoken: index });
+            return;
+        }
+        try {
+            const audio = await synthesize(sentence);
+            sseWrite(input.reply, "speech", {
+                seq: index,
+                total: sentences.length,
+                format: audio.contentType,
+                chunk: audio.audio.toString("base64"),
+            });
+        }
+        catch (error) {
+            sseWrite(input.reply, "speech_error", {
+                message: error instanceof VoiceNotConfiguredError ? error.message : "语音朗读暂时不可用",
+                seq: index,
+            });
+            return;
+        }
+    }
+    sseWrite(input.reply, "speech_end", { total: sentences.length });
 }
 export async function registerTutorRoutes(app, requireAuth) {
     const requireTutor = async (request, reply) => {
@@ -110,7 +164,10 @@ export async function registerTutorRoutes(app, requireAuth) {
     });
     /**
      * 发消息：SSE 流式返回。
-     * 事件：text / tool / replace / done / error
+     * 事件：text / tool / replace / speech / interrupted / done / error
+     *
+     * `speech` 是按句合成的语音片段：文本一边流，句子一合成就发，
+     * 孩子不用等整段回答读完才听到声音。请求体带 `speak:true` 才走这条链路。
      */
     app.post("/api/tutor/conversations/:conversationId/messages", { preHandler: requireTutor }, async (request, reply) => {
         const { userId, familyId } = getAuth(request);
@@ -153,6 +210,11 @@ export async function registerTutorRoutes(app, requireAuth) {
         const persona = normalizePersona(conversation.persona);
         let toolset;
         let fullText = "";
+        let interrupted = false;
+        let doneEmitted = false;
+        const wantSpeech = parsed.data.speak === true;
+        // 登记这个回合，好让"孩子插话"能打断它
+        const turnController = registerTurn(conversationId, familyId);
         try {
             const [systemPrompt, history, toolsetReady] = await Promise.all([
                 buildTutorPersona({ familyId, persona, childId: conversation.childId }),
@@ -173,7 +235,12 @@ export async function registerTutorRoutes(app, requireAuth) {
                 provider: getChatProvider(),
                 toolset,
                 model: pickModel(images.length > 0),
+                signal: turnController.signal,
             })) {
+                if (turnController.signal.aborted) {
+                    interrupted = true;
+                    break;
+                }
                 if (event.type === "text") {
                     fullText += event.delta;
                     sseWrite(reply, "text", { delta: event.delta });
@@ -189,23 +256,21 @@ export async function registerTutorRoutes(app, requireAuth) {
                     sseWrite(reply, "error", { message: event.message, retryable: event.retryable, detail: event.detail });
                 }
                 else if (event.type === "done") {
-                    const assistant = await prisma.tutorMessage.create({
-                        data: {
-                            conversationId,
-                            familyId,
-                            childId: conversation.childId,
-                            role: "assistant",
-                            content: fullText,
-                            toolCalls: event.toolCalls.length ? event.toolCalls : undefined,
-                            model: pickModel(images.length > 0),
-                            promptTokens: event.usage.promptTokens,
-                            completionTokens: event.usage.completionTokens,
-                        },
+                    const assistant = await persistAssistantMessage({
+                        conversationId,
+                        familyId,
+                        childId: conversation.childId,
+                        content: fullText,
+                        model: pickModel(images.length > 0),
+                        toolCalls: event.toolCalls,
+                        promptTokens: event.usage.promptTokens,
+                        completionTokens: event.usage.completionTokens,
                     });
                     await prisma.tutorConversation.update({
                         where: { id: conversationId },
                         data: { lastMessageAt: new Date(), title: conversation.title || deriveTitle(text) },
                     });
+                    doneEmitted = true;
                     sseWrite(reply, "done", {
                         messageId: assistant.id,
                         usage: event.usage,
@@ -213,15 +278,57 @@ export async function registerTutorRoutes(app, requireAuth) {
                     });
                 }
             }
+            // 回答写完了才开始按句合成语音。文本已经先一步出现在屏幕上，
+            // 所以这里慢一点也不会让孩子对着空白等。
+            if (doneEmitted && wantSpeech && fullText.trim() && getVoiceStatus().tts) {
+                await streamSpeech({
+                    reply,
+                    text: fullText,
+                    signal: turnController.signal,
+                });
+            }
         }
         catch (error) {
-            sseWrite(reply, "error", { message: "私教暂时不可用，请稍后再试", retryable: true });
-            app.log.error(error, "tutor turn failed");
+            // 打断会以 abort 的形式冒上来，这不是故障，不该给家长报错
+            if (turnController.signal.aborted) {
+                interrupted = true;
+            }
+            else {
+                sseWrite(reply, "error", { message: "私教暂时不可用，请稍后再试", retryable: true });
+                app.log.error(error, "tutor turn failed");
+            }
         }
         finally {
+            releaseTurn(conversationId, turnController);
+            // 被打断也要把已经说出口的部分留住，孩子回头能看见自己听到了哪
+            if (interrupted && fullText.trim()) {
+                await persistAssistantMessage({
+                    conversationId,
+                    familyId,
+                    childId: conversation.childId,
+                    content: fullText,
+                    model: pickModel(false),
+                }).catch(() => { });
+                sseWrite(reply, "interrupted", { reason: "孩子插话", keptChars: fullText.length });
+            }
             await toolset?.close().catch(() => { });
             reply.raw.end();
         }
+    });
+    /** 图片上传：走现有对象存储，只返回 key，发消息时携带。 */
+    /**
+     * 打断当前回合（孩子插话）。
+     *
+     * 前端一听到孩子开口就调它：服务端停掉模型请求与后续语音合成，
+     * 已经说出口的部分照常保留在会话里。
+     */
+    app.post("/api/tutor/conversations/:conversationId/interrupt", { preHandler: requireTutor }, async (request, reply) => {
+        const { familyId } = getAuth(request);
+        const { conversationId } = request.params;
+        const conversation = await findOwnConversation(familyId, conversationId);
+        if (!conversation)
+            return reply.code(404).send({ error: "会话不存在" });
+        return { interrupted: interruptTurn(conversationId, familyId) };
     });
     /** 图片上传：走现有对象存储，只返回 key，发消息时携带。 */
     app.post("/api/tutor/conversations/:conversationId/attachments", { preHandler: requireTutor }, async (request, reply) => {

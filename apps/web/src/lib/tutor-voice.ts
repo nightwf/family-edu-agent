@@ -56,6 +56,7 @@ export type UtteranceStep = {
  */
 export class UtteranceTracker {
   private readonly config: VoiceLoopConfig;
+  private multiplier = 1;
   private startedAt: number | null = null;
   private lastVoiceAt = 0;
   private lastFrameAt: number | null = null;
@@ -69,6 +70,15 @@ export class UtteranceTracker {
     return this.startedAt !== null;
   }
 
+  /**
+   * 临时提高判定门槛。私教正在念答案时打开：喇叭出来的声音如果被麦克风收回去，
+   * 会变成"孩子一说话就打断自己"的死循环。回声消除能挡掉大部分，
+   * 这里再抬一道门槛兜底。
+   */
+  setMultiplier(value: number) {
+    this.multiplier = Math.max(1, value);
+  }
+
   reset() {
     this.startedAt = null;
     this.lastVoiceAt = 0;
@@ -79,7 +89,7 @@ export class UtteranceTracker {
   push(level: number, atMs: number): UtteranceStep {
     const delta = this.lastFrameAt === null ? 0 : Math.max(0, atMs - this.lastFrameAt);
     this.lastFrameAt = atMs;
-    const voiced = level >= this.config.speechThreshold;
+    const voiced = level >= this.config.speechThreshold * this.multiplier;
 
     if (this.startedAt === null) {
       if (!voiced) return { state: "listening", shouldStop: false, speechMs: 0 };
@@ -146,7 +156,12 @@ function createWebAudioMeter(stream: MediaStream): VoiceMeter {
 
 export function browserVoiceLoopDeps(): VoiceLoopDeps {
   return {
-    getUserMedia: (constraints) => navigator.mediaDevices.getUserMedia(constraints),
+    // echoCancellation 是插话打断的前提：喇叭里私教的声音不能被当成孩子在说话
+    getUserMedia: (constraints) =>
+      navigator.mediaDevices.getUserMedia({
+        ...constraints,
+        audio: constraints.audio === true ? { echoCancellation: true, noiseSuppression: true } : constraints.audio,
+      }),
     createRecorder: (stream) => new MediaRecorder(stream),
     createMeter: createWebAudioMeter,
     now: () => Date.now(),
@@ -159,6 +174,8 @@ export type VoiceLoop = {
   start: () => Promise<void>;
   stop: () => void;
   isRunning: () => boolean;
+  /** 私教开口时抬门槛，避免把自己的声音当成孩子在说话 */
+  setSensitivity: (multiplier: number) => void;
 };
 
 /**
@@ -171,6 +188,8 @@ export function createVoiceLoop(options: {
   config?: Partial<VoiceLoopConfig>;
   deps?: Partial<VoiceLoopDeps>;
   onState: (state: VoiceLoopState) => void;
+  /** 刚听到孩子开口。用来做插话打断：私教还在念就让他停嘴。 */
+  onSpeechStart?: () => void;
   onUtterance: (blob: Blob, speechMs: number) => void | Promise<void>;
   onError: (message: string) => void;
 }): VoiceLoop {
@@ -185,6 +204,7 @@ export function createVoiceLoop(options: {
   let recorder: MediaRecorder | null = null;
   let chunks: Blob[] = [];
   let speechMs = 0;
+  let wasSpeaking = false;
   const mimeType = { value: "" };
 
   function setState(state: VoiceLoopState) {
@@ -220,6 +240,10 @@ export function createVoiceLoop(options: {
   function tick() {
     if (!running || !recorder || !meter) return;
     const step = tracker.push(meter.read(), deps.now());
+    if (step.state === "speech" && !wasSpeaking) {
+      wasSpeaking = true;
+      options.onSpeechStart?.();
+    }
     if (step.state === "speech") {
       speechMs = step.speechMs;
       setState("speech");
@@ -235,6 +259,7 @@ export function createVoiceLoop(options: {
     const blob = new Blob(chunks, { type: mimeType.value || "audio/webm" });
     const capturedMs = speechMs;
     chunks = [];
+    wasSpeaking = false;
     if (!running) return;
     if (!isUsableUtterance(capturedMs, config)) {
       // 杂音：不打扰上层，直接接着听下一句
@@ -242,10 +267,14 @@ export function createVoiceLoop(options: {
       return;
     }
     setState("transcribing");
+    // 只等"识别 + 交接"，不等私教把答案说完。
+    // 上层把识别结果排进待发队列后立刻返回，麦克风马上接着听 ——
+    // 私教念答案期间孩子开口就是插话（台阶 C），那条路要一直开着。
     try {
-      await options.onUtterance(blob, capturedMs);
-    } catch {
-      // 上层的错误自己提示，这里只负责继续听
+      await Promise.resolve(options.onUtterance(blob, capturedMs)).catch(() => {});
+    } finally {
+      // 识别没结束就开下一段，会把同一句话的后半截当成新的一句
+      if (!running) return;
     }
     if (running) beginSegment();
   }
@@ -298,5 +327,6 @@ export function createVoiceLoop(options: {
     start,
     stop,
     isRunning: () => running,
+    setSensitivity: (multiplier: number) => tracker.setMultiplier(multiplier),
   };
 }

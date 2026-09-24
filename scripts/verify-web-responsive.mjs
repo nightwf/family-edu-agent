@@ -10,6 +10,7 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 
 const liveUrlArg = process.argv.includes("--url") ? process.argv[process.argv.indexOf("--url") + 1] : null;
@@ -68,7 +69,7 @@ const home = {
 // 朗读桩：一段 1.5 秒的静音 WAV。真实 TTS 要密钥，这里只验证"前端能拿到可播放音频"。
 const speechWav = (() => {
   const sampleRate = 8000;
-  const seconds = 1.5;
+  const seconds = 3;
   const samples = Math.floor(sampleRate * seconds);
   const buffer = Buffer.alloc(44 + samples);
   buffer.write("RIFF", 0);
@@ -87,6 +88,61 @@ const speechWav = (() => {
   buffer.fill(128, 44);
   return buffer;
 })();
+const speechWavBase64 = speechWav.toString("base64");
+
+/** SSE 桩：一轮回答的文本 + 两句语音，用来验证"边到边念"和插话打断。 */
+function tutorTurnSse() {
+  const events = [
+    ["text", { delta: "先读一遍题。" }],
+    ["text", { delta: "再看看单位是什么。" }],
+    ["done", { messageId: "msg-2", quotaLeft: 58, usage: { promptTokens: 4, completionTokens: 6 } }],
+    ["speech_start", { total: 2 }],
+    ["speech", { seq: 0, total: 2, format: "audio/wav", chunk: speechWavBase64 }],
+    ["speech", { seq: 1, total: 2, format: "audio/wav", chunk: speechWavBase64 }],
+    ["speech_end", { total: 2 }],
+  ];
+  return events.map(([name, data]) => `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`).join("");
+}
+
+/** 记录这一轮桩接口被打了哪些关键请求（每个形态重置一次）。 */
+const netProbe = { messagePosts: 0, interruptCalls: 0 };
+
+/**
+ * 给 Chromium 喂一段可控的"麦克风输入"：说 0.7 秒、停 1.6 秒，循环 5 遍。
+ * 用默认的假麦克风是一段连续音，永远等不到静音、断不了句，
+ * 也就测不出"孩子说完了"和"私教念的时候孩子插话"这两件事。
+ */
+const fakeMicWav = (() => {
+  const sampleRate = 48000;
+  const cycles = 5;
+  const toneMs = 700;
+  const silenceMs = 1600;
+  const totalSamples = Math.floor(((toneMs + silenceMs) * cycles * sampleRate) / 1000);
+  const dataBytes = totalSamples * 2;
+  const buffer = Buffer.alloc(44 + dataBytes);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataBytes, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataBytes, 40);
+  for (let index = 0; index < totalSamples; index += 1) {
+    const ms = (index / sampleRate) * 1000;
+    const inCycle = ms % (toneMs + silenceMs);
+    const value = inCycle < toneMs ? Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 0.6 : 0;
+    buffer.writeInt16LE(Math.round(value * 32767), 44 + index * 2);
+  }
+  return buffer;
+})();
+const fakeMicPath = path.join(os.tmpdir(), "heya-fake-mic.wav");
+if (!liveUrlArg) fs.writeFileSync(fakeMicPath, fakeMicWav);
 
 const stubs = [
   [/\/api\/home(\?|$)/, () => home],
@@ -171,12 +227,26 @@ const browser = await chromium.launch({
   args: [
     "--use-fake-ui-for-media-stream",
     "--use-fake-device-for-media-stream",
+    ...(liveUrlArg ? [] : [`--use-file-for-fake-audio-capture=${fakeMicPath}`]),
     "--autoplay-policy=no-user-gesture-required",
   ],
 });
+
+/** 轮询等待一个条件成立，用于等前端真实触发的请求。 */
+async function waitFor(condition, timeoutMs = 5000, stepMs = 100) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (condition()) return true;
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+  return condition();
+}
+
 const report = [];
 try {
   for (const viewport of viewports) {
+    netProbe.messagePosts = 0;
+    netProbe.interruptCalls = 0;
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
@@ -202,6 +272,28 @@ try {
         return;
       }
       const url = route.request().url();
+      // 发消息：SSE 桩，含文本、语音片段与收尾，用来验证流式朗读
+      if (/\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/.test(url) && route.request().method() === "POST") {
+        netProbe.messagePosts += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "text/event-stream; charset=utf-8",
+          headers: { "access-control-allow-origin": "*" },
+          body: tutorTurnSse(),
+        });
+        return;
+      }
+      // 插话打断
+      if (/\/api\/tutor\/conversations\/[^/?]+\/interrupt(\?|$)/.test(url)) {
+        netProbe.interruptCalls += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": "*" },
+          body: JSON.stringify({ interrupted: true }),
+        });
+        return;
+      }
       // 朗读接口返回真音频字节，前端要能直接塞给 audio 播放
       if (/\/api\/tutor\/voice\/speak(\?|$)/.test(url)) {
         await route.fulfill({
@@ -433,6 +525,8 @@ try {
       // 连续对话：开着麦克风自己听，音量上来就该进入"听到了"状态。
       const continuousToggle = page.locator('button[aria-label="开启连续对话"]').first();
       const continuousProbe = { started: false, reachedSpeech: false, stopped: false, rowFits: true };
+
+      // 先把连续对话打开：麦克风一直开着，私教念答案时才谈得上插话打断。
       if (await continuousToggle.count()) {
         await continuousToggle.click();
         continuousProbe.reachedSpeech = await page
@@ -450,6 +544,41 @@ try {
         continuousProbe.rowFits = await page.evaluate(
           () => document.documentElement.scrollWidth - window.innerWidth <= 0,
         );
+      }
+
+      // 发一条消息：SSE 桩会先吐文本、再吐两段语音。
+      // 「停一下」按钮出现，说明语音片段真的被排队播放了（文本已经先出现在屏幕上）。
+      const streamProbe = { sent: false, playing: false };
+      const composer = page.locator('textarea[placeholder="说说你卡在哪一步"]').first();
+      if (await composer.count()) {
+        await composer.fill("这道题我不会");
+        await page.locator('button[aria-label="发送"]').first().click();
+        streamProbe.sent = await page
+          .getByText("先读一遍题。")
+          .first()
+          .waitFor({ state: "visible", timeout: 6000 })
+          .then(() => true)
+          .catch(() => false);
+        streamProbe.playing = await page
+          .locator('button[aria-label="停止朗读"]')
+          .first()
+          .waitFor({ state: "visible", timeout: 6000 })
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      // 插话打断：麦克风是开着的、私教正在念，这时报上"听到孩子说话"，
+      // 前端应当本地停嘴并让服务端停止生成。
+      const bargeProbe = { interruptCalls: 0, noticeShown: false };
+      if (streamProbe.playing) {
+        // 假麦克风按"说 0.7 秒、停 1.6 秒"循环；等它进入下一段人声，
+        // 前端就该发一次打断请求，并把本地正在念的音频掐掉。
+        await waitFor(() => netProbe.interruptCalls > 0, 12000);
+        bargeProbe.interruptCalls = netProbe.interruptCalls;
+        bargeProbe.noticeShown = (await page.locator('button[aria-label="停止朗读"]').count()) === 0;
+      }
+
+      if (await page.locator('button[aria-label="关闭连续对话"]').first().count()) {
         await page.locator('button[aria-label="关闭连续对话"]').first().click();
         continuousProbe.stopped = await page
           .locator('button[aria-label="开启连续对话"]')
@@ -464,6 +593,8 @@ try {
         entryVisible,
         speakProbe,
         continuousProbe,
+        streamProbe,
+        bargeProbe,
         checks: {
           entryOnlyOnApk: entryVisible,
           chatReachable: tutor.heading === "学习私教" && tutor.hasComposer && tutor.hasSend,
@@ -477,6 +608,10 @@ try {
           voiceRowFits: continuousProbe.rowFits,
           voiceToolbarUsable:
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
+          // 文本先出现，语音片段随后边到边念
+          streamedSpeechWorks: streamProbe.sent && streamProbe.playing && netProbe.messagePosts === 1,
+          // 孩子插话：本地停嘴 + 服务端停止生成
+          bargeInWorks: bargeProbe.interruptCalls > 0 && bargeProbe.noticeShown,
         },
       };
       await page.keyboard.press("Escape").catch(() => {});

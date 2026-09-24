@@ -489,18 +489,49 @@ export interface ChatProvider {
 
 ## 11. 语音（分三级台阶）
 
-| 台阶 | 形态 | 实现 |
-|---|---|---|
-| A | 按住说话：录音 → 识别 → 文字回答 → 朗读 | ASR + TTS 云 API，前端串起来 |
-| B | 免录制的连续对话 | 同上，自动断句 |
-| C | 实时对话、可随时打断 | 实时语音 API（WebSocket 双向流） |
+| 台阶 | 形态 | 实现 | 状态 |
+|---|---|---|---|
+| A | 按住说话：录音 → 识别 → 文字回答 → 朗读 | ASR + TTS 云 API，前端串起来 | 已实现（协议待真实凭据核实） |
+| B | 免录制的连续对话 | 本地断句 + 自动识别发送 | 已实现 |
+| C | 实时对话、可随时打断 | 级联流式 + 打断控制 | 已实现（协议待真实凭据核实） |
+
+### 11.1 台阶 C 为什么不用 WebSocket 双向流
+
+设计初稿写的是"实时语音 API（WebSocket 双向流）"，落地时改成**级联流式 + 打断控制**，
+理由如下，也说明代价：
+
+1. **密钥边界。** 实时语音要持有厂商凭据，凭据只能留在服务端。浏览器直连厂商就得下发密钥；
+   自己搭 WebSocket 代理则要新增一层长连接服务与其运维，收益与代价不成比例。
+2. **打断不需要传音频。** 打断要的是"立刻停嘴"。本地 VAD 一听到孩子开口，前端停播放，
+   再发一个 `POST .../interrupt` 让服务端停生成 —— 控制信令走普通 HTTP 就够了，
+   音频仍然按句走既有链路。
+3. **麦克风要一直开着。** 真正的门槛不是传输协议，而是"私教念答案时麦克风不能关"。
+   台阶 B 的循环原来要等整轮结束才重新开录，现在把等待改成"交接完就接着听"，
+   插话才成为可能。
+
+代价说清楚：级联方案的首字延迟比端到端实时语音高（ASR → 模型 → TTS 三段叠加），
+打断的判定点也从服务端挪到前端。当前用"回答按句合成"把首句出声时间压下来，
+按句推送在 `POST .../messages` 的 SSE 里（`speech_start` / `speech` / `speech_end`）。
+若将来实测延迟不可接受，再上端到端实时语音，届时替换的是 `voice/` 这一层。
+
+### 11.2 打断的两处细节
+
+- **回声消除是前提。** 麦克风请求带 `echoCancellation`，否则喇叭里私教的声音会被当成孩子在说话，
+  变成"自己打断自己"的死循环。除此之外，私教说话期间把 VAD 音量门槛抬到 3 倍兜底
+  （`UtteranceTracker.setMultiplier`），因为部分 WebView 的回声消除并不干净。
+- **插话不能丢。** 孩子插话时上一轮可能还没收尾，识别出来的句子先进待发队列，
+  等那一轮结束再发出去（`TutorChat` 的 `pendingSpeechRef`）。直接丢弃会让"想说的一句"凭空消失。
+- **被打断的话要留档。** 服务端把已经吐出的部分写成助手消息，不给家长报错 ——
+  打断是正常交互，不是故障。
 
 不做什么：不自建 ASR/TTS 模型，不做声纹克隆。
 
 两个必须提前处理的技术点：
 
 1. 儿童语音识别准确率明显低于成人。选型必须用真实儿童录音实测，这是体验分水岭。
-2. 安卓端麦克风尚未打通。现有 `android/app/src/main/AndroidManifest.xml` 只声明了 `INTERNET`、`ACCESS_NETWORK_STATE` 与存储权限，且 `MainActivity` 没有实现 `WebChromeClient.onPermissionRequest`。启用语音必须补 `RECORD_AUDIO` 并在 WebView 内授权，否则网页端能用的功能在 APK 里会静默失败。
+2. 安卓端麦克风原本没打通。`android/app/src/main/AndroidManifest.xml` 原来只声明了 `INTERNET`、`ACCESS_NETWORK_STATE` 与存储权限，`MainActivity` 也没有实现 `WebChromeClient.onPermissionRequest`。
+   已补 `RECORD_AUDIO` / `MODIFY_AUDIO_SETTINGS` 与授权回调（见 `docs/android-app.md` 的 1.1.0 记录），
+   否则网页端能用的语音在 APK 里会静默失败。
 
 本期语音只在安卓 APK 端启用：这是唯一必须重新打包发版的场景。微信小程序音频能力受限且审核更严格，本期不做。
 
@@ -516,6 +547,7 @@ export interface ChatProvider {
 | `POST` | `/api/tutor/conversations` | 新建会话（含 `persona`） |
 | `GET` | `/api/tutor/conversations/:id/messages` | 历史消息（分页） |
 | `POST` | `/api/tutor/conversations/:id/messages` | 发消息，`text/event-stream` 流式返回 |
+| `POST` | `/api/tutor/conversations/:id/interrupt` | 打断正在生成的回合（孩子插话），返回是否真的打断到了 |
 | `POST` | `/api/tutor/conversations/:id/attachments` | 上传图片，返回 `objectKey` |
 | `POST` | `/api/tutor/conversations/:id/summarize` | 生成或更新摘要 |
 | `POST` | `/api/tutor/conversations/:id/evidence` | 把本轮沉淀为 `EvidenceRecord`（待确认） |
@@ -529,12 +561,22 @@ export interface ChatProvider {
 SSE 事件类型：
 
 ```
-event: text     data: {"delta":"..."}
-event: tool     data: {"name":"get_wrong_question","ok":true}
-event: replace  data: {"reason":"safety"}
-event: done     data: {"messageId":"...","usage":{...},"quotaLeft":12}
-event: error    data: {"message":"...","retryable":true}
+event: text          data: {"delta":"..."}
+event: tool          data: {"name":"get_wrong_question","ok":true}
+event: replace       data: {"reason":"safety"}
+event: done          data: {"messageId":"...","usage":{...},"quotaLeft":12}
+event: speech_start  data: {"total":3}
+event: speech        data: {"seq":0,"total":3,"format":"audio/mpeg","chunk":"<base64>"}
+event: speech_end    data: {"total":3}
+event: speech_error  data: {"message":"语音朗读暂时不可用","seq":1}
+event: interrupted   data: {"reason":"孩子插话","keptChars":42}
+event: error         data: {"message":"...","retryable":true}
 ```
+
+`speech*` 只在请求体带 `speak:true` 且 TTS 已开通时出现，且排在 `done` 之后：
+孩子先看到字，再按句听到声音。`speech` 逐句推送，第一句合成完就发，不等整段读完。
+任意一句失败只发 `speech_error` 并收尾，不把整轮判为失败 —— 文字已经拿到手。
+`interrupted` 表示这一轮被打断，已经说出口的部分照常留档；它不是错误，前端不报红。
 
 `error` 的 `message` 是给家长看的友好提示（超时 / 限流 / 密钥未配置 / 网络 / 内容审核），
 上游原文放在 `detail`，只用于排查，前端不显示。
@@ -629,7 +671,7 @@ MODERATION_API_KEY=
 9. `voice/` 抽象 + ASR/TTS + 按住说话；
 10. 安卓补 `RECORD_AUDIO` 与 `onPermissionRequest`，发新版 APK；
 11. `memory.ts`：摘要 + 证据回流（待确认）；
-12. 输出多模态（已实现：模板渲染可打印讲义）+ 实时语音（台阶 B/C，见第 11 节）。
+12. 输出多模态（已实现：模板渲染可打印讲义）+ 实时语音（已实现：台阶 B 连续对话、台阶 C 按句流式朗读与插话打断，见第 11 节）。
 
 一次做完整的代价要说在前面：**儿童语音识别准确率是唯一无法靠工程保证的环节**。ASR 选型必须用真实儿童录音实测；不达标就只能退化为"按住说话 + 文字确认"再补实时语音，这部分返工风险本期自担（见第 18 节）。
 
@@ -747,7 +789,8 @@ MODERATION_API_KEY=
 | 运行时 | `apps/api/src/tutor/runtime.ts`、`quota.ts` | 轮次上限 / 单轮超时 / 工具结果截断；每日配额 |
 | 记忆 | `apps/api/src/tutor/memory.ts` | 短期窗口 + 会话摘要 + 证据回流（去重，一律 `PENDING_CONFIRMATION`） |
 | 接口 | `apps/api/src/tutor/routes.ts` | `/api/tutor/*`，含 SSE、附件、证据、语音 |
-| 语音 | `apps/api/src/tutor/voice/` | ASR/TTS 抽象 + 火山引擎适配（协议待用真实凭据核实） |
+| 语音 | `apps/api/src/tutor/voice/`、`apps/web/src/lib/tutor-voice.ts`、`use-tutor-voice.ts` | 台阶 A/B/C：按住说话、本地断句连续对话、按句流式朗读与插话打断。ASR/TTS 走火山引擎适配（协议待用真实凭据核实）；断句与音量判定是纯逻辑，另有用例覆盖 |
+| 打断 | `apps/api/src/tutor/inflight.ts`、`apps/web/src/components/TutorChat.tsx` | 进程内回合登记表；前端本地停嘴 + `POST .../interrupt`，服务端中止模型请求与后续合成 |
 | 输出多模态 | `apps/api/src/tutor/worksheet.ts` | 模板渲染可打印讲义（`GET .../worksheet`），只排版真实对话文本 |
 | 前端 | `apps/web/src/components/TutorChat.tsx`、`lib/tutor.ts`、`Layout.tsx` | APK 端入口判定（UA `HeYaAndroid`）、SSE 客户端；桌面与小程序不显示入口 |
 | 安卓 | `android/.../AndroidManifest.xml`、`MainActivity.java` | `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS`，`onPermissionRequest` 转系统授权 |
@@ -758,10 +801,12 @@ MODERATION_API_KEY=
 
 | 验证 | 命令 | 结果 |
 |---|---|---|
-| API 单测（含私教 84 条） | `npm test` | 34 文件 215 用例全部通过 |
+| API 单测（含私教 102 条） | `npm test` | 36 文件 241 用例全部通过 |
+| 语音纯逻辑 | `npm run test:voice` | 32 项通过（音量计算、杂音过滤、断句时机、朗读文本清理） |
 | 小程序校验 | `npm run check:miniprogram` | 19 页 / 21 json / 28 js / 19 wxml / 20 wxss 通过 |
 | 前端构建 | `npm run build` | 构建成功 |
-| 响应式与入口可见性 | `npm run verify:web-responsive` | 4 个形态（平板横屏 / 平板竖屏 / 手机 / 安卓 WebView）：无横向溢出；私教入口只在安卓 UA 下出现；聊天页可输入、发送键不越界；首页四学科与空状态正常 |
+| 响应式与入口可见性 | `npm run verify:web-responsive` | 4 个形态（平板横屏 / 平板竖屏 / 手机 / 安卓 WebView）：无横向溢出、0 控制台报错；私教入口只在安卓 UA 下出现；聊天页可输入、发送键不越界；首页四学科与空状态正常 |
+| 语音交互（假麦克风驱动真实浏览器） | `npm run verify:web-responsive` | `voiceControlsPresent` / `readAloudWorks` / `continuousListeningWorks` / `voiceToolbarUsable` / `streamedSpeechWorks` / `bargeInWorks` 全为 true：朗读能起能停、连续对话真的进入"听到了"、回答按句边到边念、插话时前端发出打断请求并本地停嘴 |
 | 迁移与模型一致 | `prisma validate` + 逐表比对 | 三张私教表与 `ChildSkillProfile` 的字段、索引与 migration 完全一致 |
 | WorkBuddy 包 | `npm run check:workbuddy`、`npm run package:workbuddy` | 校验通过并生成三个可提审 ZIP |
 

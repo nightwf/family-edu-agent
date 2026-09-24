@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchTutorSpeech, stripForSpeech } from "./tutor";
 import { createVoiceLoop, type VoiceLoop, type VoiceLoopState } from "./tutor-voice";
 
+type SpeechQueue = {
+  urls: string[];
+  playing: boolean;
+  current: HTMLAudioElement | null;
+  settle: (() => void) | null;
+  stopped: boolean;
+};
+
 /**
  * 私教的两个语音动作：把回答念出来（TTS）、免提问的连续对话（台阶 B）。
  *
@@ -15,23 +23,81 @@ export function useTutorVoice(options: {
   asrReady: boolean;
   /** 连续对话里识别出一句之后，交给上层发送 */
   onTranscript: (text: string) => void | Promise<void>;
+  /** 听到孩子开口（用来判断要不要打断正在念的答案） */
+  onSpeechStart?: () => void;
   onError: (message: string) => void;
 }) {
   const [speakingId, setSpeakingId] = useState("");
   const [loopState, setLoopState] = useState<VoiceLoopState>("idle");
   const [continuous, setContinuous] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef("");
   const speakingIdRef = useRef("");
   const loopRef = useRef<VoiceLoop | null>(null);
   const transcriptRef = useRef(options.onTranscript);
+  const speechStartRef = useRef(options.onSpeechStart);
   const errorRef = useRef(options.onError);
   const asrReadyRef = useRef(options.asrReady);
+  const speechRef = useRef<SpeechQueue>({ urls: [], playing: false, current: null, settle: null, stopped: false });
 
   transcriptRef.current = options.onTranscript;
+  speechStartRef.current = options.onSpeechStart;
   errorRef.current = options.onError;
   asrReadyRef.current = options.asrReady;
+
+  /** 把队列里的语音片段一段接一段放完；被打断就立刻清空。 */
+  const drainSpeech = useCallback(async () => {
+    const state = speechRef.current;
+    if (state.playing) return;
+    state.playing = true;
+    state.stopped = false;
+    setSpeaking(true);
+    while (!state.stopped && state.urls.length) {
+      const url = state.urls.shift() as string;
+      const audio = new Audio(url);
+      state.current = audio;
+      await new Promise<void>((resolve) => {
+        state.settle = resolve;
+        audio.onended = resolve;
+        audio.onerror = resolve;
+        void audio.play().catch(resolve);
+      });
+      state.settle = null;
+      state.current = null;
+      URL.revokeObjectURL(url);
+    }
+    state.playing = false;
+    setSpeaking(false);
+  }, []);
+
+  /** 收一句语音片段进播放队列，边到边念，不等整段回答合成完。 */
+  const enqueueSpeech = useCallback(
+    (base64: string, format = "audio/mpeg") => {
+      if (!base64) return;
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      const url = URL.createObjectURL(new Blob([bytes], { type: format }));
+      speechRef.current.urls.push(url);
+      void drainSpeech();
+    },
+    [drainSpeech],
+  );
+
+  /** 立刻停嘴：清空还没念的片段，掐断正在念的那一段。 */
+  const stopSpeech = useCallback(() => {
+    const state = speechRef.current;
+    state.stopped = true;
+    state.urls.splice(0).forEach((url) => URL.revokeObjectURL(url));
+    if (state.current) {
+      state.current.pause();
+      state.current.src = "";
+    }
+    state.settle?.();
+    setSpeaking(false);
+  }, []);
 
   const stopSpeaking = useCallback(() => {
     const audio = audioRef.current;
@@ -91,6 +157,9 @@ export function useTutorVoice(options: {
       const loop = loopRef.current;
       loopRef.current = null;
       loop?.stop();
+      speechRef.current.urls.splice(0).forEach((url) => URL.revokeObjectURL(url));
+      speechRef.current.stopped = true;
+      speechRef.current.current?.pause();
       const audio = audioRef.current;
       audioRef.current = null;
       if (audio) {
@@ -117,6 +186,7 @@ export function useTutorVoice(options: {
     if (loopRef.current) return;
     const loop = createVoiceLoop({
       onState: setLoopState,
+      onSpeechStart: () => speechStartRef.current?.(),
       onError: (message) => {
         errorRef.current(message);
         stopContinuous();
@@ -155,6 +225,11 @@ export function useTutorVoice(options: {
     void startContinuous();
   }, [startContinuous, stopContinuous]);
 
+  /** 私教开口时抬麦克风门槛，避免把自己的声音当成孩子在说话 */
+  const setTutorSpeaking = useCallback((tutorSpeaking: boolean) => {
+    loopRef.current?.setSensitivity(tutorSpeaking ? 3 : 1);
+  }, []);
+
   // 语音能力被关掉（例如服务端未开通）时，别留下一个开着但用不了的循环
   useEffect(() => {
     if (!options.asrReady && loopRef.current) stopContinuous();
@@ -164,8 +239,12 @@ export function useTutorVoice(options: {
     speakingId,
     speak,
     stopSpeaking,
+    speaking,
+    enqueueSpeech,
+    stopSpeech,
     continuous,
     toggleContinuous,
     loopState,
+    setTutorSpeaking,
   };
 }

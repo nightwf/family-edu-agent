@@ -68,7 +68,17 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
   const pressTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
   const autoReadRef = useRef(true);
+  const voiceStatusRef = useRef(voiceStatus);
   const sendRef = useRef<(text: string) => void | Promise<void>>(async () => {});
+  /** 私教正在说话时孩子插的话：先排队，等还在跑的那一轮收尾再发出去 */
+  const pendingSpeechRef = useRef<string[]>([]);
+  const idleWaitersRef = useRef<Array<() => void>>([]);
+  const bargeInRef = useRef<() => void>(() => {});
+
+  function waitForIdle() {
+    if (!busyRef.current) return Promise.resolve();
+    return new Promise<void>((resolve) => idleWaitersRef.current.push(resolve));
+  }
 
   useEffect(() => {
     setSelectedChildId((current) => (children.some((child) => child.id === current) ? current : children[0]?.id || ""));
@@ -99,11 +109,48 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
     token,
     asrReady: voiceStatus.asr,
     ttsReady: voiceStatus.tts,
-    onTranscript: (text) => sendRef.current(text),
+    /**
+     * 识别到一句就先排队再发，不等私教把上一段念完。
+     * 等它等于把麦克风关掉一整轮，插话打断就成了空话。
+     */
+    onTranscript: async (text) => {
+      if (busyRef.current) {
+        pendingSpeechRef.current.push(text);
+        return;
+      }
+      await sendRef.current(text);
+    },
+    onSpeechStart: () => bargeInRef.current(),
     onError: (message) => setError(message),
   });
   const speakRef = useRef(voice.speak);
   speakRef.current = voice.speak;
+  const enqueueSpeechRef = useRef(voice.enqueueSpeech);
+  enqueueSpeechRef.current = voice.enqueueSpeech;
+  voiceStatusRef.current = voiceStatus;
+  const stopSpeechRef = useRef(voice.stopSpeech);
+  stopSpeechRef.current = voice.stopSpeech;
+
+  // 私教正在说话（生成中或正在念）时，把麦克风门槛抬高，
+  // 免得喇叭里的声音被收回来，变成"自己打断自己"。
+  useEffect(() => {
+    voice.setTutorSpeaking(busy || voice.speaking);
+  }, [busy, voice.speaking, voice.setTutorSpeaking]);
+
+  /**
+   * 孩子插话：本地立刻停嘴，再让服务端别继续生成。
+   * 两步都要做 —— 只停本地播放的话，服务端还在烧模型和语音配额。
+   */
+  bargeInRef.current = () => {
+    const tutorTalking = busyRef.current || voice.speaking;
+    if (!tutorTalking) return;
+    stopSpeechRef.current();
+    if (!conversationId) return;
+    void fetch(`${apiBase}/api/tutor/conversations/${conversationId}/interrupt`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  };
 
   const loadConversation = useCallback(
     async (id: string) => {
@@ -210,6 +257,8 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
       const controller = new AbortController();
       abortRef.current = controller;
       let answer = "";
+      let interrupted = false;
+      let speechStreamed = false;
 
       try {
         await streamTutorMessage({
@@ -218,6 +267,8 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
           conversationId,
           text,
           attachments: extraAttachments,
+          // 连续对话时让服务端把回答按句念出来
+          speak: autoReadRef.current && voiceStatusRef.current.tts,
           signal: controller.signal,
           onEvent: (event: TutorStreamEvent) => {
             if (event.type === "text") {
@@ -237,6 +288,15 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
               );
             } else if (event.type === "replace") {
               setNotice(`有一段内容被替换了：${event.reason}`);
+            } else if (event.type === "speech") {
+              // 边到边念：文本已经先一步出现在屏幕上，不等整段合成完
+              speechStreamed = true;
+              enqueueSpeechRef.current(event.chunk, event.format);
+            } else if (event.type === "speech_error") {
+              setNotice(event.message);
+            } else if (event.type === "interrupted") {
+              interrupted = true;
+              setNotice("你插话了，私教停下了。说说你想问什么。");
             } else if (event.type === "error") {
               setError(event.message);
               setMessages((current) => current.filter((message) => message.id !== assistantId || message.content));
@@ -255,7 +315,14 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
           current.map((message) => (message.id === assistantId ? { ...message, pending: false } : message)),
         );
         // 自动朗读放在最后：先让孩子看到字，再听到声音，避免声音先于内容出现
-        if (answer.trim() && autoReadRef.current) void speakRef.current(answer, assistantId);
+        // 服务端没做按句合成（例如语音未开通）时才退回整段朗读，免得念两遍
+        if (answer.trim() && autoReadRef.current && !interrupted && !speechStreamed) {
+          void speakRef.current(answer, assistantId);
+        }
+        // 收尾了再叫醒排队等着的那几句插话
+        idleWaitersRef.current.splice(0).forEach((resolve) => resolve());
+        const queued = pendingSpeechRef.current.shift();
+        if (queued) void sendRef.current(queued);
       }
     },
     [apiBase, conversationId, token],
@@ -447,6 +514,16 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
                 }`}
               >
                 <Volume2 size={13} /> 自动朗读
+              </button>
+            )}
+            {voice.speaking && (
+              <button
+                type="button"
+                onClick={voice.stopSpeech}
+                aria-label="停止朗读"
+                className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 font-bold text-ink-soft"
+              >
+                <VolumeX size={13} /> 停一下
               </button>
             )}
             {voice.continuous && <span className="text-muted">{LOOP_STATE_TEXT[voice.loopState] || ""}</span>}

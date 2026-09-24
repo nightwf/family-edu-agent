@@ -114,6 +114,7 @@ GET    /api/tutor/conversations/:conversationId/messages
 POST   /api/tutor/conversations/:conversationId/messages   # SSE 流式
 POST   /api/tutor/conversations/:conversationId/attachments
 POST   /api/tutor/conversations/:conversationId/evidence
+POST   /api/tutor/conversations/:conversationId/interrupt   # 孩子插话，停掉正在生成的一轮
 GET    /api/tutor/conversations/:conversationId/worksheet   # 可打印讲义（text/html）
 DELETE /api/tutor/conversations/:conversationId
 GET    /api/tutor/voice/status
@@ -124,6 +125,11 @@ POST   /api/tutor/voice/speak
 私教接口只从登录会话推导 `familyId`，不接受客户端传入；`childId` 在会话创建时固定，运行时覆盖模型传入的值。
 `TUTOR_ENABLED=false` 时全部返回 503，前端同时隐藏入口。模型与语音凭据只写在服务器 `.env`（`TUTOR_*`）。
 `worksheet` 只把这段对话的真实文本排成可打印 HTML，不引入自由生图，页脚标注"证据需家长确认"。
+
+语音分三级台阶：按住说话（A）、免录制的连续对话（B）、可随时打断的实时对话（C）。
+B 与 C 的断句在浏览器本地完成，故意不传音频流：打断只需要一个 `interrupt` 请求，
+音频仍按句走既有链路，避免把厂商凭据下发到前端。发消息时带 `speak: true`，
+回答会按句合成并通过 SSE 的 `speech` 事件边到边念。
 
 ## WorkBuddy / 豆包工作接入
 

@@ -44,6 +44,11 @@ export type TutorStreamEvent =
   | { type: "tool"; name: string; ok: boolean }
   | { type: "replace"; reason: string }
   | { type: "done"; messageId: string; quotaLeft: number; usage: { promptTokens: number; completionTokens: number } }
+  | { type: "speech_start"; total: number }
+  | { type: "speech"; seq: number; total: number; format: string; chunk: string }
+  | { type: "speech_end"; total: number }
+  | { type: "speech_error"; message: string; seq: number }
+  | { type: "interrupted"; reason: string }
   | { type: "error"; message: string; retryable: boolean; detail?: string };
 
 /**
@@ -56,6 +61,8 @@ export async function streamTutorMessage(options: {
   conversationId: string;
   text: string;
   attachments?: string[];
+  /** 让服务端在文本流完之后按句推语音片段（连续对话时打开） */
+  speak?: boolean;
   signal?: AbortSignal;
   onEvent: (event: TutorStreamEvent) => void;
 }) {
@@ -65,7 +72,7 @@ export async function streamTutorMessage(options: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${options.token}`,
     },
-    body: JSON.stringify({ text: options.text, attachments: options.attachments || [] }),
+    body: JSON.stringify({ text: options.text, attachments: options.attachments || [], speak: options.speak === true }),
     signal: options.signal,
   });
 

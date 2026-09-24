@@ -19,6 +19,21 @@ process.env.TUTOR_DAILY_MESSAGE_LIMIT = "5";
 const state: Record<string, any> = {};
 const writes: Record<string, any[]> = { tutorMessage: [], tutorConversation: [], evidenceRecord: [], auditLog: [] };
 
+/** 语音桩：记录被念了哪些句子，并可切换"语音没开通"的状态。 */
+const speechState = { tts: false, sentences: [] as string[] };
+vi.mock("./voice/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./voice/index.js")>();
+  return {
+    ...actual,
+    getVoiceStatus: () => ({ asr: true, tts: speechState.tts }),
+    synthesize: async (text: string) => {
+      if (!speechState.tts) throw new actual.VoiceNotConfiguredError("tts");
+      speechState.sentences.push(text);
+      return { audio: Buffer.from(`AUDIO:${text}`, "utf8"), contentType: "audio/mpeg" };
+    },
+  };
+});
+
 function fallbackModel(prop: string) {
   return vi.fn().mockResolvedValue(prop === "count" ? 0 : prop === "findFirst" || prop === "findUnique" ? null : []);
 }
@@ -128,6 +143,8 @@ beforeEach(() => {
   writes.evidenceRecord.length = 0;
   writes.auditLog.length = 0;
   toolsetClosed.count = 0;
+  speechState.tts = false;
+  speechState.sentences.length = 0;
 });
 
 function auth() {
@@ -288,6 +305,130 @@ describe("私教一轮完整对话", () => {
     const response = await app.inject({
       method: "GET",
       url: "/api/tutor/conversations/conv-1/worksheet",
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("语音开通时回答按句合成，文本流完之后逐句推语音片段", async () => {
+    speechState.tts = true;
+    setChatProvider(
+      scriptedProvider([
+        [
+          { type: "text", delta: "先读一遍题。" },
+          { type: "text", delta: "再看看单位是什么。" },
+          { type: "done", usage: { promptTokens: 4, completionTokens: 6 } },
+        ],
+      ]) as any,
+    );
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/tutor/conversations/conv-1/messages",
+      headers: auth(),
+      payload: { text: "我不会", speak: true },
+    });
+
+    const events = parseSse(response.payload);
+    const start = events.find((event) => event.event === "speech_start");
+    expect(start?.data.total).toBe(2);
+    expect(speechState.sentences).toEqual(["先读一遍题。", "再看看单位是什么。"]);
+    const chunks = events.filter((event) => event.event === "speech");
+    expect(chunks.map((event) => Buffer.from(event.data.chunk, "base64").toString("utf8"))).toEqual([
+      "AUDIO:先读一遍题。",
+      "AUDIO:再看看单位是什么。",
+    ]);
+    expect(chunks.every((event) => event.data.format === "audio/mpeg")).toBe(true);
+    expect(events.some((event) => event.event === "speech_end")).toBe(true);
+    // 语音片段排在 done 之后，孩子先看到字再听到声音
+    expect(events.findIndex((event) => event.event === "done")).toBeLessThan(
+      events.findIndex((event) => event.event === "speech"),
+    );
+  });
+
+  it("语音没开通时请求朗读也不会报错，只是没有语音片段", async () => {
+    speechState.tts = false;
+    setChatProvider(scriptedProvider([[{ type: "text", delta: "先读题。" }, { type: "done", usage: { promptTokens: 1, completionTokens: 1 } }]]) as any);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/tutor/conversations/conv-1/messages",
+      headers: auth(),
+      payload: { text: "我不会", speak: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const events = parseSse(response.payload);
+    expect(events.some((event) => event.event === "speech")).toBe(false);
+    expect(events.some((event) => event.event === "error")).toBe(false);
+    // 文字照常拿到，不因为没语音而失败
+    expect(events.filter((event) => event.event === "text").length).toBeGreaterThan(0);
+    expect(events.some((event) => event.event === "done")).toBe(true);
+  });
+
+  it("孩子插话能打断生成：保留已经说出口的那半句，不再往下跑", async () => {
+    let openGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve;
+    });
+    setChatProvider({
+      name: "slow",
+      supportsVision: true,
+      async *streamChat() {
+        yield { type: "text", delta: "先看看题目里的" };
+        await gate;
+        yield { type: "text", delta: "这句话不该被说出来" };
+        yield { type: "done", usage: { promptTokens: 1, completionTokens: 1 } };
+      },
+    } as any);
+
+    const pending = app.inject({
+      method: "POST",
+      url: "/api/tutor/conversations/conv-1/messages",
+      headers: auth(),
+      payload: { text: "我不会" },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    const interrupted = await app.inject({
+      method: "POST",
+      url: "/api/tutor/conversations/conv-1/interrupt",
+      headers: auth(),
+    });
+    expect(interrupted.statusCode).toBe(200);
+    expect(interrupted.json().interrupted).toBe(true);
+
+    openGate();
+    const response = await pending;
+    const events = parseSse(response.payload);
+
+    expect(events.some((event) => event.event === "interrupted")).toBe(true);
+    expect(events.some((event) => event.event === "done")).toBe(false);
+    // 被打断不是故障：不该给家长弹错误
+    expect(events.some((event) => event.event === "error")).toBe(false);
+    // 已经说出口的部分要留档，孩子回头看得到自己听到哪
+    expect(writes.tutorMessage.map((row) => row.role)).toEqual(["user", "assistant"]);
+    expect(writes.tutorMessage[1].content).toBe("先看看题目里的");
+    // 收尾照做，工具集不泄漏
+    expect(toolsetClosed.count).toBe(1);
+  });
+
+  it("没有进行中的回合时打断是安全的空操作", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/tutor/conversations/conv-1/interrupt",
+      headers: auth(),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().interrupted).toBe(false);
+  });
+
+  it("打断不了别家的会话", async () => {
+    const otherToken = app.jwt.sign({ sub: "user-2", familyId: "family-2" });
+    prismaMock.user.findUnique.mockResolvedValueOnce({ id: "user-2", familyId: "family-2", status: "active" });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/tutor/conversations/conv-1/interrupt",
       headers: { authorization: `Bearer ${otherToken}` },
     });
     expect(response.statusCode).toBe(404);
