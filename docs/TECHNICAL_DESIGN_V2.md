@@ -49,7 +49,7 @@ Family Education API（Fastify）
    ├── REST API
    ├── MCP HTTP Endpoint
    ├── Domain Services
-   └── Agent Gateway
+   └── Agent Gateway（MCP 连接边界，模型能力由 WorkBuddy 提供）
         ▲                    │
         │ Streamable HTTP MCP│ 计划上下文 / 生成请求
         │ X-MCP-Token        ▼
