@@ -301,6 +301,8 @@ const mimeTypes = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
+  // 版本号是构建产出的 version.json，页面要 fetch 它
+  ".json": "application/json; charset=utf-8",
 };
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, `http://127.0.0.1:${port}`);
@@ -1566,6 +1568,180 @@ try {
     });
     await speechContext.close();
     await speechBrowser.close();
+  }
+
+  /**
+   * "发现新版本"单独跑一遍。
+   *
+   * 安卓 App 是 WebView 承载线上站点，它不会像浏览器那样隔三差五自己重载：
+   * 孩子把 App 挂在后台再切回来，跑的还是几天前那一版代码。
+   * 这条用例要证明的是——服务器换了版，页面能自己发现并给出一个点得动的入口，
+   * 而不是靠家长清缓存、重装 App。
+   */
+  if (!liveUrlArg) {
+    const updateBrowser = await chromium.launch({
+      channel: "chrome",
+      args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+    });
+    const updateContext = await updateBrowser.newContext({
+      viewport: { width: 393, height: 851 },
+      deviceScaleFactor: 2,
+      permissions: ["microphone"],
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14; V2312A Build/UP1A) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 HeYaAndroid/1.0",
+    });
+    const updatePage = await updateContext.newPage();
+    const updateErrors = [];
+    updatePage.on("pageerror", (error) => updateErrors.push(String(error.message).slice(0, 160)));
+    updatePage.on("console", (message) => {
+      if (message.type() === "error") updateErrors.push(message.text().slice(0, 160));
+    });
+
+    const ownVersion = JSON.parse(fs.readFileSync(path.join(distDir, "version.json"), "utf8")).version;
+    const newerVersion = `newer-${Date.now().toString(36)}`;
+    // null 表示"按真实情况走"（静态文件里那一版），设成字符串就当服务器换了版
+    let versionOverride = null;
+    const versionRequests = [];
+    await updatePage.route("**/version.json*", async (route) => {
+      versionRequests.push(route.request().url());
+      if (!versionOverride) {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({ version: versionOverride }),
+      });
+    });
+    await updatePage.route("**/api/**", async (route) => {
+      const url = route.request().url();
+      const match = stubs.find(([pattern]) => pattern.test(url));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify(match ? match[1]() : {}),
+      });
+    });
+    await updatePage.addInitScript(() => localStorage.setItem("familyEduToken", "responsive-check-token"));
+
+    /** 手动催一次检查：App 从后台切回来就是这个时机，不用等定时器 */
+    const nudgeCheck = async () => {
+      await updatePage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await updatePage.waitForTimeout(900);
+    };
+    const bannerState = () =>
+      updatePage.evaluate(() => {
+        const banner = document.querySelector('[data-testid="app-update-banner"]');
+        if (!banner) return { present: false };
+        const rect = banner.getBoundingClientRect();
+        const update = banner.querySelector('button[aria-label="更新到新版本"]');
+        const dismiss = banner.querySelector('button[aria-label="稍后再说"]');
+        const topbar = document.querySelector("header");
+        const bubble = document.querySelector('[data-testid="tutor-dock-bubble"]');
+        const box = (el) => {
+          const r = el?.getBoundingClientRect();
+          return r ? { top: r.top, bottom: r.bottom, left: r.left, right: r.right, w: r.width, h: r.height } : null;
+        };
+        const overlaps = (a, b) =>
+          !!a && !!b && !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+        const bannerBox = box(banner);
+        return {
+          present: true,
+          text: (banner.innerText || "").replace(/\s+/g, " ").trim(),
+          box: bannerBox,
+          insideViewport:
+            rect.left >= -1 && rect.right <= window.innerWidth + 1 && rect.top >= -1 && rect.bottom <= window.innerHeight + 1,
+          updateBox: box(update),
+          dismissBox: box(dismiss),
+          overlapsHeader: overlaps(bannerBox, box(topbar)),
+          overlapsTutorBubble: overlaps(bannerBox, box(bubble)),
+          overflowX: document.documentElement.scrollWidth - window.innerWidth,
+        };
+      });
+
+    const updateProbe = { ownVersion, requestedUrl: "", sameVersionNoBanner: false, bannerOnNewVersion: null };
+
+    // 一、服务器还是同一版：不该冒出任何提示
+    await updatePage.goto(baseUrl, { waitUntil: "networkidle" });
+    await updatePage.waitForTimeout(600);
+    await nudgeCheck();
+    updateProbe.requestedUrl = versionRequests.at(-1) || "";
+    updateProbe.sameVersionNoBanner = (await bannerState()).present === false;
+
+    // 二、服务器换了版：提示要自己出现
+    versionOverride = newerVersion;
+    await nudgeCheck();
+    updateProbe.bannerOnNewVersion = await bannerState();
+    await updatePage.screenshot({ path: path.join(outDir, "web-apk-update-banner.png"), fullPage: false });
+
+    // 三、点"更新"要真的把页面带到新版上（URL 带上新版本号，绕开 WebView 的旧缓存）
+    //
+    // 点击本身用 try 包住：万一提示没出来（比如有人把这段功能删了），
+    // 让用例把结果记成"没过"并继续跑完，比直接抛异常中断更好读——
+    // 抛异常只能看到一行栈，看不出到底哪几条不成立。
+    const navigation = updatePage.waitForNavigation({ timeout: 8000 }).catch(() => null);
+    await updatePage
+      .locator('button[aria-label="更新到新版本"]')
+      .click({ timeout: 4000 })
+      .catch(() => {});
+    await navigation;
+    await updatePage.waitForTimeout(400);
+    updateProbe.afterUpdateUrl = updatePage.url();
+    updateProbe.afterUpdateHasVersion = updateProbe.afterUpdateUrl.includes(`v=${newerVersion}`);
+    updateProbe.versionAfterUpdate = await updatePage.evaluate(
+      () => document.querySelector('meta[name="app-version"]')?.content || "",
+    );
+
+    // 四、点"稍后再说"就真的别再提示：再催一次检查也不该回来
+    versionOverride = `${newerVersion}-2`;
+    await nudgeCheck();
+    updateProbe.bannerBeforeDismiss = (await bannerState()).present;
+    await updatePage
+      .locator('button[aria-label="稍后再说"]')
+      .click({ timeout: 4000 })
+      .catch(() => {});
+    await updatePage.waitForTimeout(400);
+    updateProbe.goneAfterDismiss = (await bannerState()).present === false;
+    versionOverride = `${newerVersion}-2`;
+    await nudgeCheck();
+    await nudgeCheck();
+    updateProbe.staysHiddenAfterDismiss = (await bannerState()).present === false;
+
+    report.push({
+      viewport: "apk-update-prompt",
+      updateProbe,
+      versionRequests: versionRequests.slice(0, 3),
+      checks: {
+        // 页面问的就是它自己那一版的版本文件，问的地址得对
+        asksForVersionFile: /\/family-edu\/version\.json\?t=\d+$/.test(updateProbe.requestedUrl || ""),
+        // 同一版不打扰
+        noBannerWhenUpToDate: updateProbe.sameVersionNoBanner,
+        bannerAppearsOnNewVersion: updateProbe.bannerOnNewVersion?.present === true,
+        bannerSaysWhatItIs: (updateProbe.bannerOnNewVersion?.text || "").includes("有新版本"),
+        // 得是"点得动"的：撑满一行、在视口里，且不压住顶栏和私教浮标
+        bannerFitsAndDoesNotCover:
+          updateProbe.bannerOnNewVersion?.insideViewport === true &&
+          updateProbe.bannerOnNewVersion?.overflowX === 0 &&
+          updateProbe.bannerOnNewVersion?.overlapsHeader === false &&
+          updateProbe.bannerOnNewVersion?.overlapsTutorBubble === false,
+        updateButtonTappable:
+          (updateProbe.bannerOnNewVersion?.updateBox?.h ?? 0) >= 32 &&
+          (updateProbe.bannerOnNewVersion?.updateBox?.w ?? 0) >= 44 &&
+          (updateProbe.bannerOnNewVersion?.dismissBox?.w ?? 0) >= 32,
+        // 点一下就真的换到新版（带版本号重载，绕开 WebView 里那份旧 html）
+        updateLoadsNewVersion: updateProbe.afterUpdateHasVersion === true && updateProbe.versionAfterUpdate === ownVersion,
+        // "稍后"是真稍后：收起之后不再反复冒出来
+        dismissHidesBanner: updateProbe.bannerBeforeDismiss === true && updateProbe.goneAfterDismiss === true,
+        dismissDoesNotNag: updateProbe.staysHiddenAfterDismiss === true,
+        noPageErrors: updateErrors.length === 0,
+      },
+      errors: [...new Set(updateErrors)].slice(0, 4),
+    });
+    await updateContext.close();
+    await updateBrowser.close();
   }
 } finally {
   await browser.close();

@@ -25,6 +25,7 @@ import GoalPlan from "./components/GoalPlan";
 import ChildStateDetail from "./components/ChildStateDetail";
 import ChildEducation from "./components/ChildEducation";
 import TutorDock from "./components/TutorDock";
+import UpdateBanner from "./components/UpdateBanner";
 import SubjectDetail from "./components/SubjectDetail";
 import ParentRelation from "./components/ParentRelation";
 import { Landing } from "./components/Landing";
@@ -39,6 +40,7 @@ import {
   type PageId,
 } from "./components/Layout";
 import { isTutorEntryVisible } from "./lib/tutor";
+import { useAppUpdate } from "./lib/use-app-update";
 
 type Child = { id: string; name: string; gender?: string; age: number; grade: string; subjects: string[]; textbookVersion?: string };
 type Homework = { id: string; childId: string; subject?: string; title: string; dueDate?: string; status: string };
@@ -221,6 +223,15 @@ function WechatQrLogin({ onToken }: { onToken: (token: string) => void }) {
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem("familyEduToken") || "");
+  /**
+   * 安卓 App 是 WebView 承载线上站点，它不会自己重载。
+   * 孩子把 App 挂在后台再切回来，跑的可能还是几天前那一版代码，
+   * 这里对一下服务器上的版本，不一样就提示一句。
+   */
+  const appUpdate = useAppUpdate(import.meta.env.BASE_URL);
+  const updateBanner = appUpdate.availableVersion ? (
+    <UpdateBanner onUpdate={appUpdate.apply} onDismiss={appUpdate.dismiss} />
+  ) : null;
   const [entryView, setEntryView] = useState<"landing" | "login">("landing");
   // 手机和小屏平板：左侧导航收进抽屉，避免固定侧边栏挤掉正文
   const [navOpen, setNavOpen] = useState(false);
@@ -522,14 +533,22 @@ function App() {
 
   if (!token) {
     if (entryView === "landing") {
-      return <Landing onLogin={() => setEntryView("login")} />;
+      return (
+        <div className="min-h-screen">
+          {updateBanner}
+          <Landing onLogin={() => setEntryView("login")} />
+        </div>
+      );
     }
     return (
-      <div className="app-bg flex min-h-screen flex-col items-center justify-center gap-5 p-4">
-        <WechatQrLogin onToken={saveToken} />
-        <button type="button" onClick={() => setEntryView("landing")} className="text-xs text-muted underline">
-          返回首页
-        </button>
+      <div className="app-bg flex min-h-screen flex-col">
+        {updateBanner}
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 p-4">
+          <WechatQrLogin onToken={saveToken} />
+          <button type="button" onClick={() => setEntryView("landing")} className="text-xs text-muted underline">
+            返回首页
+          </button>
+        </div>
       </div>
     );
   }
@@ -572,6 +591,8 @@ function App() {
           childName={home?.children?.[0]?.name}
           onOpenNav={() => setNavOpen(true)}
         />
+        {/* 顶栏下面一条，不悬浮不遮挡：更新是"可以稍后再做"的事 */}
+        {updateBanner}
         {/* 浮标是固定定位的，正文底部多留一截，免得它永远压住最后一行内容 */}
         <main className={`min-w-0 flex-1 overflow-y-auto p-4 md:p-7 ${showTutorEntry ? "pb-24 md:pb-24" : ""}`}>
           <div className="mx-auto max-w-[1180px] space-y-5">
