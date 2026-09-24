@@ -1599,9 +1599,24 @@ try {
 
     const ownVersion = JSON.parse(fs.readFileSync(path.join(distDir, "version.json"), "utf8")).version;
     const newerVersion = `newer-${Date.now().toString(36)}`;
+    /**
+     * 抓一下页面注册过哪些定时器。
+     * 版本检查的要求是"只在页面加载时查一次"，那就不能有任何周期轮询——
+     * 光看代码里没写 setInterval 不够，得看运行时真的没排上。
+     * 全站目前只有这一个地方可能用 setInterval，所以判据用"一个都没有"。
+     */
+    const intervalDelays = [];
     // null 表示"按真实情况走"（静态文件里那一版），设成字符串就当服务器换了版
     let versionOverride = null;
     const versionRequests = [];
+    await updatePage.addInitScript(() => {
+      const original = window.setInterval;
+      window.__intervalDelays = [];
+      window.setInterval = function setIntervalSpy(_handler, delay, ...rest) {
+        window.__intervalDelays.push(Number(delay));
+        return original.call(window, _handler, delay, ...rest);
+      };
+    });
     await updatePage.route("**/version.json*", async (route) => {
       versionRequests.push(route.request().url());
       if (!versionOverride) {
@@ -1666,10 +1681,14 @@ try {
 
     // 一、服务器还是同一版：不该冒出任何提示
     await updatePage.goto(baseUrl, { waitUntil: "networkidle" });
-    await updatePage.waitForTimeout(600);
-    await nudgeCheck();
-    updateProbe.requestedUrl = versionRequests.at(-1) || "";
+    // 先什么都不碰地放一会儿：让那次"页面加载后查一次"自然发生，
+    // 同时看看这段时间里有没有周期轮询在偷偷多打请求。
+    // 这里绝不能自己去催检查，否则数出来的第二次请求是自己造成的。
+    await updatePage.waitForTimeout(5500);
+    updateProbe.requestedUrl = versionRequests[0] || "";
+    updateProbe.versionRequestsAfterIdle = versionRequests.length;
     updateProbe.sameVersionNoBanner = (await bannerState()).present === false;
+    intervalDelays.push(...(await updatePage.evaluate(() => window.__intervalDelays || [])));
 
     // 二、服务器换了版：提示要自己出现
     versionOverride = newerVersion;
@@ -1714,9 +1733,13 @@ try {
       viewport: "apk-update-prompt",
       updateProbe,
       versionRequests: versionRequests.slice(0, 3),
+      // 页面注册过的周期定时器（应为空）——"不做轮询"这件事的证据
+      periodicTimers: intervalDelays,
       checks: {
         // 页面问的就是它自己那一版的版本文件，问的地址得对
         asksForVersionFile: /\/family-edu\/version\.json\?t=\d+$/.test(updateProbe.requestedUrl || ""),
+        // 不做定时轮询：一个周期定时器都不该有；页面开着不动也只查这一次
+        noPeriodicPolling: intervalDelays.length === 0 && updateProbe.versionRequestsAfterIdle === 1,
         // 同一版不打扰
         noBannerWhenUpToDate: updateProbe.sameVersionNoBanner,
         bannerAppearsOnNewVersion: updateProbe.bannerOnNewVersion?.present === true,
