@@ -22,7 +22,7 @@
 
 1. 按用户分，不按功能分。WorkBuddy 是家长的控制台（规划、录入、纠偏）；内置私教是孩子手里的（讲题、陪练、随时问）。二者共用一份数据与一套工具，不是同一件事的两个入口。
 2. 教育理念只有一个家。私教的人格与教法一律从 `FamilyPolicy`、`EducationMethod`、`SkillOverride` 读取，不写死在提示词里，也不托管给第三方平台。
-3. 孩子端权限最小化。私教只在本家庭数据范围内工作，工具白名单化，不开放联网检索与自由文件操作。
+3. 单一账号，不做权限分层。私教归家长账号使用，本期不建第二套账号体系、不做角色权限。工具白名单限制的是"模型能自主做什么"（不开放联网检索与自由文件操作），不是"谁能用"。
 
 "到底要自己写多少"见 4.1：框架的两大底座（工具协议、模型通信）都是现成的，自己写的是中间那层薄的编排与领域逻辑。
 
@@ -477,20 +477,20 @@ export interface ChatProvider {
 
 ## 11. 语音（分三级台阶）
 
-| 阶段 | 形态 | 实现 |
+| 台阶 | 形态 | 实现 |
 |---|---|---|
-| 二 A | 按住说话：录音 → 识别 → 文字回答 → 朗读 | ASR + TTS 云 API，前端串起来 |
-| 二 B | 免录制的连续对话 | 同上，自动断句 |
-| 三 | 实时对话、可随时打断 | 实时语音 API（WebSocket 双向流） |
+| A | 按住说话：录音 → 识别 → 文字回答 → 朗读 | ASR + TTS 云 API，前端串起来 |
+| B | 免录制的连续对话 | 同上，自动断句 |
+| C | 实时对话、可随时打断 | 实时语音 API（WebSocket 双向流） |
 
 不做什么：不自建 ASR/TTS 模型，不做声纹克隆。
 
 两个必须提前处理的技术点：
 
 1. 儿童语音识别准确率明显低于成人。选型必须用真实儿童录音实测，这是体验分水岭。
-2. 安卓端麦克风尚未打通。现有 `android/app/src/main/AndroidManifest.xml` 只声明了 `INTERNET`、`ACCESS_NETWORK_STATE` 与存储权限，且 `MainActivity` 没有实现 `WebChromeClient.onPermissionRequest`。语音阶段必须补 `RECORD_AUDIO` 并在 WebView 内授权，否则网页端能用的功能在 APK 里会静默失败。
+2. 安卓端麦克风尚未打通。现有 `android/app/src/main/AndroidManifest.xml` 只声明了 `INTERNET`、`ACCESS_NETWORK_STATE` 与存储权限，且 `MainActivity` 没有实现 `WebChromeClient.onPermissionRequest`。启用语音必须补 `RECORD_AUDIO` 并在 WebView 内授权，否则网页端能用的功能在 APK 里会静默失败。
 
-微信小程序音频能力受限且审核更严格，语音先保网页与安卓，小程序按需评估。
+本期语音只在安卓 APK 端启用：这是唯一必须重新打包发版的场景。微信小程序音频能力受限且审核更严格，本期不做。
 
 ---
 
@@ -531,33 +531,41 @@ event: error    data: {"message":"...","retryable":true}
 
 ## 13. 前端
 
-### 13.1 网页端（先生效）
+### 13.1 入口位置：只在安卓 APK 端（本期）
 
-新增 `apps/web/src/components/TutorChat.tsx`，按 `PageId` 机制接入（`apps/web/src/components/Layout.tsx`）：
+私教入口本期**只在安卓 APK 里出现**，网页端与小程序不加入口。
 
-- 一级导航新增"学习私教"，与"首页 / 学生 / 成长"同级；
+实现方式不需要改 APK：APK 是 WebView 承载线上站点（`MainActivity.HOME_URL = "https://heyaagent.top/"`），且 `MainActivity` 已给 UA 附加 `HeYaAndroid/1.0`（`MainActivity.java:171`）。前端读 UA 决定是否渲染入口即可，组件本身仍写在 `apps/web/src/components/TutorChat.tsx`。
+
+两点必须说清楚：
+
+1. **UA 是产品开关，不是安全边界。** UA 可伪造，所以不能靠它保护数据。本期安全的依据是账号本身：能进来的人就是家庭管理者，私教能读能写的范围本来就不超过他本人已有的权限。这也是"不需要做额外权限"能成立的原因。
+2. **语音要发一次新版 APK。** `AndroidManifest.xml` 目前只声明了 `INTERNET`、`ACCESS_NETWORK_STATE` 与存储权限，且 `MainActivity` 未实现 `WebChromeClient.onPermissionRequest`。要做按住说话，必须补 `RECORD_AUDIO` 并在 WebView 内授权，否则网页端能用的功能在 APK 里会静默失败。这是本期唯一必须重新打包发版的动作。
+
+### 13.2 界面
+
 - 沿用现有明亮学堂设计语言（`rounded-2xl`、teal 主色），不引入第三方聊天组件；
-- 消息流支持：文字、图片、流式打字、引用错题的卡片（点开进错题详情）、语音按钮占位；
-- 顶部带孩子切换（复用现有 `childName` 与切换逻辑），家长模式下可切到 `parent_coach` 人格。
+- 消息流支持：文字、图片、流式打字、引用错题的卡片（点开进错题详情）、按住说话；
+- 顶部带孩子切换（复用现有 `childName` 与切换逻辑）。
 
-### 13.2 安卓端（自动获得）
+### 13.3 网页端与小程序（入口不开）
 
-APK 是 WebView 承载线上站点（`MainActivity.HOME_URL = "https://heyaagent.top/"`），网页端做好即同步生效，无需重新打包发版。语音阶段需要补麦克风权限，才需要发一次新版 APK。
-
-### 13.3 微信小程序（按需）
-
-小程序不做完整聊天，只做两件事：查看孩子最近对话摘要、确认待确认证据。完整聊天留在网页与安卓。
+组件与接口都在，入口不开。后续要放开只需改 UA 判定这一处，不需要重做界面。小程序本期不做完整聊天。
 
 ---
 
-## 14. 权限与家庭隔离
+## 14. 账号与数据隔离
+
+本期不新建账号体系、不做角色权限。私教沿用家长账号：能打开 APK 的人就是家庭管理者，能读能写的范围不超过他已有的权限。安全靠账号与家庭边界，不靠界面隐藏。
+
+以下四条仍然必须守住，但它们是**数据正确性与隐私**，不是权限分层：
 
 - 所有 `/api/tutor/*` 走 `requireAuth`，`familyId` 只从会话取，不接受客户端传入（与现有 `getAuth(request)` 一致）；
-- 会话、消息、附件、证据写入前一律校验所属 `familyId`；
+- 会话、消息、附件、证据写入前一律校验所属 `familyId`，跨家庭不可见；
 - 工具调用走进程内 MCP，家庭边界沿用 `resolveFamily()` 既有语义；
-- 家长可见：对话列表、摘要、证据确认、安全事件；
-- 孩子端看不到其它孩子的会话与数据；
-- 归档会话保留消息（成长追溯需要），但不进入任何上下文。
+- `childId` 是数据维度（这段对话在说哪个孩子），会话创建时确定，不由模型自由指定；同一家庭多个孩子的会话、摘要、证据互不串（见 9.3）。
+
+对话列表、摘要、证据确认、安全事件都对账号可见。归档会话保留消息（成长追溯需要），但不进入任何上下文。
 
 ---
 
@@ -585,35 +593,28 @@ MODERATION_API_KEY=
 
 ---
 
-## 16. 分阶段实施
+## 16. 交付范围与实施顺序
 
-### 阶段一：文字 + 拍图讲错题（先做这个）
+本期目标是**一次做成完整私教**，不交付"最小可用版"：文字对话、拍图讲错题、按住说话、孩子记忆、证据回流、家长确认，都要在首发范围内。实时双向语音与输出多模态同批收尾。
+
+内部仍然分先后做，因为有些依赖是硬的（没有会话表就跑不了对话，没有麦克风权限就录不了音）。但这属于施工顺序，不是对外分批发版：
 
 1. 数据迁移：`TutorConversation`、`TutorMessage`、`TutorSafetyEvent`；
-2. `llm/` 抽象 + 一个供应商实现，跑通流式；
-3. `mcp-tools.ts` + `tool-policy.ts`，接 10 个左右只读工具；
-4. `persona.ts`：从教育理念渲染人格提示词；
+2. `llm/` 供应商抽象 + 实现，跑通流式；
+3. `mcp-tools.ts` + `tool-policy.ts`，接只读工具；
+4. `persona.ts`：由教育理念渲染人格提示词；
 5. `safety.ts`：L1 + L3（L2 靠提示词）；
-6. `routes.ts` + SSE；
-7. 网页端聊天页；
+6. `routes.ts` + SSE，含配额；
+7. 前端聊天页 + APK 端入口判定；
 8. 图片上传链路；
-9. `memory.ts`：摘要 + 证据回流（待确认）。
+9. `voice/` 抽象 + ASR/TTS + 按住说话；
+10. 安卓补 `RECORD_AUDIO` 与 `onPermissionRequest`，发新版 APK；
+11. `memory.ts`：摘要 + 证据回流（待确认）；
+12. 实时语音与输出多模态。
 
-产出口径：孩子能拍一道错题，私教结合他的错题本与掌握度讲明白，讲完家长能在"孩子状态"看到一条待确认证据。
+一次做完整的代价要说在前面：**儿童语音识别准确率是唯一无法靠工程保证的环节**。ASR 选型必须用真实儿童录音实测；不达标就只能退化为"按住说话 + 文字确认"再补实时语音，这部分返工风险本期自担（见第 18 节）。
 
-### 阶段二：语音（按住说话）
-
-1. `voice/` 抽象 + ASR/TTS 接入；
-2. 前端录音组件；
-3. 安卓补 `RECORD_AUDIO` 与 `onPermissionRequest`，发新版 APK；
-4. 儿童语音实测并调参。
-
-### 阶段三：实时语音 + 输出多模态
-
-1. 实时语音双向流；
-2. 模板化练习页渲染，图片生成再评估。
-
-每阶段结束都部署到 `heyaagent.top` 并做线上验证，不长期停留在本地。
+每一步结束都部署到 `heyaagent.top` 并做线上验证，不长期停留在本地。
 
 ---
 
@@ -644,19 +645,19 @@ MODERATION_API_KEY=
 
 | 风险 | 应对 |
 |---|---|
-| 儿童语音识别准确率不达标 | 阶段二前用真实录音实测，不行则退化为"按住说话 + 文字确认" |
+| 儿童语音识别准确率不达标 | 上语音前用真实录音实测，不行则退化为"按住说话 + 文字确认" |
 | 模型成本随使用量上涨 | 配额前置、按场景选模型、单轮工具截断 |
 | 模型被诱导越界 | L1/L3 双审核 + L2 提示词硬规则 + 工具白名单默认拒绝 |
 | 聊天内容变成假证据 | 证据一律 `PENDING_CONFIRMATION`，家长确认才生效 |
-| 孩子端权限过大 | 白名单 + `childId` 服务端锁定 + 变更类工具不进孩子端 |
+| 模型自主写入越界 | 工具白名单 + `childId` 由服务端注入 + 变更类工具不进对话运行时 |
 | 教学理念两处漂移 | 人格每次从 `FamilyPolicy` / `EducationMethod` 渲染，不落库副本 |
 
 需在实施时确认（本方案不假设）：
 
 1. 对话模型与视觉模型的最终供应商、型号与计费；
-2. 内容审核服务商与小程序的合规要求；
+2. 内容审核服务商与合规要求（本期不涉及小程序）；
 3. 儿童语音数据的保存与合规边界（默认不保存原始音频）；
-4. 微信小程序是否只做摘要与确认（当前建议是）。
+4. 后续是否放开网页端与小程序入口（本期只做 APK 端）。
 
 ---
 
@@ -667,6 +668,43 @@ MODERATION_API_KEY=
 - WorkBuddy 连接协议、`/family-edu/mcp` 路径、已提交开放平台的专家包；
 - 现有 MCP 工具语义与 `docs/workbuddy-sync-spec.md`；
 - 现有业务表结构（只新增三张私教表）；
-- 安卓端在阶段一无需重新打包发版。
+- 安卓端：入口靠 UA 判定，不改 APK 即可出现；启用语音时才需要发一次新版 APK（补 `RECORD_AUDIO`）。
 
-微信小程序在阶段一只新增家长侧的摘要与确认页，需要重新提审一次。
+微信小程序本期不改，无需提审。
+
+---
+
+## 20. 对 WorkBuddy 对接的影响评估（2026-09-24 代码核对）
+
+结论：**不影响。** 下面每一行都对着代码核过，不是推断。
+
+### 20.1 逐项核对
+
+| 可能受影响的面 | 核对结果 |
+|---|---|
+| MCP HTTP 链路 | `registerMcpHttp`（`apps/api/src/mcp.ts:1052`）每个请求新建 `createEducationMcpServer(familyId)` 与 `StreamableHTTPServerTransport`，`sessionIdGenerator: undefined`，即全程无状态、无共享实例（`:1078`、`:1098`） |
+| 模块级状态 | `mcp.ts` 与 `mcp-token.ts` 中没有模块级 `let` / `Map` / `Set`。私教另起一个 server 实例，与 HTTP 实例之间无任何共享状态 |
+| 家庭身份解析 | WorkBuddy 走 `X-MCP-Token` 或 OAuth Bearer（`:1053`、`:1059`）；私教走登录会话 `requireAuth`。两条路互不相交 |
+| nginx 配置 | `/family-edu/mcp` 与 `/family-edu/` 保持原样，`/api/` 由 `location /` 覆盖。**本次不需要改 nginx** |
+| 路由冲突 | 私教挂在 `/api/tutor/*`，是新增前缀，不覆盖任何现有路由 |
+| 数据库 | 只新增三张私教表，无字段变更、无数据迁移。现有账号、学生、题库、作业、知识库不受影响 |
+| MCP 工具契约 | 现有工具语义与参数全部不变；`get_sync_spec` 只做增量补充 |
+| `EvidenceRecord.source` | 是 `String @default("workbuddy")`（`prisma/schema.prisma:904`），**不是枚举**。私教写 `source: "tutor"` 是新增取值，零 schema 变更 |
+| `AuditLog.actorType` | 同为 `String`（`:1228`），同上 |
+| `createEvidenceRecord` | 已接受 `actor` 参数（`apps/api/src/v2/evidence.ts:29`），默认 `workbuddy`，无需改签名 |
+| 已提交开放平台的专家包 | `workbuddy-open-platform/connector/.../mcp.json` 只声明传输方式与 URL，**不含工具清单**；`SKILL.md` 与 `tool-workflows.md` 是工作流说明，不是白名单。WorkBuddy 的工具有效性是运行时 `tools/list` 动态发现的，**加工具不需要重新提审** |
+| 现有测试 | 没有任何用例断言工具总数（`mcp-bootstrap.test.ts:39` 用的是 `toContain`），新增工具不会让测试变红 |
+
+### 20.2 两处真实存在的影响（如实说明）
+
+1. **部署会重启 api 容器**，MCP 有秒级中断。这与每次发版相同，不是本方案引入的；部署时段建议避开家长在用的时间。
+2. **有一个取值刻意不动**：`update_student_question_type_mastery` 与 `update_wrong_question_status` 的 `source` 参数是封闭枚举 `["parent", "workbuddy"]`。私教不调用这两个工具（掌握度与错题状态的人工修正属于人的判断，且要家长确认），因此既不需要扩展枚举，也不需要改动 WorkBuddy 侧调用。若将来要放开，改这两处 zod 定义即可，届时 WorkBuddy 侧需同步。
+
+### 20.3 一条需要留意的设计约束
+
+第 4 节建议顺手补一个只读工具 `get_subject_overview`。加工具本身对 WorkBuddy 是纯增量（多一个可用工具），但**它会改动 `get_sync_spec` 的输出**，而 `get_sync_spec` 是 WorkBuddy 每次新会话读取的契约入口。改动要守两条：
+
+- 只做增量（加 tool、加 workflow 条目），不改已有字段语义与 `enums` 取值；
+- 版本号递进（当前 `2.5` → `2.6`），让 WorkBuddy 能感知规范变了。
+
+这两条在 `docs/workbuddy-sync-spec.md` 的通用规则里已有约定，本次核对确认没有冲突。

@@ -382,6 +382,51 @@ model MethodEffect {
 }
 ```
 
+### 6.3.1 教育方式按孩子维度分层（已实现，2026-09-24）
+
+教育方式不是家庭一套，而是「家庭默认 + 孩子差异」。解析顺序固定为三层，逐字段回落：
+
+```
+全局基础技能（skills/*.md，版本化）
+      ↓ 被覆盖
+家庭策略（FamilySkillProfile / Family 字段，全家默认值）
+      ↓ 被覆盖
+孩子级调整（ChildSkillProfile，可选，默认空）
+      ↓
+最终生效设置
+```
+
+```prisma
+model ChildSkillProfile {
+  id                 String   @id @default(cuid())
+  childId            String
+  child              Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  familyId           String
+  skillId            String
+  baseVersion        String   @default("1.0.0")
+  active             Boolean  @default(true)
+  philosophy         String?
+  communicationStyle String?
+  strictness         String?
+  parentGoals        String[]
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([childId, skillId])
+  @@index([familyId, skillId])
+}
+```
+
+要点：
+
+- **纯新增**：迁移只有建表、加列、建索引，没有回填与删除；存量家庭自动表现为"继承家庭设置"。
+- **逐字段覆盖**：孩子只设了严格程度时，理念与沟通风格仍来自家庭；`active=false` 视为不存在。
+- **`notes`（学习特点）只有孩子级**，描述"这个孩子怎么学"，不属于家庭共性。
+- **家庭边界保持家庭级**：每周时间预算、优先学科、压力边界不按孩子设，避免出现互相矛盾的约束；如确需区分，应作为"孩子计划配额"另立设计。
+- **`PolicyChange` 增加 `childId`**，用于区分家庭级与孩子级变更并支持按孩子筛选审计。
+- 完整设计见 [教育方式按孩子维度分层](CHILD_SCOPED_EDUCATION_DESIGN.md)。
+
 ### 6.4 学生状态与证据
 
 ```prisma
@@ -846,6 +891,8 @@ model AuditLog {
 - MCP 从 `X-MCP-Token` 获取 `familyId`；
 - 不接受调用方传入的 `familyId` 作为可信来源；
 - 所有 `childId`、`goalId`、`planId`、`questionId`、`knowledgeNodeId` 等写入前再次校验属于当前家庭。
+- 家庭内跨孩子不是隔离边界，但**孩子维度不能串**：需要按孩子区分的数据（教育方式、记忆、掌握度）一律带 `childId`，读取某个孩子的教育方式前先校验该孩子属于当前家庭；
+- 归属校验统一由 `apps/api/src/v2/guards.ts` 的 `assertChildInFamily` 提供，不在各模块重复实现。
 
 ### 7.2 账号与家庭
 
@@ -905,6 +952,8 @@ model AuditLog {
 | `POST` | `/api/children` | 创建孩子 |
 | `PATCH` | `/api/children/:childId` | 更新孩子 |
 | `DELETE` | `/api/children/:childId` | 归档或删除孩子 |
+| `GET` | `/api/children/:childId/education-profile` | 获取该孩子的教育方式（各场景个体配置 + 合并后的最终设置） |
+| `PATCH` | `/api/children/:childId/education-profile` | 写入该孩子的教育方式；`clear: true` 清空并恢复继承家庭设置 |
 | `GET` | `/api/children/:childId/state` | 获取当前状态快照 |
 | `GET` | `/api/children/:childId/evidence` | 分页获取证据 |
 | `POST` | `/api/children/:childId/evidence` | 写入证据 |
@@ -988,6 +1037,18 @@ model AuditLog {
 | `save_knowledge_relations_batch` | 批量保存知识关系 | `source_document_id`、`relations[]` |
 | `get_weekly_review_draft` | 获取周回顾草稿 | `child_id`、`week_start` |
 | `confirm_weekly_review` | 家长确认周回顾 | `review_id`、`adjustments` |
+
+教育方式按孩子维度的工具（2026-09-24 新增，均为可选项，不带 `child_id` 时行为与历史版本一致）：
+
+| 工具 | 用途 | 关键参数 |
+| --- | --- | --- |
+| `get_effective_skill` | 读取最终生效教育 Skill；**传 `child_id` 才应用孩子级配置** | `skill_id`、可选 `child_id` |
+| `list_family_policies` | 家庭级配置；传 `child_id` 附带孩子个体配置 | 可选 `child_id` |
+| `update_family_policy` | 不传 `child_id` 写家庭级，传了写孩子级 | `skill_id`、可选 `child_id` |
+| `get_child_education_profile` | 读取某孩子各教育场景的个体配置与合并结果 | `child_id` |
+| `update_child_education_profile` | 写入孩子级教育方式；`clear=true` 恢复继承 | `child_id`、`skill_id`、可选字段、`clear` |
+
+`get_effective_skill` 返回值新增 `child_id`、`child_name`、`child_profile`、`child_overrides`、`resolved_settings`、`resolution`；既有 `skill`、`profile`、`overrides`、`recommended_methods`、`effective_content` 字段与语义保持不变。
 
 ### 9.2 保留现有工具
 
@@ -1149,6 +1210,8 @@ WORKBUDDY_CLOUD_TASK_ENABLED
 8. 未授权家庭无法访问其他家庭资源。
 9. Web 和手机端列表均使用分页。
 10. 旧账号、家庭和孩子迁移后可正常使用。
+11. 同一家庭的多个孩子可以有各自的教育方式；未单独设置的孩子跟随家庭设置，改家庭设置后未覆盖的字段同步变化。
+12. 不带 `child_id` 调用 `get_effective_skill` 时返回值与改造前一致（向后兼容）。
 
 ## 17. 实施顺序
 

@@ -7,6 +7,7 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 - 家庭身份只由连接授权（WorkBuddy OAuth Access Token，过渡期兼容家庭 Token）确定，不传入或猜测 `family_id`；
 - 使用开放平台连接器后，首次连接由微信扫码授权完成，不要求家长粘贴 Token 或提示词；
 - 涉及学生时先调用 `list_children` 确认 `child_id`；
+- 教育方式按孩子区分：执行某个孩子的任务前先调用 `get_effective_skill` 并传 `child_id`，拿到「家庭策略 + 孩子个体调整」合并后的结果；不传 `child_id` 只返回家庭级设置；
 - 普通闲聊不自动保存；家长明确要求保存、同步、写入或记录时调用对应工具；
 - 写入后读取结果确认，不把没有成功保存的内容描述为“已经同步”。
 
@@ -14,6 +15,7 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 
 | 场景 | 主要工具 |
 | --- | --- |
+| 教育方式（按孩子） | `get_child_education_profile`、`get_effective_skill`、`update_child_education_profile`、`update_family_policy` |
 | 写作 / 日记 | `save_writing_record`、`save_learning_record` |
 | 阅读 / 复述 | `save_reading_record` |
 | 家庭作业 | `save_homework`、`update_homework_status`、`complete_homework` |
@@ -82,6 +84,17 @@ WorkBuddy 负责教育对话和 Agent 执行，通过同一个 Family Education 
 6. 练习或计划执行后，用 `record_recommendation_outcome` 记录这次建议的真实效果
    （`improved` / `unchanged` / `worse` / `unmeasurable`）。
 7. 已经解决的信号用 `resolve_learning_signal` 处理，保持首页只显示当前真正需要关注的问题。
+
+## 教育方式流程（按孩子维度）
+
+1. 同一个家庭的不同孩子可以有各自的教育方式；解析顺序是「全局基础技能 → 家庭策略 → 孩子级调整」，孩子级为空的字段逐项继承家庭设置。
+2. 执行某个孩子的任务前调用 `get_effective_skill`，**必须带上 `child_id`**，按返回的 `resolved_settings` 与 `effective_content` 执行。
+3. `get_effective_skill` 的 `resolution` 表示这套设置从哪来：`child` 是孩子级生效，`family` 是没有孩子级配置，`default` 是家庭和孩子都没设过。`child_overrides` 列出这个孩子实际覆盖了哪些字段。
+4. 想先看全貌时调用 `get_child_education_profile`，一次读出这个孩子每个教育场景的个体配置、家庭继承值和最终生效设置。
+5. 家长说"这个孩子单独这样带"时调用 `update_child_education_profile` 写孩子级；说"全家都这样"时调用 `update_family_policy`（不带 `child_id`）写家庭级。
+6. 家长要求恢复默认时用 `clear=true` 清空孩子级配置，回到继承家庭设置。
+7. 家长目标、学习特点都属于孩子级信息，**不得跨孩子套用**；不要把一个孩子的偏好、目标或学习特点用到另一个孩子身上。
+8. 单次对话里的临时偏好不等于长期设置；只有家长明确要求保存时，才写入孩子级或家庭级。
 
 ## 枚举取值
 

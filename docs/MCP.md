@@ -11,6 +11,36 @@ MCP 地址为 `https://heyaagent.top/family-edu/mcp`。每个家庭使用独立 
 
 开放平台 Expert 和 Skill 会先调用 `get_agent_bootstrap`，不要求家长每次重新粘贴完整提示词。
 
+## 教育方式工具（按孩子维度）
+
+同一个家庭的不同孩子可以有各自的教育方式。解析顺序是「全局基础技能 → 家庭策略 → 孩子级调整」，孩子级字段为空时逐项继承家庭设置。
+
+| 工具 | 关键参数 | 用途 |
+| --- | --- | --- |
+| `list_education_skills` | 无 | 读取内置教育 Skill 列表 |
+| `get_effective_skill` | `skill_id`、可选 `child_id` | 读取最终生效的教育 Skill。**传 `child_id` 才会应用孩子级配置**；不传时只按家庭策略返回，行为与历史版本一致 |
+| `list_family_policies` | 可选 `child_id` | 读取家庭级配置；传 `child_id` 时附带该孩子的个体配置与合并结果 |
+| `update_family_policy` | `skill_id`、可选 `child_id` | 不传 `child_id` 写家庭级；传了写这个孩子的个体配置 |
+| `get_child_education_profile` | `child_id` | 读取该孩子各教育场景的个体配置、家庭继承值和最终生效设置 |
+| `update_child_education_profile` | `child_id`、`skill_id`、可选 `philosophy` / `communication_style` / `strictness` / `parent_goals` / `notes` / `clear` | 写入这个孩子的个体教育方式；`clear=true` 清空并恢复继承家庭设置 |
+
+`get_effective_skill` 返回中与孩子维度相关的字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `child_id` / `child_name` | 本次解析针对的孩子，不传 `child_id` 时为 `null` |
+| `child_profile` | 生效中的孩子级配置，没有则为 `null` |
+| `child_overrides` | 这个孩子实际覆盖了哪些字段（`philosophy` / `communicationStyle` / `strictness` / `parentGoals`） |
+| `resolved_settings` | 合并后的最终设置（理念、沟通风格、严格程度、家长目标） |
+| `resolution` | `child`（孩子级生效）/ `family`（无孩子级配置）/ `default`（全部走兜底默认值） |
+
+约束：
+
+- 所有孩子级参数都是**可选**，不传时返回值与字段含义不变，既有调用无需改动；
+- `effective_content` 只做加法：存在孩子级配置时才追加"孩子个体差异配置"段落，该段落明确声明"与家庭配置不一致时以本节为准"；
+- 家庭身份仍只由授权决定，不接受调用方传入 `family_id`；`child_id` 必须在当前家庭内校验通过；
+- 不要把一个孩子的偏好、目标或学习特点套用到另一个孩子身上。
+
 ## 错题工具
 
 | 工具 | 关键参数 | 用途 |
