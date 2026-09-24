@@ -801,7 +801,8 @@ MODERATION_API_KEY=
 
 | 验证 | 命令 | 结果 |
 |---|---|---|
-| API 单测（含私教 102 条） | `npm test` | 36 文件 241 用例全部通过 |
+| API 单测 | `npm test` | 37 文件 250 用例全部通过 |
+| 同家庭不同孩子隔离 | `npm test`（`tutor/child-isolation.test.ts`） | 8 用例：按孩子筛会话必须带 `childId`、读会话取到的是本人的消息与身份、人格不含另一个孩子的名字、证据落在本人名下且待确认、枚举写错给出合法值清单 |
 | 语音纯逻辑 | `npm run test:voice` | 32 项通过（音量计算、杂音过滤、断句时机、朗读文本清理） |
 | 小程序校验 | `npm run check:miniprogram` | 19 页 / 21 json / 28 js / 19 wxml / 20 wxss 通过 |
 | 前端构建 | `npm run build` | 构建成功 |
@@ -836,6 +837,7 @@ MODERATION_API_KEY=
 | 未开通的 | 该账号其余候选型号均返回 `ModelNotOpen`（未开通）或 `InvalidEndpointOrModel.NotFound`（ID 已下线）。想要更强的效果可另开 `doubao-seed-2-1-pro-260915` 等，改配置即可 |
 | 线上状态 | `/api/tutor/status` → `enabled:true, ready:true, model_configured:true`；配额 60 条/孩子/天 |
 | 真实对话证据 | 容器内发一轮提问，收到 119 字回答 + 7 次工具调用（`list_children`、`get_learning_history`、`list_wrong_questions`、`list_homework`、`list_learning_signals`、`get_subject_overview`、`get_growth_summary`），零错误；回答内容与孩子真实记录一致 |
+| 前端入口可见性（线上实测） | 桌面 1366 / 平板 800 / 手机 393 三形态均**不出现**私教入口；安卓 WebView UA 下入口出现并进入"学习私教"页。横向溢出 0，控制台无脚本错误（未登录时 401 属预期） |
 
 **修掉的一处部署缺口**：`docker-compose.yml` 的 `environment:` 是显式白名单，
 原先没有列出 `TUTOR_*`，导致只改 `.env` 完全不生效（接口一直 503，看起来像凭据问题）。
