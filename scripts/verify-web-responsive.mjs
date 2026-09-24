@@ -328,6 +328,7 @@ try {
           heading,
           hasComposer: !!composer,
           hasSend: !!sendButton,
+          hasWorksheetButton: !!document.querySelector('button[aria-label="打印讲义"]'),
           // 发送键必须完整落在视口内，不能被裁掉
           sendInsideViewport: send ? send.left >= 0 && send.right <= window.innerWidth + 1 : false,
           overflowX: document.documentElement.scrollWidth - window.innerWidth,
@@ -343,6 +344,7 @@ try {
           entryOnlyOnApk: entryVisible,
           chatReachable: tutor.heading === "学习私教" && tutor.hasComposer && tutor.hasSend,
           composerFits: tutor.sendInsideViewport && tutor.overflowX <= 0,
+          worksheetPrintable: tutor.hasWorksheetButton,
           honestEvidenceBoundary: tutor.evidenceNote,
         },
       };

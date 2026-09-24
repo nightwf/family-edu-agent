@@ -114,6 +114,7 @@ GET    /api/tutor/conversations/:conversationId/messages
 POST   /api/tutor/conversations/:conversationId/messages   # SSE 流式
 POST   /api/tutor/conversations/:conversationId/attachments
 POST   /api/tutor/conversations/:conversationId/evidence
+GET    /api/tutor/conversations/:conversationId/worksheet   # 可打印讲义（text/html）
 DELETE /api/tutor/conversations/:conversationId
 GET    /api/tutor/voice/status
 POST   /api/tutor/voice/transcribe
@@ -122,6 +123,7 @@ POST   /api/tutor/voice/speak
 
 私教接口只从登录会话推导 `familyId`，不接受客户端传入；`childId` 在会话创建时固定，运行时覆盖模型传入的值。
 `TUTOR_ENABLED=false` 时全部返回 503，前端同时隐藏入口。模型与语音凭据只写在服务器 `.env`（`TUTOR_*`）。
+`worksheet` 只把这段对话的真实文本排成可打印 HTML，不引入自由生图，页脚标注"证据需家长确认"。
 
 ## WorkBuddy / 豆包工作接入
 

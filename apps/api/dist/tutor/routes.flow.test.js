@@ -21,7 +21,9 @@ const prismaMock = new Proxy({
     familyMember: { findFirst: vi.fn(async () => ({ id: "member-1", role: "owner", status: "active" })) },
     child: { findFirst: vi.fn(async ({ where }) => ({ id: where.id, familyId: where.familyId, name: "JOJO" })) },
     tutorConversation: {
-        findFirst: vi.fn(async ({ where }) => where.id === "conv-1"
+        findFirst: vi.fn(async ({ where }) => 
+        // conv-1 属于 family-1；换家庭身份后必须查不到
+        where.id === "conv-1" && where.familyId === "family-1"
             ? { id: "conv-1", familyId: "family-1", childId: "child-1", persona: "child_tutor", status: "active", title: "两步应用题" }
             : null),
         findUnique: vi.fn(async () => ({ id: "conv-1", familyId: "family-1", childId: "child-1", summary: null })),
@@ -217,5 +219,35 @@ describe("私教一轮完整对话", () => {
         expect(second.statusCode).toBe(200);
         expect(second.json().skipped).toBe(true);
         expect(writes.evidenceRecord).toHaveLength(1);
+    });
+    it("讲义接口返回可打印 HTML，带着孩子名字与这轮的对话内容", async () => {
+        setChatProvider(scriptedProvider([[{ type: "text", delta: "先把小红的数量算出来。" }, { type: "done", usage: { promptTokens: 4, completionTokens: 6 } }]]));
+        await app.inject({
+            method: "POST",
+            url: "/api/tutor/conversations/conv-1/messages",
+            headers: auth(),
+            payload: { text: "小明比小红多 15 颗，一共多少颗？" },
+        });
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/tutor/conversations/conv-1/worksheet",
+            headers: auth(),
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.headers["content-type"]).toContain("text/html");
+        expect(response.payload).toContain("JOJO");
+        expect(response.payload).toContain("小明比小红多 15 颗");
+        expect(response.payload).toContain("先把小红的数量算出来。");
+        expect(response.payload).toContain("window.print()");
+    });
+    it("读不到别家的会话讲义", async () => {
+        const otherToken = app.jwt.sign({ sub: "user-2", familyId: "family-2" });
+        prismaMock.user.findUnique.mockResolvedValueOnce({ id: "user-2", familyId: "family-2", status: "active" });
+        const response = await app.inject({
+            method: "GET",
+            url: "/api/tutor/conversations/conv-1/worksheet",
+            headers: { authorization: `Bearer ${otherToken}` },
+        });
+        expect(response.statusCode).toBe(404);
     });
 });

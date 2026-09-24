@@ -469,9 +469,21 @@ export interface ChatProvider {
 - 识别结果以结构化文本落 `TutorMessage.contentJson`，图片本身保留可回溯；
 - 图片审核走 L1，一次不漏。
 
-### 10.2 输出：文档与图片（第三阶段，先不做）
+### 10.2 输出：模板渲染的可打印讲义（已实现）
 
-理由：价值低、复杂度高、给孩子看生成图片还多一层内容责任。第二阶段先用模板渲染（题干、解析、错题整理成可打印页）满足"我要一份纸质练习"，不引入自由生图。
+**自由生图不做。** 给孩子看生成图片多一层内容责任，AI 画图还可能把题干数字画错，性价比不成立。
+
+本期做的是模板渲染：`GET /api/tutor/conversations/:id/worksheet` 返回服务端排好版的 HTML
+（`apps/api/src/tutor/worksheet.ts`），内容**只来自这段对话的真实文本** —— 本次提问按序编号，
+讲解按段落排成要点块，右侧留手写笔记区，`@media print` 下去掉工具栏，页脚写明"证据需家长确认后才进成长记录"。
+
+几个刻意的取舍：
+
+- 用户输入一律 HTML 转义，笔记里写 `<script>` 不会变成标签；
+- 图片提问没有文字时标注"（图片提问）"，不猜题干；
+- 没有对话就给空状态，不放演示题目；
+- `system` / `tool` 消息不进讲义，内部提示词与工具原始返回不落到纸上；
+- 前端带登录态 `fetch` 后用 blob 打开新窗口，不把接口变成无鉴权的公开 URL。
 
 ---
 
@@ -507,8 +519,12 @@ export interface ChatProvider {
 | `POST` | `/api/tutor/conversations/:id/attachments` | 上传图片，返回 `objectKey` |
 | `POST` | `/api/tutor/conversations/:id/summarize` | 生成或更新摘要 |
 | `POST` | `/api/tutor/conversations/:id/evidence` | 把本轮沉淀为 `EvidenceRecord`（待确认） |
+| `GET` | `/api/tutor/conversations/:id/worksheet` | 返回可打印讲义 HTML（`text/html`，模板排版） |
 | `DELETE` | `/api/tutor/conversations/:id` | 归档会话 |
 | `GET` | `/api/tutor/quota` | 今日剩余额度 |
+| `GET` | `/api/tutor/voice/status` | ASR / TTS 是否已开通 |
+| `POST` | `/api/tutor/voice/transcribe` | 录音转文字 |
+| `POST` | `/api/tutor/voice/speak` | 文字转语音，返回音频字节 |
 
 SSE 事件类型：
 
@@ -519,6 +535,9 @@ event: replace  data: {"reason":"safety"}
 event: done     data: {"messageId":"...","usage":{...},"quotaLeft":12}
 event: error    data: {"message":"...","retryable":true}
 ```
+
+`error` 的 `message` 是给家长看的友好提示（超时 / 限流 / 密钥未配置 / 网络 / 内容审核），
+上游原文放在 `detail`，只用于排查，前端不显示。
 
 ### 配额
 
@@ -610,7 +629,7 @@ MODERATION_API_KEY=
 9. `voice/` 抽象 + ASR/TTS + 按住说话；
 10. 安卓补 `RECORD_AUDIO` 与 `onPermissionRequest`，发新版 APK；
 11. `memory.ts`：摘要 + 证据回流（待确认）；
-12. 实时语音与输出多模态。
+12. 输出多模态（已实现：模板渲染可打印讲义）+ 实时语音（台阶 B/C，见第 11 节）。
 
 一次做完整的代价要说在前面：**儿童语音识别准确率是唯一无法靠工程保证的环节**。ASR 选型必须用真实儿童录音实测；不达标就只能退化为"按住说话 + 文字确认"再补实时语音，这部分返工风险本期自担（见第 18 节）。
 
@@ -729,6 +748,7 @@ MODERATION_API_KEY=
 | 记忆 | `apps/api/src/tutor/memory.ts` | 短期窗口 + 会话摘要 + 证据回流（去重，一律 `PENDING_CONFIRMATION`） |
 | 接口 | `apps/api/src/tutor/routes.ts` | `/api/tutor/*`，含 SSE、附件、证据、语音 |
 | 语音 | `apps/api/src/tutor/voice/` | ASR/TTS 抽象 + 火山引擎适配（协议待用真实凭据核实） |
+| 输出多模态 | `apps/api/src/tutor/worksheet.ts` | 模板渲染可打印讲义（`GET .../worksheet`），只排版真实对话文本 |
 | 前端 | `apps/web/src/components/TutorChat.tsx`、`lib/tutor.ts`、`Layout.tsx` | APK 端入口判定（UA `HeYaAndroid`）、SSE 客户端；桌面与小程序不显示入口 |
 | 安卓 | `android/.../AndroidManifest.xml`、`MainActivity.java` | `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS`，`onPermissionRequest` 转系统授权 |
 | MCP 增量 | `apps/api/src/v2/mcp-tools.ts`、`apps/api/src/mcp.ts` | 新增只读工具 `get_subject_overview`；`get_sync_spec` 升到 `2.7`（新增 `subject_overview`、`education_style`、`child_dimension_rule`） |

@@ -13,6 +13,7 @@ import { getQuotaState } from "./quota.js";
 import { buildHistory, draftFromTurn, extractEvidence } from "./memory.js";
 import { listArchivedOrActiveConversations, isTutorReady } from "./service.js";
 import { getVoiceStatus, synthesize, transcribe, VoiceNotConfiguredError } from "./voice/index.js";
+import { renderWorksheet } from "./worksheet.js";
 
 /**
  * /api/tutor/*：内置私教的对外接口。
@@ -278,6 +279,35 @@ export async function registerTutorRoutes(
     });
     if (!record) return { skipped: true, reason: "已有相同记录，未重复写入" };
     return { evidence: record, reviewStatus: record.reviewStatus };
+  });
+
+  /**
+   * 可打印讲义：把这一轮对话按模板排版成 HTML，前端取回后新窗口打印或存 PDF。
+   * 只排版真实对话文本，不生成图片、不编造题目。
+   */
+  app.get("/api/tutor/conversations/:conversationId/worksheet", { preHandler: requireTutor as any }, async (request, reply) => {
+    const { familyId } = getAuth(request);
+    const { conversationId } = request.params as { conversationId: string };
+    const conversation = await findOwnConversation(familyId, conversationId);
+    if (!conversation) return reply.code(404).send({ error: "会话不存在" });
+
+    const [messages, child] = await Promise.all([
+      prisma.tutorMessage.findMany({
+        where: { conversationId, familyId, role: { in: ["user", "assistant"] } },
+        orderBy: { createdAt: "asc" },
+        select: { role: true, content: true, createdAt: true },
+      }),
+      conversation.childId ? prisma.child.findFirst({ where: { id: conversation.childId, familyId }, select: { name: true } }) : null,
+    ]);
+
+    const html = renderWorksheet({
+      childName: child?.name || null,
+      conversationTitle: conversation.title,
+      messages,
+    });
+    reply.header("Content-Type", "text/html; charset=utf-8");
+    reply.header("Cache-Control", "no-store");
+    return reply.send(html);
   });
 
   app.delete("/api/tutor/conversations/:conversationId", { preHandler: requireTutor as any }, async (request, reply) => {

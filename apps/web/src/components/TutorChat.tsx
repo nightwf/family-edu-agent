@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CircleStop, ImagePlus, Loader2, Mic, Plus, RefreshCw, Send, User } from "lucide-react";
+import { Bot, CircleStop, ImagePlus, Loader2, Mic, Plus, Printer, RefreshCw, Send, User } from "lucide-react";
 import { Badge, ChildTabs, PageHeader, Panel } from "./Layout";
 import { splitParagraphs, streamTutorMessage, type TutorStreamEvent } from "../lib/tutor";
 
@@ -257,6 +257,30 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
     }
   }
 
+  /** 打印讲义：带着登录态把服务端排好版的 HTML 取回来，在新窗口打开后由用户打印或存 PDF。 */
+  async function printWorksheet() {
+    if (!conversationId) return;
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${apiBase}/api/tutor/conversations/${conversationId}/worksheet`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`讲义生成失败（${response.status}）`);
+      const html = await response.text();
+      const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+      const opened = window.open(url, "_blank");
+      if (!opened) {
+        setNotice("浏览器拦截了新窗口，请允许弹出窗口后再试一次。");
+        return;
+      }
+      setNotice("讲义已在新窗口打开，可以直接打印或存成 PDF。");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   const selectedChild = useMemo(
     () => children.find((child) => child.id === selectedChildId),
     [children, selectedChildId],
@@ -308,6 +332,15 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
               className="rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-ink-soft disabled:opacity-40"
             >
               记录这次情况
+            </button>
+            <button
+              type="button"
+              onClick={printWorksheet}
+              disabled={!conversationId || messages.length === 0}
+              aria-label="打印讲义"
+              className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-ink-soft disabled:opacity-40"
+            >
+              <Printer size={13} /> 打印讲义
             </button>
           </div>
         </div>
