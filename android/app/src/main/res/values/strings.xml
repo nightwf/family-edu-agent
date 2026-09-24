@@ -14,4 +14,6 @@
     <string name="external_open_failed">没有可打开该链接的应用</string>
     <string name="permission_denied">未获得存储权限，无法保存二维码</string>
     <string name="mic_permission_denied">未获得麦克风权限，无法使用语音提问</string>
+    <string name="pick_file_title">选择图片或文件</string>
+    <string name="pick_file_failed">打不开文件选择器，请改用其他方式上传</string>
 </resources>

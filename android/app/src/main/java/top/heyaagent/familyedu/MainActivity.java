@@ -29,6 +29,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -40,6 +41,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -57,6 +61,7 @@ public class MainActivity extends Activity {
     private static final String ALLOWED_HOST_SUFFIX = "heyaagent.top";
     private static final int REQUEST_WRITE_STORAGE = 1001;
     private static final int REQUEST_WEB_MEDIA = 1002;
+    private static final int REQUEST_FILE_CHOOSER = 1003;
     private static final long BACK_PRESS_INTERVAL_MS = 2000L;
 
     private WebView webView;
@@ -73,6 +78,10 @@ public class MainActivity extends Activity {
     private String pendingQrImageUrl = null;
     /** WebView 请求的媒体权限（私教「按住说话」要麦克风）。 */
     private PermissionRequest pendingMediaPermission = null;
+    /** 网页里 `<input type="file">` 的回调（私教「插一张照片」用）。 */
+    private ValueCallback<Uri[]> filePathCallback = null;
+    /** 拍照时预先分配好的输出地址，相机把照片写进这里。 */
+    private Uri pendingCameraUri = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -224,6 +233,16 @@ public class MainActivity extends Activity {
                 pendingMediaPermission = request;
                 requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_WEB_MEDIA);
             }
+
+            /**
+             * 网页里的 `<input type="file">`（私教「插一张照片」、题库附件）会走到这里。
+             * 不实现这个方法，页面上那个按钮在 App 里就是**点了没反应**——不报错，
+             * 也不弹任何东西，最难排查的那种坏法。
+             */
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                return openFileChooser(callback, params);
+            }
         });
 
         webView.setOnLongClickListener(view -> handleLongPress());
@@ -253,6 +272,125 @@ public class MainActivity extends Activity {
         } else {
             webView.reload();
         }
+    }
+
+    /**
+     * 打开系统文件选择器：相册文件 + 直接拍照。
+     *
+     * 网页给的 accept 决定能选什么（私教只要 image/*，题库还包含 pdf/doc）。
+     * 只要用户可能要图片，就在选择器里额外挂一个「拍照」入口，照片写到
+     * 我们自己的 Provider 里再交回网页，不落用户相册。
+     */
+    private boolean openFileChooser(ValueCallback<Uri[]> callback, WebChromeClient.FileChooserParams params) {
+        // 上一次的回调必须收尾，否则 WebView 会一直认为选择器还开着
+        if (filePathCallback != null) {
+            filePathCallback.onReceiveValue(null);
+            filePathCallback = null;
+        }
+        filePathCallback = callback;
+        pendingCameraUri = null;
+
+        List<String> mimeTypes = new ArrayList<>();
+        boolean wantsImage = false;
+        String[] accepted = params == null ? null : params.getAcceptTypes();
+        if (accepted != null) {
+            for (String raw : accepted) {
+                if (raw == null) continue;
+                // accept 可能是逗号分隔的一串，也可能是 .pdf 这种后缀
+                for (String part : Arrays.asList(raw.split(","))) {
+                    String type = part.trim();
+                    if (type.isEmpty() || type.startsWith(".")) continue;
+                    if (!mimeTypes.contains(type)) mimeTypes.add(type);
+                    if (type.startsWith("image/")) wantsImage = true;
+                }
+            }
+        }
+        boolean multiple = params != null && params.getMode() == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE;
+
+        Intent content = new Intent(Intent.ACTION_GET_CONTENT);
+        content.addCategory(Intent.CATEGORY_OPENABLE);
+        if (mimeTypes.isEmpty()) {
+            content.setType("*/*");
+        } else if (mimeTypes.size() == 1) {
+            content.setType(mimeTypes.get(0));
+        } else {
+            content.setType("*/*");
+            content.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toArray(new String[0]));
+        }
+        if (multiple) content.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+
+        Intent chooser = Intent.createChooser(content, getString(R.string.pick_file_title));
+        Intent capture = wantsImage ? buildCaptureIntent() : null;
+        if (capture != null) {
+            chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{capture});
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        }
+
+        try {
+            startActivityForResult(chooser, REQUEST_FILE_CHOOSER);
+        } catch (Exception error) {
+            Log.w(TAG, "打不开文件选择器", error);
+            releaseFileChooser();
+            toast(getString(R.string.pick_file_failed));
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 构造「拍照」意图。照片输出必须走 content:// 地址（Android 7 起用 file:// 会崩），
+     * 并且要显式把写入权限授予相机应用——经过 createChooser 之后 flags 不一定带得过去。
+     */
+    private Intent buildCaptureIntent() {
+        Intent capture = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        android.content.ComponentName target = capture.resolveActivity(getPackageManager());
+        if (target == null) return null; // 设备上没有相机应用，选择器里就不出现这一项
+
+        File dir = SharedFileProvider.dir(this);
+        // 清掉上一次残留的临时照片，避免缓存越积越多
+        File[] stale = dir.listFiles();
+        if (stale != null) {
+            for (File old : stale) {
+                if (!old.delete()) Log.w(TAG, "清理临时照片失败：" + old.getName());
+            }
+        }
+        File photo = new File(dir, "upload-" + System.currentTimeMillis() + ".jpg");
+        Uri uri = SharedFileProvider.uriFor(photo);
+        pendingCameraUri = uri;
+
+        capture.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+        capture.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        try {
+            grantUriPermission(target.getPackageName(), uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        } catch (Exception error) {
+            Log.w(TAG, "授予相机写入权限失败", error);
+        }
+        return capture;
+    }
+
+    /** 把选择结果交回网页；没有结果时必须传 null，否则那个文件输入框会一直是禁用状态。 */
+    private void deliverFileChooser(Uri[] results) {
+        ValueCallback<Uri[]> callback = filePathCallback;
+        filePathCallback = null;
+        Uri camera = pendingCameraUri;
+        pendingCameraUri = null;
+        if (camera != null) {
+            try {
+                revokeUriPermission(camera,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (Exception error) {
+                Log.w(TAG, "回收相机写入权限失败", error);
+            }
+        }
+        if (callback != null) callback.onReceiveValue(results);
+    }
+
+    private void releaseFileChooser() {
+        ValueCallback<Uri[]> callback = filePathCallback;
+        filePathCallback = null;
+        pendingCameraUri = null;
+        if (callback != null) callback.onReceiveValue(null);
     }
 
     private boolean handleNavigation(String url) {
@@ -423,6 +561,35 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * 文件选择器的结果。
+     * 注意两种来源长得不一样：从相册选走 data.getData()，拍照则**不通过 data 返回**，
+     * 照片直接写进了我们事先给的地址。早期实现常在这里漏掉拍照这一支，
+     * 表现就是"能选相册、拍了照没反应"。
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_FILE_CHOOSER) {
+            Uri[] results = null;
+            if (resultCode == RESULT_OK) {
+                if (data == null || (data.getData() == null && data.getClipData() == null)) {
+                    if (pendingCameraUri != null) results = new Uri[]{pendingCameraUri};
+                } else if (data.getClipData() != null) {
+                    int count = data.getClipData().getItemCount();
+                    results = new Uri[count];
+                    for (int index = 0; index < count; index++) {
+                        results[index] = data.getClipData().getItemAt(index).getUri();
+                    }
+                } else {
+                    results = new Uri[]{data.getData()};
+                }
+            }
+            deliverFileChooser(results);
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
     private void showError(String detail) {
         errorDetail.setText(detail == null || detail.isEmpty() ? HOME_URL : detail);
         errorView.setVisibility(View.VISIBLE);
@@ -469,6 +636,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        // 选择器还开着就退出了，回调必须收尾，否则 WebView 里的文件输入会卡在禁用态
+        releaseFileChooser();
         if (webView != null && isFinishing()) {
             webView.loadUrl("about:blank");
             webView.destroy();
