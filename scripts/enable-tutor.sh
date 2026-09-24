@@ -169,12 +169,26 @@ done
 [ "$ok" -ge 2 ] || { echo "健康检查未稳定，请手动查看容器日志：docker logs $CONTAINER --tail 100" >&2; exit 1; }
 
 say "线上校验：MCP 工具清单 + /api/tutor/* + 真发一轮对话"
-# 校验脚本从本机带过去，不依赖服务器仓库是否刚同步过
+# 校验脚本从本机带过去，不依赖服务器仓库是否刚同步过。
+# 注意要连 scripts/lib 整个目录一起带：verify-online.mjs 用相对路径导入
+# lib/sse-parse.mjs 与 lib/api-shapes.mjs，只复制单个文件会 ERR_MODULE_NOT_FOUND，
+# 结果是"配置已生效、但校验步骤崩了"，看起来像配置没成功。
+ssh "${SSH_OPTS[@]}" "$HOST" "rm -rf /tmp/verify-lib"
 scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
-  "$REPO_ROOT/scripts/verify-online.mjs" "$REPO_ROOT/scripts/lib/sse-parse.mjs" "$HOST:/tmp/"
-# verify-online.mjs 用相对路径导入 lib/sse-parse.mjs，两者要保持同一目录结构
-ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER mkdir -p /app/.verify/lib && docker cp /tmp/verify-online.mjs $CONTAINER:/app/.verify/verify-online.mjs && docker cp /tmp/sse-parse.mjs $CONTAINER:/app/.verify/lib/sse-parse.mjs"
+  "$REPO_ROOT/scripts/verify-online.mjs" "$HOST:/tmp/verify-online.mjs"
+scp -q -r -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
+  "$REPO_ROOT/scripts/lib" "$HOST:/tmp/verify-lib"
+ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER mkdir -p /app/.verify/lib && docker cp /tmp/verify-online.mjs $CONTAINER:/app/.verify/verify-online.mjs && docker cp /tmp/verify-lib/. $CONTAINER:/app/.verify/lib/"
 ssh "${SSH_OPTS[@]}" "$HOST" "docker exec -e BASE_URL=http://127.0.0.1:4100 $CONTAINER node /app/.verify/verify-online.mjs --roundtrip"
+
+# 配了语音就顺带验一遍真实语音路由：直接调 /api/tutor/voice/* 合成一句再回灌识别。
+# 这一步能挡住"凭据对了但服务端没装配好"（例如漏了 speaker 或资源标识不符）。
+if [ -n "$TTS_SPEAKER" ] || [ -n "$TTS_VOICE" ] || [ -n "$TTS_API_KEY" ]; then
+  say "线上校验：语音路由（合成 → 回灌识别）"
+  scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
+    "$REPO_ROOT/scripts/verify-voice-online.mjs" "$HOST:/tmp/verify-voice-online.mjs"
+  ssh "${SSH_OPTS[@]}" "$HOST" "docker cp /tmp/verify-voice-online.mjs $CONTAINER:/app/.verify/verify-voice-online.mjs && docker exec -e BASE_URL=http://127.0.0.1:4100 $CONTAINER node /app/.verify/verify-voice-online.mjs"
+fi
 
 say "行为验证：讲题不给答案 / 问到兄弟姐妹要收回（真模型，只读数据）"
 scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \

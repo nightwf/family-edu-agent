@@ -1,31 +1,57 @@
 /**
- * 语音凭据解析：把环境变量里的一堆字段收敛成"识别能不能用、合成能不能用"。
+ * 语音凭据解析：把环境变量里的一堆字段收敛成"识别能不能用、合成能不能用、走哪条协议"。
  *
- * 关键产品事实（已与火山控制台确认）：新版控制台的**一把 API Key 同时覆盖识别与合成**。
- * 所以只填了其中一栏时，另一栏也算有 Key —— 否则会出现"配了 Key 却半个功能是关的"
- * 这种极难排查的状态（接口返回"尚未开通"，看着像控制台没开通）。
+ * 两条关键事实（均已对真实上游实测确认）：
  *
- * 优先级：各自专用的字段 > 那一把共享 Key；旧版三件套作为回退保留。
+ * 1. **凭据是共享的**。火山语音控制台给的是 App ID + Access Token，识别与合成共用同一套；
+ *    新版控制台给的是单把 API Key，同样两个服务共用。所以只填了一栏时，另一栏也算有凭据——
+ *    否则会出现"配了凭据却半个功能是关的"这种极难排查的状态（接口返回"尚未开通"，
+ *    看着像控制台没开通，实际是配置只写了一半）。
+ *
+ * 2. **合成要走大模型接口**。实测：本账号在旧版 `/api/v1/tts` 上返回
+ *    `403 resource_id=volc.tts.default requested resource not granted`（小模型未开通），
+ *    而 `/api/v3/tts/unidirectional` 用同一套 App ID + Token 正常出声。
+ *    所以默认走 v3；只有显式配了旧的 cluster（说明确实是老账号）才退回 v1。
+ *
+ * 鉴权头两种形式都支持：
+ *   v3 合成：有 API Key → `X-Api-Key`；否则 → `X-Api-App-Key` + `X-Api-Access-Key`
  */
 const clean = (value) => (value ?? "").trim();
 export function resolveVoiceCredentials(input) {
-    const asrOwn = clean(input.asrApiKey);
-    const ttsOwn = clean(input.ttsApiKey);
-    const shared = ttsOwn || asrOwn;
-    const asrApiKey = asrOwn || shared;
-    const ttsApiKey = ttsOwn || shared;
+    const asrKeyOwn = clean(input.asrApiKey);
+    const ttsKeyOwn = clean(input.ttsApiKey);
+    // 两栏分别填了就各用各的；只填了一栏时另一栏回退到这一把（凭据本来就是共享的）
+    const asrApiKey = asrKeyOwn || ttsKeyOwn;
+    const ttsApiKey = ttsKeyOwn || asrKeyOwn;
+    const asrAppIdOwn = clean(input.asrAppId);
+    const ttsAppIdOwn = clean(input.ttsAppId);
+    const asrTokenOwn = clean(input.asrAccessToken);
+    const ttsTokenOwn = clean(input.ttsAccessToken);
+    const asrAppId = asrAppIdOwn || ttsAppIdOwn;
+    const ttsAppId = ttsAppIdOwn || asrAppIdOwn;
+    const asrAccessToken = asrTokenOwn || ttsTokenOwn;
+    const ttsAccessToken = ttsTokenOwn || asrTokenOwn;
     const speaker = clean(input.ttsSpeaker) || clean(input.ttsVoiceType);
-    const legacyAsr = Boolean(clean(input.asrAppId) && clean(input.asrAccessToken));
-    const legacyTts = Boolean(clean(input.ttsAppId) && clean(input.ttsAccessToken));
+    // 有音色就走大模型接口；没音色但配了旧 cluster，说明是老账号，走旧协议
+    const protocol = speaker ? "v3" : clean(input.ttsCluster) ? "legacy" : "v3";
+    const asrAppCredentials = Boolean(asrAppId && asrAccessToken);
+    const ttsAppCredentials = Boolean(ttsAppId && ttsAccessToken);
+    const ttsV3Credentials = Boolean(ttsApiKey || ttsAppCredentials);
     return {
+        apiKey: ttsKeyOwn || asrKeyOwn,
         asrApiKey,
         ttsApiKey,
+        asrAppId,
+        asrAccessToken,
+        ttsAppId,
+        ttsAccessToken,
         speaker,
+        protocol,
         apiKeyShared: Boolean(asrApiKey && ttsApiKey && asrApiKey === ttsApiKey),
-        // 新版合成必须有音色；识别拿到 Key 就算可用
         status: {
-            asr: Boolean(asrApiKey || legacyAsr),
-            tts: Boolean((ttsApiKey && speaker) || legacyTts),
+            asr: Boolean(asrApiKey || asrAppCredentials),
+            // v3 必须要音色（否则静默念不出声）；旧协议只要凭据齐全
+            tts: protocol === "v3" ? Boolean(ttsV3Credentials && speaker) : ttsAppCredentials,
         },
     };
 }

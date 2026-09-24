@@ -164,6 +164,37 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 > 已与控制台确认：识别与合成**共用同一把 Key**。所以代码与配置脚本都按"填一栏等于两栏"处理，
 > 不会出现"Key 配了、但语音按钮还是不出现"的半开通状态。真出现两把不同的 Key 也能分别填，各用各的。
 
+**本账号实际拿到的是 App ID + Access Token（旧控制台口径）**，实测这套凭据在新接口上同样可用，
+不必再去申请 API Key。填进识别那两栏即可，合成会自动沿用同一套（见下面变量表）。
+
+合成走的是**语音合成大模型**接口（`/api/v3/tts/unidirectional` + `seed-tts-2.0`）。
+实测本账号在旧的 `/api/v1/tts` 上是未开通状态（报 `resource not granted`），
+所以代码默认走新接口，只有显式配了旧 `cluster` 才会退回旧协议。
+
+### 本账号实测可用的音色
+
+用 `npm run check:voice -- --list-voices` 逐个真发声验证过，下面这些**真的能出声**：
+
+| 音色 ID | 类型 |
+|---|---|
+| `zh_female_vv_uranus_bigtts` | 女声，默认在用（通用、自然） |
+| `zh_female_cancan_uranus_bigtts` | 女声 |
+| `zh_female_xiaohe_uranus_bigtts` | 女声 |
+| `zh_female_tianmeixiaoyuan_uranus_bigtts` | 女声，偏甜、适合低龄 |
+| `zh_female_qingxinnvsheng_uranus_bigtts` | 女声，清新 |
+| `zh_male_wennuanahu_uranus_bigtts` | 男声，温和 |
+| `zh_male_qingshuangnanda_uranus_bigtts` | 男声 |
+| `zh_male_yangguangqingnian_uranus_bigtts` | 男声，阳光 |
+| `zh_male_kailangxuezhang_uranus_bigtts` | 男声，开朗学长 |
+| `zh_male_qingcang_uranus_bigtts` | 男声 |
+
+换音色只要把 `TUTOR_TTS_SPEAKER` 换成上面任一值再重启即可。
+
+**坑**：网上文档里常见的 `*_mars_bigtts` / `*_moon_bigtts`（如 `zh_female_cancan_mars_bigtts`）
+属于**别的 resource**，在本账号上会报
+`resource ID is mismatched with speaker related resource`——
+这不是凭据错误，是音色与资源标识不配套，换成上表里的 `*_uranus_bigtts` 即可。
+
 只有在新版控制台找不到入口、或账号是老版时，才走下面的**旧版三件套**（代码两条路都兼容）：
 
 1. 控制台进「语音技术」，**创建应用**；
@@ -181,6 +212,14 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 | `TUTOR_TTS_API_KEY` | 语音合成的 API Key（新版控制台） |
 | `TUTOR_TTS_SPEAKER` | 音色 ID，从控制台「音色库」抄，填错会报"音色不存在" |
 | `TUTOR_ASR_API_KEY` | 语音识别的 API Key（与上面是同一把） |
+
+若手上是 **App ID + Access Token**（本账号的情况），填这两项即可，合成会自动沿用：
+
+| 变量 | 用途 |
+|---|---|
+| `TUTOR_ASR_APP_ID` | 语音的 App ID（识别、合成共用） |
+| `TUTOR_ASR_ACCESS_TOKEN` | 语音的 Access Token（识别、合成共用） |
+| `TUTOR_TTS_SPEAKER` | 音色 ID，必填，否则合成判定为未开通 |
 
 `TUTOR_TTS_RESOURCE_ID`（默认 `seed-tts-2.0`）与 `TUTOR_ASR_RESOURCE_ID`
 （默认 `volc.bigasr.auc_turbo`）保持默认即可，一般不用改。
@@ -209,6 +248,18 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 
 ```bash
 npm run check:voice -- --api-key=xxx --speaker=zh_female_vv_uranus_bigtts
+```
+
+手上是 App ID + Access Token（本账号）：
+
+```bash
+npm run check:voice -- --asr-app-id=xxx --asr-token=xxx --tts-speaker=zh_female_vv_uranus_bigtts
+```
+
+想知道有哪些音色真的能用（会逐个试，能出声才算数）：
+
+```bash
+npm run check:voice -- --asr-app-id=xxx --asr-token=xxx --list-voices
 ```
 
 旧版三件套：

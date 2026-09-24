@@ -11,6 +11,7 @@ function credentials() {
         asrAccessToken: env.TUTOR_ASR_ACCESS_TOKEN,
         ttsAppId: env.TUTOR_TTS_APP_ID,
         ttsAccessToken: env.TUTOR_TTS_ACCESS_TOKEN,
+        ttsCluster: env.TUTOR_TTS_CLUSTER,
     });
 }
 export function getVoiceStatus() {
@@ -31,10 +32,12 @@ export async function synthesize(text, voiceType) {
     const resolved = credentials();
     if (!resolved.status.tts)
         throw new VoiceNotConfiguredError("tts");
-    if (resolved.ttsApiKey) {
+    if (resolved.protocol === "v3") {
         const { createVolcTtsV3 } = await import("./volcengine.js");
         return createVolcTtsV3({
-            apiKey: resolved.ttsApiKey,
+            apiKey: resolved.ttsApiKey || undefined,
+            appId: resolved.ttsAppId || undefined,
+            accessToken: resolved.ttsAccessToken || undefined,
             resourceId: env.TUTOR_TTS_RESOURCE_ID,
             // 前端传音色时以调用方为准，否则用后台配的那个
             speaker: voiceType || resolved.speaker,
@@ -43,8 +46,8 @@ export async function synthesize(text, voiceType) {
     }
     const { createVolcTts } = await import("./volcengine.js");
     return createVolcTts({
-        appId: env.TUTOR_TTS_APP_ID,
-        accessToken: env.TUTOR_TTS_ACCESS_TOKEN,
+        appId: resolved.ttsAppId,
+        accessToken: resolved.ttsAccessToken,
         cluster: env.TUTOR_TTS_CLUSTER,
         voiceType: voiceType || resolved.speaker,
     }).synthesize(text);
@@ -60,8 +63,8 @@ export async function transcribe(audio, format) {
     const { createVolcAsr } = await import("./volcengine.js");
     return createVolcAsr({
         apiKey: resolved.asrApiKey || undefined,
-        appId: env.TUTOR_ASR_APP_ID,
-        accessToken: env.TUTOR_ASR_ACCESS_TOKEN,
+        appId: resolved.asrAppId,
+        accessToken: resolved.asrAccessToken,
         cluster: env.TUTOR_ASR_CLUSTER || env.TUTOR_ASR_RESOURCE_ID,
     }).transcribe(audio, format);
 }

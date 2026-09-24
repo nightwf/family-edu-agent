@@ -187,6 +187,30 @@ describe("语音合成大模型（新版控制台，流式）", () => {
     await expect(createVolcTtsV3(ttsV3Config).synthesize("你好")).rejects.toThrow(/没有返回音频数据/);
   });
 
+  it("流末尾的 20000000 是成功结束标记，不能当成失败", async () => {
+    // 线上实测：正常一次合成会以 {"code":20000000,"message":"OK"} 收尾
+    const a = Buffer.from([7, 7]).toString("base64");
+    stubFetch(() =>
+      streamResponse([`{"code":0,"data":"${a}"}`, '{"code":0,"data":null}', '{"code":20000000,"message":"OK"}']),
+    );
+    const result = await createVolcTtsV3(ttsV3Config).synthesize("你好");
+    expect(result.audio).toEqual(Buffer.from([7, 7]));
+  });
+
+  it("老控制台只有 App ID + Access Token 时，改用双头鉴权且不带 X-Api-Key", async () => {
+    const fetchMock = stubFetch(() => streamResponse(['{"code":0,"data":"AQ=="}']));
+    await createVolcTtsV3({
+      appId: "app-9",
+      accessToken: "tok-9",
+      resourceId: "seed-tts-2.0",
+      speaker: "zh_female_vv_uranus_bigtts",
+    }).synthesize("你好");
+    const headers = fetchMock.mock.calls[0][1].headers;
+    expect(headers["X-Api-App-Key"]).toBe("app-9");
+    expect(headers["X-Api-Access-Key"]).toBe("tok-9");
+    expect(headers["X-Api-Key"]).toBeUndefined();
+  });
+
   it("HTTP 非 200 时带出状态码与正文", async () => {
     stubFetch(() => streamResponse(["Forbidden"], {}, 403));
     await expect(createVolcTtsV3(ttsV3Config).synthesize("你好")).rejects.toThrow(/HTTP 403.*Forbidden/s);

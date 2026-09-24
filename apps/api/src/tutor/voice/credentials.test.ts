@@ -77,3 +77,60 @@ describe("语音凭据解析：哪些情况算未开通", () => {
     expect(out.status.tts).toBe(true);
   });
 });
+
+describe("语音凭据解析：App ID + Access Token 也是共享的", () => {
+  it("只填了识别那栏的 App ID/Token，合成照样能用（线上就是这么配的）", () => {
+    const out = resolveVoiceCredentials({
+      asrAppId: "6892892485",
+      asrAccessToken: "tok",
+      ttsSpeaker: "zh_female_vv_uranus_bigtts",
+    });
+    expect(out.ttsAppId).toBe("6892892485");
+    expect(out.ttsAccessToken).toBe("tok");
+    expect(out.status).toEqual({ asr: true, tts: true });
+  });
+
+  it("App ID 与 Token 只来一半不算开通（避免半配状态静默失败）", () => {
+    expect(resolveVoiceCredentials({ asrAppId: "6892892485", ttsSpeaker: "s" }).status).toEqual({
+      asr: false,
+      tts: false,
+    });
+    expect(resolveVoiceCredentials({ asrAccessToken: "tok", ttsSpeaker: "s" }).status).toEqual({
+      asr: false,
+      tts: false,
+    });
+  });
+});
+
+describe("语音凭据解析：合成走哪条协议", () => {
+  it("有音色就走大模型接口 v3（线上实测旧接口未开通、v3 可用）", () => {
+    const out = resolveVoiceCredentials({
+      asrAppId: "a",
+      asrAccessToken: "t",
+      ttsSpeaker: "zh_female_vv_uranus_bigtts",
+    });
+    expect(out.protocol).toBe("v3");
+  });
+
+  it("没音色但配了旧 cluster，说明是老账号，走旧协议", () => {
+    const out = resolveVoiceCredentials({
+      ttsAppId: "a",
+      ttsAccessToken: "t",
+      ttsCluster: "volcano_tts",
+      ttsVoiceType: "",
+    });
+    expect(out.protocol).toBe("legacy");
+    expect(out.status.tts).toBe(true);
+  });
+
+  it("旧字段名 ttsVoiceType 也能当音色用，并且此时同样走 v3", () => {
+    const out = resolveVoiceCredentials({
+      ttsAppId: "a",
+      ttsAccessToken: "t",
+      ttsCluster: "volcano_tts",
+      ttsVoiceType: "zh_female_vv_uranus_bigtts",
+    });
+    expect(out.speaker).toBe("zh_female_vv_uranus_bigtts");
+    expect(out.protocol).toBe("v3");
+  });
+});

@@ -12,6 +12,8 @@
  * 只想单独验其中一项：
  *   --tts-only                          只合成，不识别
  *   --asr-only --asr-audio=/path/a.mp3  只识别（要自己有音频，因为合成被跳过了）
+ *   --list-voices                       列出本账号真正可用的音色（逐个试，能出声才算可用）
+ *   --list-voices --candidates=a,b,c    只试自己给的这几个音色 ID
  *
  * 它做的是一圈**闭环**：先合成一句「今天我们一起把这道题弄明白」，
  * 再把这段音频回灌给识别，比对读回来的字。这一圈过了，等于同时证明
@@ -20,6 +22,8 @@
  * 只发一条十几字的短句，费用可以忽略。
  */
 import { createJsonObjectStream } from "../apps/api/src/tutor/voice/json-stream.js";
+import { isVolcSuccessCode } from "../apps/api/src/tutor/voice/volcengine.js";
+import { resolveVoiceCredentials } from "../apps/api/src/tutor/voice/credentials.js";
 import { humanizeVoiceError, judgeRoundTrip } from "./lib/voice-check.mjs";
 import { readFileSync } from "node:fs";
 
@@ -36,7 +40,6 @@ const args = Object.fromEntries(
 );
 
 const apiKey = args["api-key"] || process.env.TUTOR_VOICE_API_KEY || "";
-const usingApiKey = Boolean(apiKey);
 
 const config = {
   asr: {
@@ -52,16 +55,36 @@ const config = {
     token: args["tts-token"] || process.env.TUTOR_TTS_ACCESS_TOKEN || "",
     cluster: args["tts-cluster"] || process.env.TUTOR_TTS_CLUSTER || "",
     resourceId: args["tts-resource-id"] || process.env.TUTOR_TTS_RESOURCE_ID || "seed-tts-2.0",
-    speaker: args["speaker"] || args["tts-voice"] || process.env.TUTOR_TTS_SPEAKER || "",
+    speaker:
+      args["speaker"] ||
+      args["tts-speaker"] ||
+      args["tts-voice"] ||
+      process.env.TUTOR_TTS_SPEAKER ||
+      process.env.TUTOR_TTS_VOICE_TYPE ||
+      "",
   },
 };
+
+// 与线上服务端共用同一套凭据解析规则：App ID / Token 两栏共享，只填一栏也当两栏有
+const resolved = resolveVoiceCredentials({
+  asrApiKey: config.asr.apiKey,
+  ttsApiKey: config.tts.apiKey,
+  ttsSpeaker: config.tts.speaker,
+  asrAppId: config.asr.appId,
+  asrAccessToken: config.asr.token,
+  ttsAppId: config.tts.appId,
+  ttsAccessToken: config.tts.token,
+  ttsCluster: config.tts.cluster,
+});
+const protocol = (args["tts-protocol"] || resolved.protocol) as "v3" | "legacy";
 
 const asrOnly = "asr-only" in args;
 const ttsOnly = "tts-only" in args;
 // 只验识别时需要一段现成音频：整条闭环要合成声源，而 --asr-only 恰恰跳过了合成
 const asrAudioPath = args["asr-audio"] || "";
 const result: any = {
-  mode: usingApiKey ? "api-key（新版控制台）" : "app-id/token（旧版控制台）",
+  mode: resolved.apiKey ? "api-key（单头）" : "app-id/token（双头）",
+  ttsProtocol: protocol,
   steps: {} as Record<string, unknown>,
   errors: [] as string[],
   pass: false,
@@ -70,24 +93,35 @@ const result: any = {
 console.log(`鉴权方式：${result.mode}`);
 console.log("");
 
-async function synthesize(text: string): Promise<{ ok: true; audio: Buffer } | { ok: false; reason: string }> {
-  if (usingApiKey) {
-    if (!config.tts.speaker) {
+async function synthesize(
+  text: string,
+  speakerOverride?: string,
+): Promise<{ ok: true; audio: Buffer } | { ok: false; reason: string }> {
+  const speaker = speakerOverride || resolved.speaker;
+  if (protocol === "v3") {
+    if (!speaker) {
       return { ok: false, reason: "语音合成缺少参数：speaker（音色 ID，控制台「音色库」里抄一个）" };
     }
+    if (!resolved.ttsApiKey && !(resolved.ttsAppId && resolved.ttsAccessToken)) {
+      return { ok: false, reason: "语音合成缺少凭据：给 --api-key=，或 --tts-app-id= 与 --tts-token=" };
+    }
+    // 有 API Key 用单头；否则用 App ID + Access Token 双头（老控制台，实测同样可用）
+    const authHeaders = resolved.ttsApiKey
+      ? { "X-Api-Key": resolved.ttsApiKey }
+      : { "X-Api-App-Key": resolved.ttsAppId, "X-Api-Access-Key": resolved.ttsAccessToken };
     const response = await fetch(TTS_V3_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Api-Key": config.tts.apiKey,
+        ...authHeaders,
         "X-Api-Resource-Id": config.tts.resourceId,
         "X-Api-Request-Id": `${Date.now()}`,
       },
       body: JSON.stringify({
         req_params: {
           text,
-          speaker: config.tts.speaker,
-          audio_params: { format: "mp3", sample_rate: 24000, disable_markdown_filter: true, disable_emoji_filter: true },
+          speaker,
+    audio_params: { format: "mp3", sample_rate: 24000, disable_markdown_filter: true, disable_emoji_filter: true },
           additions: JSON.stringify({ latex_parser: "v2" }),
         },
       }),
@@ -99,31 +133,40 @@ async function synthesize(text: string): Promise<{ ok: true; audio: Buffer } | {
     const stream = createJsonObjectStream();
     const chunks: string[] = [];
     let failure = "";
+    const collect = (message: any) => {
+      // 成功码不止 0：流末尾的 {"code":20000000,"message":"OK"} 是正常结束标记
+      if (message?.code !== undefined && !isVolcSuccessCode(message.code)) {
+        failure = failure || `code=${message.code} ${message.message || ""}`.trim();
+        return;
+      }
+      if (typeof message?.data === "string" && message.data) chunks.push(message.data);
+    };
     const decoder = new TextDecoder();
     for await (const raw of response.body as any) {
-      for (const message of stream.push(decoder.decode(raw as Uint8Array, { stream: true }))) {
-        if (message?.code !== undefined && Number(message.code) !== 0) failure = failure || `code=${message.code} ${message.message || ""}`.trim();
-        if (typeof message?.data === "string" && message.data) chunks.push(message.data);
-      }
+      for (const message of stream.push(decoder.decode(raw as Uint8Array, { stream: true }))) collect(message);
     }
-    for (const message of stream.flush()) {
-      if (message?.code !== undefined && Number(message.code) !== 0) failure = failure || `code=${message.code} ${message.message || ""}`.trim();
-      if (typeof message?.data === "string" && message.data) chunks.push(message.data);
-    }
+    for (const message of stream.flush()) collect(message);
     if (failure) return { ok: false, reason: humanizeVoiceError({ part: "tts", status: 200, body: { message: failure } }) };
     if (!chunks.length) return { ok: false, reason: "语音合成失败：上游没有返回音频数据" };
     return { ok: true, audio: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk, "base64"))) };
   }
 
-  const missing = ["appId", "token", "cluster", "speaker"].filter((key) => !config.tts[key]);
+  // 旧协议（/api/v1/tts）需要 App ID + Token + Cluster + 音色
+  const legacyValues: Record<string, string> = {
+    appId: resolved.ttsAppId,
+    token: resolved.ttsAccessToken,
+    cluster: config.tts.cluster,
+    speaker: resolved.speaker,
+  };
+  const missing = Object.keys(legacyValues).filter((key) => !legacyValues[key]);
   if (missing.length) return { ok: false, reason: `语音合成缺少参数：${missing.join(", ")}` };
   const response = await fetch(TTS_LEGACY_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer;${config.tts.token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer;${resolved.ttsAccessToken}` },
     body: JSON.stringify({
-      app: { appid: config.tts.appId, token: config.tts.token, cluster: config.tts.cluster },
+      app: { appid: resolved.ttsAppId, token: resolved.ttsAccessToken, cluster: config.tts.cluster },
       user: { uid: "heya-voice-check" },
-      audio: { voice_type: config.tts.speaker, encoding: "mp3", speed_ratio: 1.0 },
+      audio: { voice_type: resolved.speaker, encoding: "mp3", speed_ratio: 1.0 },
       request: { reqid: `${Date.now()}`, text, operation: "query" },
     }),
   });
@@ -136,12 +179,12 @@ async function synthesize(text: string): Promise<{ ok: true; audio: Buffer } | {
 }
 
 async function transcribe(audio: Buffer, format: string): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
-  if (!usingApiKey && !(config.asr.appId && config.asr.token)) {
+  if (!resolved.asrApiKey && !(resolved.asrAppId && resolved.asrAccessToken)) {
     return { ok: false, reason: "语音识别缺少参数：appId, token" };
   }
-  const authHeaders = usingApiKey
-    ? { "X-Api-Key": config.asr.apiKey }
-    : { "X-Api-App-Id": config.asr.appId, "X-Api-App-Key": config.asr.appId, "X-Api-Access-Key": config.asr.token };
+  const authHeaders = resolved.asrApiKey
+    ? { "X-Api-Key": resolved.asrApiKey }
+    : { "X-Api-App-Key": resolved.asrAppId, "X-Api-Access-Key": resolved.asrAccessToken };
   const response = await fetch(ASR_ENDPOINT, {
     method: "POST",
     headers: {
@@ -171,6 +214,41 @@ async function transcribe(audio: Buffer, format: string): Promise<{ ok: true; te
 }
 
 // ---- 合成 ----
+// 只列音色：逐个真发一次短句，能出声才算可用（控制台列表里有一大堆，但账号没开通的用不了）
+if ("list-voices" in args) {
+  // 默认可疑清单：在线文档里常见的"大模型音色"。注意 mars/moon 结尾的那批属于别的 resource，
+  // 在本账号上会报 "resource ID is mismatched with speaker related resource"。
+  const defaults = [
+    "zh_female_vv_uranus_bigtts",
+    "zh_female_cancan_uranus_bigtts",
+    "zh_female_xiaohe_uranus_bigtts",
+    "zh_female_tianmeixiaoyuan_uranus_bigtts",
+    "zh_female_qingxinnvsheng_uranus_bigtts",
+    "zh_male_wennuanahu_uranus_bigtts",
+    "zh_male_qingshuangnanda_uranus_bigtts",
+    "zh_male_yangguangqingnian_uranus_bigtts",
+    "zh_male_kailangxuezhang_uranus_bigtts",
+    "zh_male_qingcang_uranus_bigtts",
+  ];
+  const candidates = args["candidates"] ? args["candidates"].split(",").map((s) => s.trim()).filter(Boolean) : defaults;
+  const available: string[] = [];
+  const rejected: Array<{ speaker: string; reason: string }> = [];
+  for (const speaker of candidates) {
+    const one = await synthesize("你好", speaker);
+    if (one.ok) {
+      available.push(speaker);
+      console.log(`✅ 可用   ${speaker}`);
+    } else {
+      rejected.push({ speaker, reason: one.reason });
+      console.log(`❌ 不可用 ${speaker}`);
+    }
+  }
+  console.log("");
+  console.log(JSON.stringify({ resourceId: config.tts.resourceId, available, rejected }, null, 2));
+  process.exitCode = available.length ? 0 : 1;
+  process.exit(process.exitCode ?? 0);
+}
+
 let audio: Buffer | null = null;
 let audioFormat = "mp3";
 if (asrOnly && asrAudioPath) {
@@ -185,8 +263,8 @@ if (asrOnly && asrAudioPath) {
     console.log(`❌ ${spoken.reason}`);
   } else {
     audio = spoken.audio;
-    result.steps.tts = { bytes: audio.length, text: PROBE_TEXT, speaker: config.tts.speaker || "(旧版音色)" };
-    console.log(`✅ 语音合成通过：得到 ${audio.length} 字节 mp3（音色 ${config.tts.speaker}）`);
+    result.steps.tts = { bytes: audio.length, text: PROBE_TEXT, speaker: resolved.speaker, protocol };
+    console.log(`✅ 语音合成通过：得到 ${audio.length} 字节 mp3（音色 ${resolved.speaker}，协议 ${protocol}）`);
   }
 }
 
@@ -228,15 +306,11 @@ result.pass = result.errors.length === 0 && Object.keys(result.steps).length > 0
 console.log("");
 if (result.pass) {
   console.log("据此启用语音（一条命令，会自动写服务器 .env 并重启）：");
-  if (usingApiKey) {
-    console.log(`bash scripts/enable-tutor.sh --key=<豆包Key> --chat-model=<模型ID> \\`);
-    console.log(`  --asr-api-key=${apiKey} --tts-api-key=${apiKey} --tts-speaker=${config.tts.speaker}`);
+  console.log(`bash scripts/enable-tutor.sh --key=<豆包Key> --chat-model=<模型ID> \\`);
+  if (resolved.apiKey) {
+    console.log(`  --voice-api-key=${apiKey} --tts-speaker=${resolved.speaker}`);
   } else {
-    console.log(`bash scripts/enable-tutor.sh --key=<豆包Key> --chat-model=<模型ID> \\`);
-    console.log(
-      `  --asr-app-id=${config.asr.appId} --asr-token=<已填> --asr-cluster=${config.asr.resourceId} \\`,
-    );
-    console.log(`  --tts-app-id=${config.tts.appId} --tts-token=<已填> --tts-cluster=${config.tts.cluster} --tts-voice=${config.tts.speaker}`);
+    console.log(`  --asr-app-id=${resolved.asrAppId} --asr-token=<已填> --tts-speaker=${resolved.speaker}`);
   }
 } else {
   console.log("❌ 未通过。上面每条 ❌ 都带上了上游原始 code/message，可对着火山语音文档查。");

@@ -18,6 +18,19 @@ const TTS_LEGACY_ENDPOINT = "https://openspeech.bytedance.com/api/v1/tts";
 /** 新版控制台：语音合成大模型「单向流式语音合成HTTP」，只要 API Key + 音色 */
 const TTS_V3_ENDPOINT = "https://openspeech.bytedance.com/api/v3/tts/unidirectional";
 
+/**
+ * 火山语音的"成功码"不止 0 一个。
+ * 实测：合成 v3 的流末尾会补一个 `{"code":20000000,"message":"OK"}` 作为结束标记，
+ * 识别闪断版的响应头 `X-Api-Status-Code` 成功时同样是 20000000。
+ * 早先按"非 0 即失败"处理，会把一次成功的合成判成失败。
+ */
+export const VOLC_SUCCESS_CODES = new Set([0, 20000000, 45000000]);
+
+export function isVolcSuccessCode(code: unknown): boolean {
+  if (code === undefined || code === null || code === "") return false;
+  return VOLC_SUCCESS_CODES.has(Number(code));
+}
+
 export function createVolcTts(options: {
   appId: string;
   accessToken: string;
@@ -65,14 +78,19 @@ export function createVolcTts(options: {
 }
 
 /**
- * 语音合成大模型（新版控制台，API Key 单头）。
+ * 语音合成大模型（v3 单向流式）。
  *
  * 响应是 chunked 的一串 JSON 对象，每段带一段 base64 音频，所以要边收边拆再拼起来。
  * 教育场景可用参数：`latex_parser: "v2"`（数学公式按读法朗读）、语速/音量、
  * `disable_markdown_filter`（去掉 Markdown 符号，否则"**加粗**"会被念出来）。
+ *
+ * 鉴权两种都行：新版控制台给单把 API Key（`X-Api-Key`），老控制台给 App ID + Access Token
+ * （`X-Api-App-Key` + `X-Api-Access-Key`）——实测后者在这个接口上同样能正常出声。
  */
 export function createVolcTtsV3(options: {
-  apiKey: string;
+  apiKey?: string;
+  appId?: string;
+  accessToken?: string;
   resourceId: string;
   speaker: string;
   format?: string;
@@ -80,13 +98,16 @@ export function createVolcTtsV3(options: {
   speechRate?: number;
 }) {
   const format = options.format || "mp3";
+  const authHeaders: Record<string, string> = options.apiKey
+    ? { "X-Api-Key": options.apiKey }
+    : { "X-Api-App-Key": options.appId || "", "X-Api-Access-Key": options.accessToken || "" };
   return {
     async synthesize(text: string): Promise<{ audio: Buffer; contentType: string }> {
       const response = await fetch(TTS_V3_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Api-Key": options.apiKey,
+          ...authHeaders,
           "X-Api-Resource-Id": options.resourceId,
           "X-Api-Request-Id": `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
         },
@@ -117,22 +138,23 @@ export function createVolcTtsV3(options: {
       const chunks: string[] = [];
       let failure = "";
 
+      // 成功码（0 / 20000000 / 45000000）不算失败；音频段照收，收不到音频最后会另报错
+      const collect = (message: any) => {
+        if (message?.code !== undefined && !isVolcSuccessCode(message.code)) {
+          failure = failure || `code=${message.code} ${message.message || ""}`.trim();
+          return;
+        }
+        if (typeof message?.data === "string" && message.data) chunks.push(message.data);
+      };
+
       const decoder = new TextDecoder();
       for await (const raw of response.body as any) {
         for (const message of stream.push(decoder.decode(raw, { stream: true }))) {
-          // code 0 表示这一段成功；非 0 直接把它当失败原因带出去
-          if (message?.code !== undefined && Number(message.code) !== 0) {
-            failure = failure || `code=${message.code} ${message.message || ""}`.trim();
-            continue;
-          }
-          if (typeof message?.data === "string" && message.data) chunks.push(message.data);
+          collect(message);
         }
       }
       for (const message of stream.flush()) {
-        if (message?.code !== undefined && Number(message.code) !== 0) {
-          failure = failure || `code=${message.code} ${message.message || ""}`.trim();
-        }
-        if (typeof message?.data === "string" && message.data) chunks.push(message.data);
+        collect(message);
       }
 
       if (failure) throw new Error(`语音合成失败：${failure}`);
