@@ -73,6 +73,11 @@ npm run check:doubao -- --key=你的key --models=doubao-seed-1-6-250615 --vision
 | `TUTOR_VISION_MODEL` | 视觉模型 ID（拍图讲错题用） |
 | `TUTOR_CHAT_BASE_URL` | 不填默认 `https://ark.cn-beijing.volces.com/api/v3`，账号在北京区就不用管 |
 
+**注意：这些变量必须同时出现在 `docker-compose.yml` 的 `environment:` 里才会进容器。**
+compose 那一段是白名单，只往 `.env` 里写值是不生效的（曾因此让 `TUTOR_ENABLED=true` 无效、
+接口一直 503，看着像凭据问题）。`enable-tutor.sh` 会替你把 compose 同步过去，并在重启后
+直接向容器查值做确认，不通过就中止。
+
 配额与超时都有默认值，可按需覆盖：
 `TUTOR_DAILY_MESSAGE_LIMIT`（默认 60 条/孩子/天）、`TUTOR_DAILY_TOKEN_LIMIT`（默认 0 即不限）、
 `TUTOR_MAX_TOOL_ROUNDS`（6）、`TUTOR_REQUEST_TIMEOUT_MS`（45000）、`TUTOR_TOOL_RESULT_LIMIT`（6000）。

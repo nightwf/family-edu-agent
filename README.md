@@ -184,6 +184,8 @@ deploy/                       腾讯云独立部署配置
 
 私教相关的环境变量集中在服务器 `.env`（见 `apps/api/src/env.ts` 的 `TUTOR_*`）：
 
+> 这些变量同时列在 `docker-compose.yml` 的 `environment:` 段里才会进入容器；那一段是白名单，只改 `.env` 不生效。
+
 | 变量 | 用途 |
 | --- | --- |
 | `TUTOR_ENABLED` | 总开关，关闭时接口返回 503 且前端隐藏入口 |

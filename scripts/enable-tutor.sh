@@ -100,8 +100,30 @@ if $DRY_RUN; then
 fi
 ssh "${SSH_OPTS[@]}" "$HOST" "$REMOTE_CMD"
 
-say "3/4 重建并重启 api 容器"
+say "3/4 同步 compose 配置并重建 api 容器"
+# compose 决定哪些变量进容器，本地改了必须同步过去，否则重启也白搭
+scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no "$REPO_ROOT/docker-compose.yml" "$HOST:$REMOTE_DIR/docker-compose.yml"
 ssh "${SSH_OPTS[@]}" "$HOST" "cd '$REMOTE_DIR' && docker compose up -d --build api >/dev/null && docker compose ps api"
+
+# 只改 .env 是不够的：compose 的 environment 段是白名单，没列进去的变量不会进容器。
+# 这里直接问容器要值，把"配置看着对、实际没生效"这类问题挡在这一步。
+say "3.5/4 确认容器真的收到了这些变量"
+if $DISABLE; then EXPECT_ENABLED=false; else EXPECT_ENABLED=true; fi
+IN_CONTAINER=$(ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER printenv TUTOR_ENABLED || true")
+if [ "$IN_CONTAINER" != "$EXPECT_ENABLED" ]; then
+  echo "" >&2
+  echo "容器里的 TUTOR_ENABLED=${IN_CONTAINER:-（空）}，期望 ${EXPECT_ENABLED}。" >&2
+  echo "多半是 docker-compose.yml 的 environment 段没有列出 TUTOR_* —— 只改 .env 不会进容器。" >&2
+  echo "请先补上 docker-compose.yml 再重试。" >&2
+  exit 1
+fi
+if ! $DISABLE; then
+  CHAT_MODEL_IN=$(ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER printenv TUTOR_CHAT_MODEL || true")
+  KEY_LEN=$(ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER sh -c 'printf %s \"\$TUTOR_CHAT_API_KEY\" | wc -c' | tr -d ' '")
+  echo "  TUTOR_ENABLED=$IN_CONTAINER  TUTOR_CHAT_MODEL=$CHAT_MODEL_IN  TUTOR_CHAT_API_KEY=${KEY_LEN} 字符"
+  [ -n "$CHAT_MODEL_IN" ] || { echo "TUTOR_CHAT_MODEL 为空，已在容器内生效失败，中止。" >&2; exit 1; }
+  [ "${KEY_LEN:-0}" -gt 0 ] || { echo "TUTOR_CHAT_API_KEY 为空，已在容器内生效失败，中止。" >&2; exit 1; }
+fi
 
 say "4/4 等健康检查稳定（容器重建瞬间会有短暂 502）"
 ok=0

@@ -9,6 +9,7 @@ import { PrismaClient } from "@prisma/client";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createSseParser, summarizeRoundTrip } from "./lib/sse-parse.mjs";
+import { pickConversationId, pickList } from "./lib/api-shapes.mjs";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:4100";
 const ROUNDTRIP = process.argv.includes("--roundtrip");
@@ -95,9 +96,14 @@ async function roundTrip(jwt, childId) {
     return result;
   }
   const conversation = await created.json();
-  result.conversationId = conversation.id;
+  result.conversationId = pickConversationId(conversation);
+  if (!result.conversationId) {
+    // 显式报错：不要拿着 undefined 继续发消息，那样只会看到"会话不存在"这种误导性错误
+    result.errors.push(`建会话响应里没找到会话 ID：${JSON.stringify(conversation).slice(0, 160)}`);
+    return result;
+  }
 
-  const response = await fetch(`${BASE}/api/tutor/conversations/${conversation.id}/messages`, {
+  const response = await fetch(`${BASE}/api/tutor/conversations/${result.conversationId}/messages`, {
     method: "POST",
     headers: auth,
     // 只问一句不需要工具也能答的话，避免验证动作被工具失败拖住
@@ -106,7 +112,7 @@ async function roundTrip(jwt, childId) {
 
   if (!response.ok || !response.body) {
     result.errors.push(`发消息失败 HTTP ${response.status}：${(await response.text()).slice(0, 200)}`);
-    await archive(jwt, conversation.id, result);
+    await archive(jwt, result.conversationId, result);
     return result;
   }
 
@@ -117,7 +123,7 @@ async function roundTrip(jwt, childId) {
   collected.push(...parser.flush());
 
   Object.assign(result, summarizeRoundTrip(collected));
-  await archive(jwt, conversation.id, result);
+  await archive(jwt, result.conversationId, result);
   return result;
 }
 

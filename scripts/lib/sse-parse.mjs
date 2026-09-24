@@ -67,7 +67,9 @@ export function summarizeRoundTrip(events) {
       const delta = String(parsed?.delta ?? parsed?.text ?? "");
       summary.textLength += delta.length;
       if (summary.preview.length < 120) summary.preview += delta;
-    } else if (event === "tool_call" || event === "tool_result") {
+    } else if (event === "tool" || event === "tool_call" || event === "tool_result") {
+      // 服务端用的是 `tool`（routes.ts: sseWrite(reply, "tool", { name, ok })）；
+      // tool_call / tool_result 是兼容旧写法，别因为改名就漏统计。
       summary.toolCalls.push(`${parsed?.name || "?"}${parsed?.ok === false ? "(失败)" : ""}`);
     } else if (event === "error") {
       // 上游原文在 detail 里，只用于排查，不当可读提示

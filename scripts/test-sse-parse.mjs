@@ -33,7 +33,7 @@ function feedInChunks(text, size) {
 
 const STREAM = [
   'event: text\ndata: {"delta":"你好"}\n\n',
-  'event: tool_call\ndata: {"name":"list_children","ok":true}\n\n',
+  'event: tool\ndata: {"name":"list_children","ok":true}\n\n',
   'event: text\ndata: {"delta":"JOJO"}\n\n',
   'event: error\ndata: {"message":"模型超时","detail":"AbortError"}\n\n',
   'event: done\ndata: {"usage":{"promptTokens":1}}\n\n',
@@ -85,7 +85,7 @@ console.log("sse-parse：汇总结果");
 check("文本累加、工具调用记录、错误带 detail", () => {
   const summary = summarizeRoundTrip(feedInChunks(STREAM, 3));
   assert.equal(summary.events.text, 2);
-  assert.equal(summary.events.tool_call, 1);
+  assert.equal(summary.events.tool, 1);
   assert.equal(summary.events.done, 1);
   // "你好" 2 字 + "JOJO" 4 字
   assert.equal(summary.textLength, 6);
@@ -97,8 +97,15 @@ check("文本累加、工具调用记录、错误带 detail", () => {
 });
 
 check("工具失败会被标出来，不混进成功", () => {
-  const summary = summarizeRoundTrip(feedInChunks('event: tool_result\ndata: {"name":"save_x","ok":false}\n\n', 4));
+  const summary = summarizeRoundTrip(feedInChunks('event: tool\ndata: {"name":"save_x","ok":false}\n\n', 4));
   assert.deepEqual(summary.toolCalls, ["save_x(失败)"]);
+});
+
+check("兼容旧的 tool_call / tool_result 事件名", () => {
+  const summary = summarizeRoundTrip(
+    feedInChunks('event: tool_call\ndata: {"name":"a","ok":true}\n\nevent: tool_result\ndata: {"name":"b","ok":true}\n\n', 7),
+  );
+  assert.deepEqual(summary.toolCalls, ["a", "b"]);
 });
 
 check("没有文本时文本长度为 0（不当成成功）", () => {

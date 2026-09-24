@@ -826,15 +826,27 @@ MODERATION_API_KEY=
 `apps/api/src/tutor/routes.flow.test.ts` 用假供应商 + 假工具集跑通「发消息 → SSE 逐字 → 助手消息落库 → 额度递减 → 沉淀待确认证据」，
 并覆盖模型报错降级、重复证据不重复写入。它补上了此前只测单点（鉴权、配额、守卫）而没测整轮链路的空白。
 
-### 21.4 仍需真实凭据才能完成的收尾
+### 21.4 线上已启用（2026-09-24）
 
-以下三项**不影响开发与自动化测试**（全部用假 provider 打桩），但线上真机验证前必须由 jojo 提供：
+豆包凭据已到位，私教**已在本机与线上跑通真实对话**。
 
-1. 豆包 API Key，以及对话模型与视觉模型的接入点（Endpoint ID）或模型名；
-2. 火山「语音技术」是否已开通 —— 识别与合成各需 App ID / Access Token（协议实现已按火山文档写好，待真实凭据核实）；
-3. 每日配额默认值与儿童语音原始音频是否留存（当前默认：每孩子 60 条消息、不留存原始音频）。
+| 项 | 内容 |
+|---|---|
+| 模型 | `doubao-seed-2-1-lite-260915`，账号下唯一已开通的型号；对话、工具调用、读图三项能力实测全过，一个型号同时当对话模型与视觉模型 |
+| 未开通的 | 该账号其余候选型号均返回 `ModelNotOpen`（未开通）或 `InvalidEndpointOrModel.NotFound`（ID 已下线）。想要更强的效果可另开 `doubao-seed-2-1-pro-260915` 等，改配置即可 |
+| 线上状态 | `/api/tutor/status` → `enabled:true, ready:true, model_configured:true`；配额 60 条/孩子/天 |
+| 真实对话证据 | 容器内发一轮提问，收到 119 字回答 + 7 次工具调用（`list_children`、`get_learning_history`、`list_wrong_questions`、`list_homework`、`list_learning_signals`、`get_subject_overview`、`get_growth_summary`），零错误；回答内容与孩子真实记录一致 |
 
-在拿到凭据前，`TUTOR_ENABLED` 保持关闭：接口返回 503，前端隐藏入口，线上行为与上线前一致。
+**修掉的一处部署缺口**：`docker-compose.yml` 的 `environment:` 是显式白名单，
+原先没有列出 `TUTOR_*`，导致只改 `.env` 完全不生效（接口一直 503，看起来像凭据问题）。
+现已把全部 `TUTOR_*` 按 `${VAR:-默认值}` 写进 compose，并在 `enable-tutor.sh` 里加了
+"直接向容器要值"的断言，防止再次出现"配置看着对、实际没进容器"。
+
+### 21.4.1 仍未完成
+
+1. 火山「语音技术」尚未开通 —— 识别与合成各需 App ID / Access Token（协议实现已按火山文档写好，**待真实凭据核实**，尤其 cluster 与音色 ID）；
+2. 真机人工验收（拍真实手写作业、讲题不给答案、跨孩子记忆隔离、换家庭隔离）；
+3. 每日配额默认值与儿童语音原始音频是否留存由 jojo 确认（当前默认：每孩子 60 条消息、不留存原始音频）。
 
 ### 21.5 凭据开通与自检
 
@@ -847,8 +859,10 @@ TUTOR_CHAT_API_KEY=xxx npm run check:doubao
 npm run check:doubao -- --key=xxx --models=<模型ID> --vision
 ```
 
-`scripts/check-doubao-models.mjs` 只发最小请求（`max_tokens=8`），会逐个探活候选模型 ID，
-把 401 / 未开通 / 欠费 / 限流翻成人话，并直接输出该写入 `.env` 的三行。视觉通道用 1x1 PNG 探活，不占流量。
+`scripts/check-doubao-models.mjs` 只发最小请求，会逐个探活候选模型 ID，
+把 401 / 未开通 / 欠费 / 限流翻成人话，并直接输出该写入 `.env` 的三行。
+视觉通道用**自生成的 16x16 纯红 PNG** 探活（1x1 会被上游判成"尺寸过小"，
+看起来像"不支持读图"，实际是探针不合法），不占流量。
 
 工具调用是硬要求（运行时给模型挂 30 个工具），所以自检默认会挂一个探活工具，
 看模型是主动发起 `tool_call` 还是直接编文字；只能对话的模型会被单独列出并标注"不能给私教用"。
