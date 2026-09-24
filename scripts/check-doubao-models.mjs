@@ -61,11 +61,14 @@ function parseArgs(argv) {
     if (raw.startsWith("--key=")) args.key = raw.slice(6).trim();
     else if (raw.startsWith("--base-url=")) args.baseUrl = raw.slice(11).trim();
     else if (raw.startsWith("--models="))
-      args.models = raw
-        .slice(9)
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      // 可以给多次 --models，累加而不是覆盖（调用方常要"对话模型 + 视觉模型"分开传）
+      args.models.push(
+        ...raw
+          .slice(9)
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      );
     else if (raw === "--vision") args.vision = true;
     else if (raw === "--no-tools") args.tools = false;
     else if (raw === "--help" || raw === "-h") args.help = true;

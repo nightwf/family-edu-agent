@@ -849,3 +849,19 @@ npm run check:doubao -- --key=xxx --models=<模型ID> --vision
 
 `scripts/check-doubao-models.mjs` 只发最小请求（`max_tokens=8`），会逐个探活候选模型 ID，
 把 401 / 未开通 / 欠费 / 限流翻成人话，并直接输出该写入 `.env` 的三行。视觉通道用 1x1 PNG 探活，不占流量。
+
+工具调用是硬要求（运行时给模型挂 30 个工具），所以自检默认会挂一个探活工具，
+看模型是主动发起 `tool_call` 还是直接编文字；只能对话的模型会被单独列出并标注"不能给私教用"。
+
+### 21.6 凭据到位后的一条命令
+
+```bash
+bash scripts/enable-tutor.sh --key=xxx --chat-model=doubao-seed-1-6-250615 --dry-run  # 先预演
+bash scripts/enable-tutor.sh --key=xxx --chat-model=doubao-seed-1-6-250615            # 真正启用
+bash scripts/enable-tutor.sh --disable                                                # 回滚
+```
+
+四步串起来且任一步失败即中止：本机验能力（含工具调用）→ 幂等写服务器 `.env`（自动备份）→
+重建重启 api 容器并等健康检查稳定 → 容器内跑线上校验（含真发一轮对话，验证用会话自动归档）。
+
+相关脚本自身的用例：`npm run test:ops`（`.env` 写入规则 17 项、SSE 解析 10 项），已并入 `npm test`。

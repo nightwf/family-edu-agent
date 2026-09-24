@@ -1,14 +1,17 @@
 /**
  * 线上/容器内一次性验证脚本（仅排查用，不进构建产物）。
  * 用法（容器内）：node /tmp/verify-online.mjs
+ *                node /tmp/verify-online.mjs --roundtrip   # 额外真发一轮对话（会写入并归档一条会话）
  * 依据 JWT_SECRET 解密最新 MCP token，走进程内端口验 MCP；再自签 JWT 验 /api/tutor/*。
  */
 import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { createSseParser, summarizeRoundTrip } from "./lib/sse-parse.mjs";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:4100";
+const ROUNDTRIP = process.argv.includes("--roundtrip");
 const secret = process.env.JWT_SECRET;
 if (!secret) throw new Error("JWT_SECRET missing");
 
@@ -73,6 +76,65 @@ if (!tokenRow) {
 }
 
 // ---- Tutor ----
+/**
+ * 真发一轮对话，把 SSE 事件收齐。
+ * 这是唯一能证明"模型真的在回答、工具真的被调用"的检查，其余都是接口层探活。
+ */
+async function roundTrip(jwt, childId) {
+  const auth = { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" };
+  const collected = [];
+  const result = { events: {}, textLength: 0, preview: "", toolCalls: [], errors: [], conversationId: null, cleaned: false };
+
+  const created = await fetch(`${BASE}/api/tutor/conversations`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ child_id: childId ?? undefined, title: "线上连接自检" }),
+  });
+  if (!created.ok) {
+    result.errors.push(`建会话失败 HTTP ${created.status}：${(await created.text()).slice(0, 200)}`);
+    return result;
+  }
+  const conversation = await created.json();
+  result.conversationId = conversation.id;
+
+  const response = await fetch(`${BASE}/api/tutor/conversations/${conversation.id}/messages`, {
+    method: "POST",
+    headers: auth,
+    // 只问一句不需要工具也能答的话，避免验证动作被工具失败拖住
+    body: JSON.stringify({ text: "用一句话说明你看到了我的哪些学习记录。", stream: true }),
+  });
+
+  if (!response.ok || !response.body) {
+    result.errors.push(`发消息失败 HTTP ${response.status}：${(await response.text()).slice(0, 200)}`);
+    await archive(jwt, conversation.id, result);
+    return result;
+  }
+
+  const parser = createSseParser();
+  for await (const chunk of response.body) {
+    collected.push(...parser.push(new TextDecoder().decode(chunk, { stream: true })));
+  }
+  collected.push(...parser.flush());
+
+  Object.assign(result, summarizeRoundTrip(collected));
+  await archive(jwt, conversation.id, result);
+  return result;
+}
+
+/** 验证用的会话不留在家长界面上。接口只支持归档，这里就照接口的能力做。 */
+async function archive(jwt, conversationId, result) {
+  try {
+    const response = await fetch(`${BASE}/api/tutor/conversations/${conversationId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    result.cleaned = response.ok;
+    if (!response.ok) result.errors.push(`归档会话失败 HTTP ${response.status}`);
+  } catch (error) {
+    result.errors.push(`归档会话异常：${error?.message || error}`);
+  }
+}
+
 const user = await prisma.user.findFirst({ where: { familyId: { not: null } }, orderBy: { createdAt: "asc" } });
 if (!user) {
   out.tutor.error = "no user with family";
@@ -83,6 +145,14 @@ if (!user) {
     let body = await res.text();
     if (body.length > 200) body = `${body.slice(0, 200)}...`;
     out.tutor[path] = { status: res.status, body };
+  }
+
+  if (ROUNDTRIP) {
+    const child = await prisma.child.findFirst({ where: { familyId: user.familyId }, orderBy: { createdAt: "asc" } });
+    out.tutor.child = child ? { id: child.id, name: child.name } : null;
+    out.tutor.roundTrip = child
+      ? await roundTrip(jwt, child.id)
+      : { skipped: "该家庭还没有孩子，无法验证对话" };
   }
 }
 

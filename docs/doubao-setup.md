@@ -81,6 +81,35 @@ npm run check:doubao -- --key=你的key --models=doubao-seed-1-6-250615 --vision
 
 **也不需要向量库/Embedding**：当前知识检索走的是结构化字段与关键词；`TECHNICAL_DESIGN_V2.md` 已把「向量检索」明确列为本轮未纳入，所以现在没有要开通的向量模型。
 
+### 6. 配到线上（一条命令）
+
+上面那些变量不需要手工去服务器上编辑，用这个脚本替代：
+
+```bash
+# 先预览会写什么（不落盘、不动线上）
+bash scripts/enable-tutor.sh --key=xxx --chat-model=doubao-seed-1-6-250615 --dry-run
+
+# 确认无误后真正执行
+bash scripts/enable-tutor.sh --key=xxx --chat-model=doubao-seed-1-6-250615
+```
+
+它按顺序做四件事，任何一步不过就停下、不把半配状态留在服务器上：
+
+1. **先在本机验证 Key 与模型**：对话、工具调用、读图三项都要过；不支持工具调用的模型直接拒收；
+2. **改服务器 `.env`**：只动 `TUTOR_*`，幂等（重复执行结果一致），自动备份成 `.env.bak`；
+3. **重建并重启 api 容器**，等健康检查连续通过（容器重建瞬间会有短暂 502，属正常）；
+4. **在容器内跑线上校验**，含真发一轮对话，报告文本长度、工具调用与错误。
+
+语音凭据一起给的话直接追加参数即可：
+
+```bash
+bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
+  --asr-app-id= --asr-token= --asr-cluster= \
+  --tts-app-id= --tts-token= --tts-cluster= --tts-voice=
+```
+
+想回滚（关闭私教、回到"入口隐藏 + 503"）：`bash scripts/enable-tutor.sh --disable`。
+
 ---
 
 ## 二、语音：火山引擎「语音技术」
@@ -129,5 +158,14 @@ npm run check:doubao -- --key=你的key --models=doubao-seed-1-6-250615 --vision
 1. 注册火山引擎 + 实名认证；
 2. 方舟里开通一个对话模型（建议选带 vision 的多模态型号，省一次开通）+ 创建 API Key；
 3. 跑 `npm run check:doubao -- --key=xxx --vision`，把输出的三行发我（**工具调用那一栏必须是 ✅**）；
-4. 我写进服务器 `.env`、打开 `TUTOR_ENABLED`、重启，然后我们一起在 APK 里真机跑一遍；
+4. 我执行 `bash scripts/enable-tutor.sh --key=xxx --chat-model=xxx`（含验证、配置、重启、线上对话校验），然后我们一起在 APK 里真机跑一遍；
 5. 语音想一起上，再去「语音技术」创建应用并开通 TTS/ASR，把 7 个值给我。
+
+### 已经准备好的自动化
+
+| 工具 | 作用 |
+|---|---|
+| `npm run check:doubao` | 凭据与模型能力自检（对话 / 工具调用 / 读图） |
+| `bash scripts/enable-tutor.sh` | 一条命令完成：验证 → 写 `.env` → 重启 → 线上校验；`--dry-run` 可预演，`--disable` 可回滚 |
+| `scripts/verify-online.mjs --roundtrip` | 线上真发一轮对话，直接报文本长度、工具调用、错误；验证用会话会自动归档 |
+| `npm run test:ops` | 上面这些运维脚本自身的用例（.env 写入规则 17 项 + SSE 解析 10 项） |

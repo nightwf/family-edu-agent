@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "npm run dev --workspace @family-edu/api",
     "build": "npm run build --workspace @family-edu/web",
-    "test": "npm run test --workspaces --if-present && npm run test:voice && npm run test:miniprogram && npm run check:miniprogram",
+    "test": "npm run test --workspaces --if-present && npm run test:voice && npm run test:miniprogram && npm run check:miniprogram && npm run test:ops",
     "test:api": "npm run test --workspace @family-edu/api",
     "test:voice": "tsx scripts/test-tutor-voice.ts",
     "test:e2e": "npx playwright test --config apps/web/playwright.config.js",
@@ -30,7 +30,8 @@
     "android:apk": "bash scripts/build-android-apk.sh",
     "android:icons": "node scripts/render-android-icons.mjs",
     "verify:web-responsive": "node scripts/verify-web-responsive.mjs",
-    "check:doubao": "node scripts/check-doubao-models.mjs"
+    "check:doubao": "node scripts/check-doubao-models.mjs",
+    "test:ops": "node scripts/test-upsert-env.mjs && node scripts/test-sse-parse.mjs"
   },
   "devDependencies": {
     "prisma": "^6.5.0",
