@@ -1,0 +1,536 @@
+# 禾芽内置学习私教（Education Agent Layer）技术方案
+
+## 1. 文档范围
+
+本方案说明如何在禾芽现有系统之上，增加一个可对话的学习私教智能体，用于孩子随时提问、讲错题、做口语与阅读陪练，覆盖网页端、安卓端，并预留微信小程序。
+
+不在本方案范围内：
+
+- 不改动 WorkBuddy 的连接协议与已提交开放平台的专家包；
+- 不建设独立的大模型训练能力，不训练自有语音模型；
+- 不新建第二套 MCP 工具集。
+
+关联文档：`docs/TECHNICAL_DESIGN_V2.md`、`docs/MCP.md`、`docs/workbuddy-sync-spec.md`、`docs/android-app.md`。
+
+---
+
+## 2. 结论先行
+
+用库搭建轻量 Agent Runtime，复用现有 MCP 工具作为唯一工具来源；模型、语音、审核能力全部租用，领域记忆与教学策略自建。
+
+三条产品边界，决定所有技术取舍：
+
+1. 按用户分，不按功能分。WorkBuddy 是家长的控制台（规划、录入、纠偏）；内置私教是孩子手里的（讲题、陪练、随时问）。二者共用一份数据与一套工具，不是同一件事的两个入口。
+2. 教育理念只有一个家。私教的人格与教法一律从 `FamilyPolicy`、`EducationMethod`、`SkillOverride` 读取，不写死在提示词里，也不托管给第三方平台。
+3. 孩子端权限最小化。私教只在本家庭数据范围内工作，工具白名单化，不开放联网检索与自由文件操作。
+
+---
+
+## 3. 系统上下文
+
+```
+                        ┌──────────────────────────────┐
+   孩子（网页 / 安卓）    │  禾芽 Web（apps/web）          │
+   ───────────────────▶ │  Chat 页面（新增）             │
+                        └──────────────┬───────────────┘
+                                       │ SSE 流式
+                        ┌──────────────▼───────────────┐
+   家长（网页 / 小程序） │  禾芽 API（apps/api）          │
+   ───────────────────▶ │  /api/tutor/*  （新增）        │
+                        │   ├─ Agent Runtime（新增）     │
+                        │   ├─ 内容安全层（新增）         │
+                        │   ├─ 教学策略层（新增）         │
+                        │   └─ MCP Server（已有）        │
+                        └──────────────┬───────────────┘
+                                       │ 进程内 InMemoryTransport
+                        ┌──────────────▼───────────────┐
+                        │  现有 123 个 MCP 工具           │
+                        │  child / wrong / mastery /    │
+                        │  policy / method / plan ...   │
+                        └──────────────┬───────────────┘
+                                       │
+                        ┌──────────────▼───────────────┐
+                        │  PostgreSQL（业务与记忆）      │
+                        │  S3 / MinIO（图片等附件）      │
+                        └──────────────────────────────┘
+
+   外部租用：对话模型（多模态）、内容审核、语音识别 / 合成（分阶段接入）
+```
+
+关键点：私教不自建工具，而是以进程内 MCP 客户端身份调用同一个 MCP Server。工具只有一处定义，WorkBuddy 与私教永远不会分叉。
+
+---
+
+## 4. 为什么复用 MCP 工具而不是新写一套
+
+现有 `apps/api/src/mcp.ts` 与 `apps/api/src/v2/mcp-tools.ts` 已注册 123 个工具（实测统计），私教第一阶段要用到的全部就绪：
+
+| 用途 | 已有工具 |
+|---|---|
+| 认识孩子 | `list_children`、`get_child_context`、`get_child_state` |
+| 教育理念与教法 | `get_family_policy`、`list_education_methods`、`get_coaching_policy`、`get_effective_skill` |
+| 学情与优先级 | `get_learning_priorities`、`get_learning_history`、`list_learning_signals`、`get_planning_context` |
+| 讲错题 | `list_wrong_questions`、`get_wrong_question`、`get_wrong_question_practice_context` |
+| 掌握度 | `list_student_mastery`、`get_student_question_type_mastery` |
+| 回写证据 | `record_question_attempt`、`save_wrong_question`、`save_knowledge_item` |
+
+实现方式（MCP SDK `1.30.0` 已安装，含 `InMemoryTransport.createLinkedPair()`）：
+
+```ts
+// apps/api/src/tutor/mcp-tools.ts（新增）
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createEducationMcpServer } from "../mcp.js";
+
+export async function createTutorToolset(familyId: string) {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createEducationMcpServer(familyId);
+  const client = new Client({ name: "heya-tutor", version: "1.0.0" }, { capabilities: {} });
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  return { client, server };
+}
+```
+
+好处：无 HTTP 回环、无自签令牌、家庭隔离沿用 `resolveFamily()` 既有语义（`familyId` 由服务端会话推导，不接受客户端传入）。
+
+一处需要补齐的缺口：**学科概览目前没有 MCP 工具**（`getSubjectOverview` 只在 `apps/api/src/v2/subject-overview.ts` 里供 REST 使用，首页两端都走 `/api/mobile/subject-overview`）。私教要在对话里说"哪一科需要优先处理"，有两条路：
+
+1. 阶段一先不加工具，靠 `get_learning_priorities` 的 `subject` 字段回答单点问题；
+2. 顺手补一个只读工具 `get_subject_overview`，同时给 WorkBuddy 用（对两边都有收益，且属于纯增量）。
+
+建议按 2 做：新增只读工具不影响任何现有契约。
+
+---
+
+## 5. 目标代码结构
+
+```
+apps/api/src/tutor/
+  routes.ts             # /api/tutor/* 路由与 SSE 输出
+  runtime.ts            # Agent 循环：模型 ⇄ 工具
+  mcp-tools.ts          # 进程内 MCP 客户端与工具白名单
+  tool-policy.ts        # 按人格与场景的工具授权表
+  persona.ts            # 私教人格：由教育理念渲染系统提示词
+  safety.ts             # 内容安全三层入口
+  memory.ts             # 记忆读写：会话摘要、证据回流
+  quota.ts              # 每日额度与限流
+  llm/
+    index.ts            # 模型供应商抽象
+    types.ts            # 统一的流式事件类型
+  voice/
+    index.ts            # 语音能力抽象（阶段二起）
+
+prisma/migrations/2026xxxx_add_tutor_agent/   # 新增迁移
+apps/web/src/components/TutorChat.tsx         # 聊天页
+apps/web/src/lib/tutor.ts                     # SSE 客户端
+```
+
+---
+
+## 6. 数据模型
+
+新增迁移，不动现有账号、学生、题库、作业、知识库数据。
+
+```prisma
+model TutorConversation {
+  id            String   @id @default(cuid())
+  familyId      String
+  childId       String                 // 会话归属的孩子，空表示家庭级（家长模式）
+  persona       String   @default("child_tutor")  // child_tutor | parent_coach
+  title         String?
+  status        String   @default("active")        // active | archived
+  summary       String?                // 滚动摘要，见第 9 节
+  summarizedAt  DateTime?
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TutorMessage {
+  id               String   @id @default(cuid())
+  conversationId   String
+  familyId         String
+  childId          String?
+  role             String                       // user | assistant | tool
+  content          String?
+  contentJson      Json?                        // 结构化回答：讲解步骤、引用到的错题 ID 等
+  attachments      Json?                        // [{ objectKey, contentType, kind }]
+  toolCalls        Json?                        // 审计：本轮调用了哪些工具
+  moderationStatus String   @default("passed")  // passed | flagged | blocked
+  model            String?
+  promptTokens     Int?
+  completionTokens Int?
+  createdAt        DateTime @default(now())
+}
+
+model TutorSafetyEvent {
+  id             String   @id @default(cuid())
+  familyId       String
+  childId        String?
+  conversationId String?
+  stage          String                       // input | output
+  reason         String
+  excerpt        String?
+  action         String                       // blocked | replaced | logged
+  createdAt      DateTime @default(now())
+}
+```
+
+索引按现有 schema 风格在迁移中补：`TutorConversation` 建 `(familyId, childId, lastMessageAt)`；`TutorMessage` 建 `(conversationId, createdAt)` 与 `(familyId, childId, createdAt)`；`TutorSafetyEvent` 建 `(familyId, createdAt)`。
+
+复用现有模型，不新增：
+
+- 图片与文件：沿用 `StoredObject` 与 `apps/api/src/storage.ts` 的 `saveFile()`（已是 S3/MinIO，本地落盘兜底）；
+- 记忆的领域部分：`EvidenceRecord`、`ChildStateSnapshot`、`ChildRelationshipSnapshot`、`StageReport`；
+- 审计：沿用 `AuditLog`。
+
+`TutorMessage` 与业务表分开，是为了让"聊天内容"和"教育证据"职责清晰：聊天是原料，确认后沉淀为证据。
+
+---
+
+## 7. Agent Runtime
+
+### 7.1 循环
+
+```
+用户消息（可带图片）
+  → L1 输入安全检查
+  → 组装上下文：人格提示词 + 最近若干轮 + 会话摘要 + 本次附件
+  → 模型流式输出
+      ├─ 需要工具 → 校验授权 → 进程内 MCP 调用 → 结果回灌 → 继续
+      └─ 结束
+  → L3 输出安全检查
+  → 落库 + 流式回传前端
+```
+
+硬约束：
+
+- 最大工具轮次 6，超限停止并给出自然收尾，不无限循环；
+- 单轮总超时 45 秒，超时中断并保留已产出内容；
+- 工具结果截断到配置上限（默认 6KB/次），避免把整本错题本塞进上下文；
+- 模型调用失败时降级为可理解提示，不留白屏。
+
+### 7.2 工具白名单
+
+`tool-policy.ts` 定义授权表，运行时按 `persona` 过滤。默认拒绝，未列入的工具一律不可见（既不给模型，也不出现在列表里）。
+
+| 工具 | child_tutor | parent_coach | 说明 |
+|---|---|---|---|
+| `list_children`、`get_child_context`、`get_child_state` | 仅当前孩子 | 可用 | 孩子端强制锁定 `childId` |
+| `get_family_policy`、`list_education_methods`、`get_coaching_policy` | 只读 | 只读 | 理念来源 |
+| `get_learning_priorities`、`get_learning_history`、`get_subject_overview`（新增只读） | 可用 | 可用 | 学情 |
+| `list_wrong_questions`、`get_wrong_question`、`get_wrong_question_practice_context` | 可用 | 可用 | 讲题核心 |
+| `list_student_mastery`、`get_student_question_type_mastery` | 可用 | 可用 | 掌握度 |
+| `record_question_attempt` | 需显式确认 | 可用 | 孩子答完才能记 |
+| `save_wrong_question` | 禁止 | 可用 | 录错题归家长 / WorkBuddy |
+| `delete_*`、`update_family_policy`、`propose_policy_change` | 禁止 | 部分 | 变更类一律不进孩子端 |
+
+孩子端额外约束：`childId` 由服务端会话固定注入，模型即使请求其它 `childId` 也会被 `tool-policy` 拦掉，返回中性回复。
+
+### 7.3 模型供应商抽象
+
+```ts
+// apps/api/src/tutor/llm/types.ts
+export type StreamEvent =
+  | { type: "text"; delta: string }
+  | { type: "tool_call"; id: string; name: string; args: unknown }
+  | { type: "done"; usage: { promptTokens: number; completionTokens: number } }
+  | { type: "error"; message: string };
+
+export interface ChatProvider {
+  name: string;
+  supportsVision: boolean;
+  streamChat(input: ChatInput, signal: AbortSignal): AsyncIterable<StreamEvent>;
+}
+```
+
+抽象层的作用是能换供应商、能按场景选模型（讲题用强模型、纯陪聊用便宜模型）。具体供应商、型号与计费在实施时以官方文档为准核对，本方案不固化型号。
+
+---
+
+## 8. 内容安全（三层）
+
+三层职责不同，不能合并。
+
+### L1 输入侧
+
+- 单条长度上限（默认 2000 字）、每小时消息数上限（见第 12 节配额）；
+- 敏感内容审核（租用云审核 API，文本与图片各一次）；
+- 命中即拦截，写家长可见记录，孩子端只给中性提示。
+
+### L2 教学策略（核心资产，必须自建）
+
+系统提示词由 `persona.ts` 在每次请求时服务端渲染，来源：
+
+- `get_family_policy`：边界、压力承受度、家长目标；
+- `list_education_methods` + `get_effective_skill`：本家庭生效的教育方法；
+- `get_child_state` + `get_subject_overview`：孩子当前状态与关注学科。
+
+硬规则（写在提示词前端，优先级高于模型自由发挥）：
+
+1. 不直接给答案：先问思路、给提示、让孩子自己算；连续两次不会才逐步给步骤。
+2. 一次只教一个点，讲完给一道同型小题验证。
+3. 语气与严格度服从家庭设置，不使用羞辱、比较、威胁式表达。
+4. 不确定就说不确定，不编造孩子的记录；讲题必须引用真实存在的错题或题目 ID。
+5. 超出学科与陪伴范围的话题，温和收回。
+
+### L3 输出侧
+
+- 输出审核再跑一次（模型可能被诱导产生越界内容）；
+- 结构化回答校验：引用到的 `wrong_question_id` / `question_id` 必须属于本家庭，否则整条降级为纯文本；
+- 命中拦截时替换为孩子可接受的回复，并写 `TutorSafetyEvent`。
+
+---
+
+## 9. 记忆设计
+
+分三层，各司其职。通用 agent 框架的记忆是向量召回，替不了第一层和第三层。
+
+| 层 | 载体 | 生命周期 |
+|---|---|---|
+| 短期 | 最近 N 轮原文（默认 12 轮，按 token 裁剪） | 单次会话 |
+| 中期 | `TutorConversation.summary` 滚动摘要 | 跨会话，超窗口时重算 |
+| 长期 | `EvidenceRecord` / `ChildStateSnapshot` / `ChildRelationshipSnapshot` | 领域记忆，永久 |
+
+### 9.1 回流为教育证据
+
+这是私教相对普通聊天工具的本质区别：聊天会变成孩子的记录。
+
+- 会话结束，或用户主动点"记录这次情况"，`memory.ts` 从本轮对话抽取一条结构化证据；
+- 写入 `EvidenceRecord`，`type` 取现有枚举中的合适值，`source` 取 `tutor`，`reviewStatus` 沿用 `PENDING_CONFIRMATION`；
+- 家长在网页端"孩子状态"确认或纠正，流程与 WorkBuddy 写入的证据完全一致；
+- 只有 `CONFIRMED` 的证据才进入 `ChildStateSnapshot` 计算。
+
+写入前必须去重（同一 `childId + type + 时间窗` 合并），且只写孩子确实做过的行为，不写模型推测。
+
+### 9.2 避免历史数据污染
+
+1. 上下文只喂当前有效：读取一律带 `asOf` 窗口，默认 42 天；更早历史只通过快照 `ChildStateSnapshot.summary` 参与，不喂原文。
+2. 教材与知识点按版本取用：`KnowledgeNode` 带版本，孩子升年级后旧版本保留但不再进入默认上下文。
+3. 证据有生命周期：`SUPERSEDED` 状态的证据不参与新结论计算，但保留可追溯。
+4. 掌握度只看最新评估：`StudentQuestionTypeMastery` 以最近评估为准，历史作答只作证据。
+
+原则一句话：历史用于解释，当前用于决策。
+
+---
+
+## 10. 多模态
+
+### 10.1 输入：图片（第一阶段）
+
+场景是孩子拍一道错题或作业照片问"这题怎么做"。
+
+```
+前端选图 → 压缩 → POST /api/tutor/attachments（multipart）
+        → saveFile() 写入 S3/MinIO + StoredObject 落库
+        → 返回 objectKey
+        → 发消息时携带 objectKey
+        → Runtime 取图 → 视觉模型识别 → 走讲题流程 → 可 save_wrong_question（仅家长模式）
+```
+
+要点：
+
+- 图片只存对象存储，不进数据库 BLOB；
+- 单张上限与压缩放在前端（默认长边 1600px），后端再校验；
+- 识别结果以结构化文本落 `TutorMessage.contentJson`，图片本身保留可回溯；
+- 图片审核走 L1，一次不漏。
+
+### 10.2 输出：文档与图片（第三阶段，先不做）
+
+理由：价值低、复杂度高、给孩子看生成图片还多一层内容责任。第二阶段先用模板渲染（题干、解析、错题整理成可打印页）满足"我要一份纸质练习"，不引入自由生图。
+
+---
+
+## 11. 语音（分三级台阶）
+
+| 阶段 | 形态 | 实现 |
+|---|---|---|
+| 二 A | 按住说话：录音 → 识别 → 文字回答 → 朗读 | ASR + TTS 云 API，前端串起来 |
+| 二 B | 免录制的连续对话 | 同上，自动断句 |
+| 三 | 实时对话、可随时打断 | 实时语音 API（WebSocket 双向流） |
+
+不做什么：不自建 ASR/TTS 模型，不做声纹克隆。
+
+两个必须提前处理的技术点：
+
+1. 儿童语音识别准确率明显低于成人。选型必须用真实儿童录音实测，这是体验分水岭。
+2. 安卓端麦克风尚未打通。现有 `android/app/src/main/AndroidManifest.xml` 只声明了 `INTERNET`、`ACCESS_NETWORK_STATE` 与存储权限，且 `MainActivity` 没有实现 `WebChromeClient.onPermissionRequest`。语音阶段必须补 `RECORD_AUDIO` 并在 WebView 内授权，否则网页端能用的功能在 APK 里会静默失败。
+
+微信小程序音频能力受限且审核更严格，语音先保网页与安卓，小程序按需评估。
+
+---
+
+## 12. 接口契约
+
+统一挂在现有 API 服务，复用 `requireAuth`，家庭边界由会话推导。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/tutor/conversations?child_id=` | 会话列表 |
+| `POST` | `/api/tutor/conversations` | 新建会话（含 `persona`） |
+| `GET` | `/api/tutor/conversations/:id/messages` | 历史消息（分页） |
+| `POST` | `/api/tutor/conversations/:id/messages` | 发消息，`text/event-stream` 流式返回 |
+| `POST` | `/api/tutor/conversations/:id/attachments` | 上传图片，返回 `objectKey` |
+| `POST` | `/api/tutor/conversations/:id/summarize` | 生成或更新摘要 |
+| `POST` | `/api/tutor/conversations/:id/evidence` | 把本轮沉淀为 `EvidenceRecord`（待确认） |
+| `DELETE` | `/api/tutor/conversations/:id` | 归档会话 |
+| `GET` | `/api/tutor/quota` | 今日剩余额度 |
+
+SSE 事件类型：
+
+```
+event: text     data: {"delta":"..."}
+event: tool     data: {"name":"get_wrong_question","ok":true}
+event: replace  data: {"reason":"safety"}
+event: done     data: {"messageId":"...","usage":{...},"quotaLeft":12}
+event: error    data: {"message":"...","retryable":true}
+```
+
+### 配额
+
+- 每孩子每日消息数上限（默认 60）与每日 token 上限（可配）；
+- 单会话消息数上限（默认 200，超出提示开新会话）；
+- 超限返回可读提示，不报 500；
+- 用量记在 `TutorMessage` 与 `TutorConversation`，`/api/tutor/quota` 汇总。
+
+---
+
+## 13. 前端
+
+### 13.1 网页端（先生效）
+
+新增 `apps/web/src/components/TutorChat.tsx`，按 `PageId` 机制接入（`apps/web/src/components/Layout.tsx`）：
+
+- 一级导航新增"学习私教"，与"首页 / 学生 / 成长"同级；
+- 沿用现有明亮学堂设计语言（`rounded-2xl`、teal 主色），不引入第三方聊天组件；
+- 消息流支持：文字、图片、流式打字、引用错题的卡片（点开进错题详情）、语音按钮占位；
+- 顶部带孩子切换（复用现有 `childName` 与切换逻辑），家长模式下可切到 `parent_coach` 人格。
+
+### 13.2 安卓端（自动获得）
+
+APK 是 WebView 承载线上站点（`MainActivity.HOME_URL = "https://heyaagent.top/"`），网页端做好即同步生效，无需重新打包发版。语音阶段需要补麦克风权限，才需要发一次新版 APK。
+
+### 13.3 微信小程序（按需）
+
+小程序不做完整聊天，只做两件事：查看孩子最近对话摘要、确认待确认证据。完整聊天留在网页与安卓。
+
+---
+
+## 14. 权限与家庭隔离
+
+- 所有 `/api/tutor/*` 走 `requireAuth`，`familyId` 只从会话取，不接受客户端传入（与现有 `getAuth(request)` 一致）；
+- 会话、消息、附件、证据写入前一律校验所属 `familyId`；
+- 工具调用走进程内 MCP，家庭边界沿用 `resolveFamily()` 既有语义；
+- 家长可见：对话列表、摘要、证据确认、安全事件；
+- 孩子端看不到其它孩子的会话与数据；
+- 归档会话保留消息（成长追溯需要），但不进入任何上下文。
+
+---
+
+## 15. 部署与环境变量
+
+复用现有部署形态，不新增容器：`docker-compose.yml` 的 `api` 服务加环境变量，nginx 已有 `/api/` 与 `/family-edu/` 代理，无需改路由。
+
+新增环境变量（写入 `.env.example` 与 `apps/api/src/env.ts`；密钥只放服务器 `.env`，不入库）：
+
+```
+TUTOR_ENABLED=false
+TUTOR_CHAT_PROVIDER=
+TUTOR_CHAT_API_KEY=
+TUTOR_CHAT_MODEL=
+TUTOR_VISION_MODEL=
+TUTOR_MAX_TOOL_ROUNDS=6
+TUTOR_DAILY_MESSAGE_LIMIT=60
+TUTOR_DAILY_TOKEN_LIMIT=
+TUTOR_CONTEXT_WINDOW_TURNS=12
+MODERATION_PROVIDER=
+MODERATION_API_KEY=
+```
+
+`TUTOR_ENABLED=false` 时路由返回 503 并给出可读提示，前端隐藏入口，避免半成品暴露给孩子。
+
+---
+
+## 16. 分阶段实施
+
+### 阶段一：文字 + 拍图讲错题（先做这个）
+
+1. 数据迁移：`TutorConversation`、`TutorMessage`、`TutorSafetyEvent`；
+2. `llm/` 抽象 + 一个供应商实现，跑通流式；
+3. `mcp-tools.ts` + `tool-policy.ts`，接 10 个左右只读工具；
+4. `persona.ts`：从教育理念渲染人格提示词；
+5. `safety.ts`：L1 + L3（L2 靠提示词）；
+6. `routes.ts` + SSE；
+7. 网页端聊天页；
+8. 图片上传链路；
+9. `memory.ts`：摘要 + 证据回流（待确认）。
+
+产出口径：孩子能拍一道错题，私教结合他的错题本与掌握度讲明白，讲完家长能在"孩子状态"看到一条待确认证据。
+
+### 阶段二：语音（按住说话）
+
+1. `voice/` 抽象 + ASR/TTS 接入；
+2. 前端录音组件；
+3. 安卓补 `RECORD_AUDIO` 与 `onPermissionRequest`，发新版 APK；
+4. 儿童语音实测并调参。
+
+### 阶段三：实时语音 + 输出多模态
+
+1. 实时语音双向流；
+2. 模板化练习页渲染，图片生成再评估。
+
+每阶段结束都部署到 `heyaagent.top` 并做线上验证，不长期停留在本地。
+
+---
+
+## 17. 测试与验收
+
+### 自动化
+
+- 纯函数单测：`tool-policy` 授权表、`persona` 提示词渲染、`memory` 证据抽取与去重、`safety` 拦截分支；
+- `runtime` 用假 provider 打桩，覆盖正常回答、需要工具、超出轮次上限、超时、模型报错、安全拦截替换；
+- API 集成测试：家庭隔离（A 家庭 token 取不到 B 家庭会话）、配额超限、归档后不进上下文；
+- 沿用 `npm run verify:web-responsive` 增加聊天页断言：三视口无横向溢出、流式占位不跳动、消息区可滚动。
+
+### 人工验收
+
+1. 私教讲错题时，引用的是这个孩子真实存在的错题；
+2. 不给答案、先引导，符合家庭设置的严格度；
+3. 孩子连续问同一题型，掌握度与练习记录随之更新；
+4. 会话结束产生一条待确认证据，家长确认后进入孩子状态；
+5. 换家庭账号登录，看不到另一家庭的任何会话与数据；
+6. 拍图识别在中文手写体上可用（真实作业照片实测）；
+7. 服务端无密钥泄漏：`TUTOR_CHAT_API_KEY` 只存在于服务器 `.env`。
+
+---
+
+## 18. 风险与未决项
+
+| 风险 | 应对 |
+|---|---|
+| 儿童语音识别准确率不达标 | 阶段二前用真实录音实测，不行则退化为"按住说话 + 文字确认" |
+| 模型成本随使用量上涨 | 配额前置、按场景选模型、单轮工具截断 |
+| 模型被诱导越界 | L1/L3 双审核 + L2 提示词硬规则 + 工具白名单默认拒绝 |
+| 聊天内容变成假证据 | 证据一律 `PENDING_CONFIRMATION`，家长确认才生效 |
+| 孩子端权限过大 | 白名单 + `childId` 服务端锁定 + 变更类工具不进孩子端 |
+| 教学理念两处漂移 | 人格每次从 `FamilyPolicy` / `EducationMethod` 渲染，不落库副本 |
+
+需在实施时确认（本方案不假设）：
+
+1. 对话模型与视觉模型的最终供应商、型号与计费；
+2. 内容审核服务商与小程序的合规要求；
+3. 儿童语音数据的保存与合规边界（默认不保存原始音频）；
+4. 微信小程序是否只做摘要与确认（当前建议是）。
+
+---
+
+## 19. 与现有系统的边界（不变更清单）
+
+本次新增不影响：
+
+- WorkBuddy 连接协议、`/family-edu/mcp` 路径、已提交开放平台的专家包；
+- 现有 MCP 工具语义与 `docs/workbuddy-sync-spec.md`；
+- 现有业务表结构（只新增三张私教表）；
+- 安卓端在阶段一无需重新打包发版。
+
+微信小程序在阶段一只新增家长侧的摘要与确认页，需要重新提审一次。
