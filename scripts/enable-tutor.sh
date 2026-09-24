@@ -119,8 +119,11 @@ done
 [ "$ok" -ge 2 ] || { echo "健康检查未稳定，请手动查看容器日志：docker logs $CONTAINER --tail 100" >&2; exit 1; }
 
 say "线上校验：MCP 工具清单 + /api/tutor/* + 真发一轮对话"
-# verify-online.mjs 用相对路径导入 lib/sse-parse.mjs，所以两者要保持同一目录结构
-ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER mkdir -p /app/.verify/lib && docker cp '$REMOTE_DIR/scripts/verify-online.mjs' $CONTAINER:/app/.verify/verify-online.mjs && docker cp '$REMOTE_DIR/scripts/lib/sse-parse.mjs' $CONTAINER:/app/.verify/lib/sse-parse.mjs"
+# 校验脚本从本机带过去，不依赖服务器仓库是否刚同步过
+scp -q -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=no \
+  "$REPO_ROOT/scripts/verify-online.mjs" "$REPO_ROOT/scripts/lib/sse-parse.mjs" "$HOST:/tmp/"
+# verify-online.mjs 用相对路径导入 lib/sse-parse.mjs，两者要保持同一目录结构
+ssh "${SSH_OPTS[@]}" "$HOST" "docker exec $CONTAINER mkdir -p /app/.verify/lib && docker cp /tmp/verify-online.mjs $CONTAINER:/app/.verify/verify-online.mjs && docker cp /tmp/sse-parse.mjs $CONTAINER:/app/.verify/lib/sse-parse.mjs"
 ssh "${SSH_OPTS[@]}" "$HOST" "docker exec -e BASE_URL=http://127.0.0.1:4100 $CONTAINER node /app/.verify/verify-online.mjs --roundtrip"
 
 echo ""

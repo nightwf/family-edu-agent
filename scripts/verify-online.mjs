@@ -148,11 +148,19 @@ if (!user) {
   }
 
   if (ROUNDTRIP) {
+    // 没配模型时一定跑不通，就不往家长的真实数据里写测试会话了
+    const statusBody = out.tutor["/api/tutor/status"]?.body || "";
+    const ready = /"ready"\s*:\s*true/.test(statusBody);
     const child = await prisma.child.findFirst({ where: { familyId: user.familyId }, orderBy: { createdAt: "asc" } });
     out.tutor.child = child ? { id: child.id, name: child.name } : null;
-    out.tutor.roundTrip = child
-      ? await roundTrip(jwt, child.id)
-      : { skipped: "该家庭还没有孩子，无法验证对话" };
+
+    if (!ready) {
+      out.tutor.roundTrip = { skipped: "私教未就绪（TUTOR_ENABLED 关闭或未配模型），已跳过真实对话，不写测试数据" };
+    } else if (!child) {
+      out.tutor.roundTrip = { skipped: "该家庭还没有孩子，无法验证对话" };
+    } else {
+      out.tutor.roundTrip = await roundTrip(jwt, child.id);
+    }
   }
 }
 
