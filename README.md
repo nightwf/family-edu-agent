@@ -153,4 +153,4 @@ docs/                         架构、同步、存储与备份说明
 deploy/                       腾讯云独立部署配置
 ```
 
-更多说明见 [技术架构](docs/ARCHITECTURE.md)、[WorkBuddy 同步规范](docs/workbuddy-sync-spec.md) 和 [内置学习私教方案](docs/TUTOR_AGENT_DESIGN.md)（规划中，含与 WorkBuddy 的分工边界）。
+更多说明见 [技术架构](docs/ARCHITECTURE.md)、[WorkBuddy 同步规范](docs/workbuddy-sync-spec.md)、[内置学习私教方案](docs/TUTOR_AGENT_DESIGN.md)（规划中，含与 WorkBuddy 的分工边界）和 [教育方式按孩子维度分层](docs/CHILD_SCOPED_EDUCATION_DESIGN.md)（设计稿，同一家庭不同孩子可以有各自的教育方式）。
