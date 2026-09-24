@@ -105,7 +105,7 @@ function tutorTurnSse() {
 }
 
 /** 记录这一轮桩接口被打了哪些关键请求（每个形态重置一次）。 */
-const netProbe = { messagePosts: 0, interruptCalls: 0 };
+const netProbe = { messagePosts: 0, interruptCalls: 0, conversationCreates: 0 };
 
 /**
  * 给 Chromium 喂一段可控的"麦克风输入"：说 0.7 秒、停 1.6 秒，循环 5 遍。
@@ -247,6 +247,7 @@ try {
   for (const viewport of viewports) {
     netProbe.messagePosts = 0;
     netProbe.interruptCalls = 0;
+    netProbe.conversationCreates = 0;
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
@@ -293,6 +294,10 @@ try {
           body: JSON.stringify({ interrupted: true }),
         });
         return;
+      }
+      // 建会话：用来验证浮窗「更多」里的「开新对话」真的接上了后端，不是个死按钮
+      if (/\/api\/tutor\/conversations(\?|$)/.test(url) && route.request().method() === "POST") {
+        netProbe.conversationCreates += 1;
       }
       // 朗读接口返回真音频字节，前端要能直接塞给 audio 播放
       if (/\/api\/tutor\/voice\/speak(\?|$)/.test(url)) {
@@ -449,28 +454,113 @@ try {
       await page.waitForTimeout(300);
     }
 
-    // 私教入口：只在安卓 APK 形态下出现，且聊天页在窄屏下要能正常输入。
+    // 私教入口：只在安卓 APK 形态下出现，且是一个浮窗（不是整页），
+    // 点开要能聊天、浮窗里的滑动不能带着底下的页面一起动。
     let tutorProbe = null;
     if (viewport.apk) {
+      // 入口是常驻浮标，不该藏在抽屉里；先确认它在首屏就能看到、且没跑出视口
+      const bubble = page.locator('[data-testid="tutor-dock-bubble"]');
+      const bubbleBox = await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="tutor-dock-bubble"]');
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        // 固定定位元素的 offsetParent 永远是 null，可见性只能看几何 + 计算样式
+        const style = getComputedStyle(el);
+        return {
+          visible: style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0,
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          insideViewport:
+            rect.left >= 0 &&
+            rect.right <= window.innerWidth + 1 &&
+            rect.top >= 0 &&
+            rect.bottom <= window.innerHeight + 1,
+        };
+      });
+
+      const measureWindow = () =>
+        page.evaluate(() => {
+          const win = document.querySelector('[data-testid="tutor-dock-window"]');
+          const rect = win?.getBoundingClientRect() || null;
+          return {
+            open: !!win,
+            bubbleGone: !document.querySelector('[data-testid="tutor-dock-bubble"]'),
+            size: rect ? { w: Math.round(rect.width), h: Math.round(rect.height) } : null,
+            fitsViewport: rect
+              ? rect.left >= -1 &&
+                rect.right <= window.innerWidth + 1 &&
+                rect.top >= -1 &&
+                rect.bottom <= window.innerHeight + 1
+              : false,
+            bodyLocked: document.body.style.overflow === "hidden",
+            pageStillOnHome: (document.querySelector("main")?.innerText || "").includes("孩子整体状态"),
+          };
+        });
+
+      // 侧边栏那条入口也应该是打开浮窗，而不是切到另一个整页（页标题不变）
       await page.click("header button[aria-label='打开导航']");
       await page.waitForTimeout(400);
-      // 桌面侧边栏和移动抽屉都渲染在 aside 里，窄屏下只有抽屉可见，所以要按可见性取。
       const tutorNav = page.locator("aside nav button:visible", { hasText: "学习私教" }).first();
       const entryVisible = await tutorNav.isVisible();
       await tutorNav.click();
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(700);
+      const fromNav = await measureWindow();
+      const navTitle = await page.evaluate(() => document.querySelector("header div")?.textContent?.trim() || "");
+
+      // 收起再点浮标打开，走一遍孩子最可能用的路径
+      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="收起私教"]').first().click();
+      await page.waitForTimeout(400);
+      const afterClose = await page.evaluate(() => ({
+        windowGone: !document.querySelector('[data-testid="tutor-dock-window"]'),
+        bubbleBack: !!document.querySelector('[data-testid="tutor-dock-bubble"]'),
+        bodyUnlocked: document.body.style.overflow !== "hidden",
+      }));
+      await bubble.click();
+      await page.waitForTimeout(700);
+      const windowProbe = await measureWindow();
+
+      // 浮窗打开时滑动，底下的页面不能跟着动。
+      // 用真实滚轮事件：程序里的 window.scrollTo 对 overflow:hidden 的盒子照样有效，
+      // 拿它当判据会得出错误结论，这里要的是"用户手动滑动时页面不动"。
+      const readScroll = () =>
+        page.evaluate(() => ({
+          y: window.scrollY,
+          mainTop: document.querySelector("main")?.scrollTop ?? null,
+          documentScrollable: document.documentElement.scrollHeight > window.innerHeight,
+        }));
+      const scrollBefore = await readScroll();
+      // 浮窗上方那条遮罩空白处
+      await page.mouse.move(Math.round(viewport.width / 2), 18);
+      await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(300);
+      const afterBackdropWheel = await readScroll();
+      // 浮窗内部（消息列表自己该能滚）
+      await page.mouse.move(Math.round(viewport.width / 2), Math.round(viewport.height * 0.55));
+      await page.mouse.wheel(0, 900);
+      await page.waitForTimeout(300);
+      const afterSheetWheel = await readScroll();
+      const scrollProbe = {
+        scrollBefore,
+        afterBackdropWheel,
+        afterSheetWheel,
+        backgroundMoved:
+          afterBackdropWheel.y !== scrollBefore.y ||
+          afterSheetWheel.y !== scrollBefore.y ||
+          afterBackdropWheel.mainTop !== scrollBefore.mainTop ||
+          afterSheetWheel.mainTop !== scrollBefore.mainTop,
+      };
+
       const tutor = await page.evaluate(() => {
+        const win = document.querySelector('[data-testid="tutor-dock-window"]');
         const composer = document.querySelector('textarea[placeholder="说说你卡在哪一步"]');
         const sendButton = document.querySelector('button[aria-label="发送"]');
-        const heading = document.querySelector("header div")?.textContent?.trim() || "";
         const rect = (el) => (el ? el.getBoundingClientRect() : null);
         const send = rect(sendButton);
         const speakButton = document.querySelector('button[aria-label="朗读这段"]');
         return {
-          heading,
           hasComposer: !!composer,
           hasSend: !!sendButton,
-          hasWorksheetButton: !!document.querySelector('button[aria-label="打印讲义"]'),
+          hasMoreMenu: !!document.querySelector('button[aria-label="更多操作"]'),
           hasSpeakButton: !!speakButton,
           hasAutoReadToggle: !!document.querySelector('button[aria-label="开启自动朗读"], button[aria-label="关闭自动朗读"]'),
           hasContinuousToggle: !!document.querySelector(
@@ -495,10 +585,45 @@ try {
           // 发送键必须完整落在视口内，不能被裁掉
           sendInsideViewport: send ? send.left >= 0 && send.right <= window.innerWidth + 1 : false,
           overflowX: document.documentElement.scrollWidth - window.innerWidth,
-          emptyHint: (document.querySelector("main")?.innerText || "").includes("拍一张错题照片"),
-          evidenceNote: (document.querySelector("main")?.innerText || "").includes("要你确认后才进成长记录"),
+          emptyHint: (win?.innerText || "").includes("拍一张错题照片"),
+          evidenceNote: (win?.innerText || "").includes("家长确认"),
         };
       });
+
+      // 次要操作按移动端惯例收进「更多」：点开能看到、都点得动、
+      // 而且真的接上了后端（点「开新对话」要打一次建会话请求）。
+      await page.locator('button[aria-label="更多操作"]').click();
+      await page.waitForTimeout(350);
+      const menuProbe = await page.evaluate(() => {
+        const menu = document.querySelector('[data-testid="tutor-dock-menu"]');
+        const buttons = [...(menu?.querySelectorAll("button") || [])];
+        const rect = menu?.getBoundingClientRect();
+        return {
+          open: !!menu,
+          items: buttons.map((button) => button.textContent.trim()),
+          allEnabled: buttons.length > 0 && buttons.every((button) => !button.disabled),
+          rowsUsable: buttons.every((button) => button.getBoundingClientRect().height >= 40),
+          insideViewport: rect
+            ? rect.left >= 0 && rect.right <= window.innerWidth + 1 && rect.bottom <= window.innerHeight + 1
+            : false,
+        };
+      });
+      const newConversation = page.locator('[data-testid="tutor-dock-menu"] button', { hasText: "开新对话" });
+      if (await newConversation.count()) {
+        await newConversation.first().click();
+        await waitFor(() => netProbe.conversationCreates > 0, 3000);
+      }
+      const menuClosedAfterClick = await page.evaluate(() => !document.querySelector('[data-testid="tutor-dock-menu"]'));
+
+      // 再开一次，按 Esc 只该收菜单，不该把整个对话窗口也关了
+      await page.locator('button[aria-label="更多操作"]').click();
+      await page.waitForTimeout(250);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(250);
+      const menuEscProbe = await page.evaluate(() => ({
+        menuGone: !document.querySelector('[data-testid="tutor-dock-menu"]'),
+        windowStillOpen: !!document.querySelector('[data-testid="tutor-dock-window"]'),
+      }));
 
       // 朗读：点一次要真的出声（按钮切成"停止"），再点一次要能停下。
       let speakProbe = { started: false, stopped: false };
@@ -591,15 +716,47 @@ try {
       tutorProbe = {
         ...tutor,
         entryVisible,
+        bubbleBox,
+        fromNav,
+        navTitle,
+        windowProbe,
+        scrollProbe,
+        afterClose,
+        menuProbe,
+        menuClosedAfterClick,
+        menuEscProbe,
         speakProbe,
         continuousProbe,
         streamProbe,
         bargeProbe,
         checks: {
           entryOnlyOnApk: entryVisible,
-          chatReachable: tutor.heading === "学习私教" && tutor.hasComposer && tutor.hasSend,
+          // 常驻浮标：首屏可见、大小够点、完整在视口内
+          bubbleUsable:
+            bubbleBox?.visible === true && bubbleBox.width >= 44 && bubbleBox.height >= 44 && bubbleBox.insideViewport,
+          // 两个入口打开的都是浮窗，不是跳走一个整页
+          opensAsDock: windowProbe.open && fromNav.open && windowProbe.bubbleGone && navTitle === "首页",
+          // 浮标点的这一下不离开当前页：底下的首页还在
+          staysOnPage: windowProbe.pageStillOnHome,
+          // 浮窗要完整落在视口里，并且不横向撑破
+          windowFits: windowProbe.fitsViewport && tutor.overflowX <= 0,
+          // 浮窗里滑动，底下的页面不动
+          backgroundScrollLocked: windowProbe.bodyLocked && !scrollProbe.backgroundMoved,
+          closesCleanly: afterClose.windowGone && afterClose.bubbleBack && afterClose.bodyUnlocked,
+          chatReachable: tutor.hasComposer && tutor.hasSend,
           composerFits: tutor.sendInsideViewport && tutor.overflowX <= 0,
-          worksheetPrintable: tutor.hasWorksheetButton,
+          // 次要操作在「更多」里：条目齐全、点得动、并且在视口内
+          secondaryActionsInMenu:
+            tutor.hasMoreMenu &&
+            menuProbe.open &&
+            menuProbe.items.join("|") === "记录这次情况|打印讲义|开新对话" &&
+            menuProbe.allEnabled &&
+            menuProbe.rowsUsable &&
+            menuProbe.insideViewport,
+          // 菜单里的操作真的接上后端：点「开新对话」会建一条会话
+          menuActionsWired: menuClosedAfterClick && netProbe.conversationCreates > 0,
+          // Esc 收菜单不误关窗口
+          escClosesMenuOnly: menuEscProbe.menuGone && menuEscProbe.windowStillOpen,
           honestEvidenceBoundary: tutor.evidenceNote,
           voiceControlsPresent:
             tutor.hasHoldToTalk && tutor.hasAutoReadToggle && tutor.hasContinuousToggle && tutor.hasSpeakButton,

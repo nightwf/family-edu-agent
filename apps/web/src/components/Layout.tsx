@@ -226,15 +226,24 @@ export function Panel({
   actions,
   children,
   className = "",
+  bare = false,
 }: {
   title?: string;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** 去掉边框、圆角、阴影和内边距，交给外层容器当背景板用（浮窗里避免卡片套卡片）。 */
+  bare?: boolean;
 }) {
   return (
-    <section className={`rounded-2xl border border-line bg-panel p-4 shadow-[0_12px_32px_rgba(38,52,59,0.06)] md:p-5 ${className}`}>
+    <section
+      className={
+        bare
+          ? `bg-panel ${className}`
+          : `rounded-2xl border border-line bg-panel p-4 shadow-[0_12px_32px_rgba(38,52,59,0.06)] md:p-5 ${className}`
+      }
+    >
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>

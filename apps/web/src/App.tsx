@@ -24,7 +24,7 @@ import ChildOverview from "./components/ChildOverview";
 import GoalPlan from "./components/GoalPlan";
 import ChildStateDetail from "./components/ChildStateDetail";
 import ChildEducation from "./components/ChildEducation";
-import TutorChat from "./components/TutorChat";
+import TutorDock from "./components/TutorDock";
 import SubjectDetail from "./components/SubjectDetail";
 import ParentRelation from "./components/ParentRelation";
 import { Landing } from "./components/Landing";
@@ -244,6 +244,17 @@ function App() {
   const [educationChild, setEducationChild] = useState<Child | null>(null);
   // 私教入口只在安卓 APK 端出现；调试时可用 ?tutor=1 打开
   const showTutorEntry = useMemo(() => isTutorEntryVisible(), []);
+  // 私教是浮窗，不是整页：侧边栏条目和右下角浮标打开的是同一个窗口
+  const [tutorOpen, setTutorOpen] = useState(false);
+
+  /** 侧边栏点「学习私教」时打开浮窗，不入页面栈。 */
+  function navigate(next: PageId) {
+    if (next === "tutor") {
+      setTutorOpen(true);
+      return;
+    }
+    setPage(next);
+  }
 
   async function load() {
     if (!token) return;
@@ -525,7 +536,7 @@ function App() {
 
   return (
     <div className="app-bg flex min-h-screen">
-      <Sidebar page={page} onNavigate={setPage} onLogout={logout} showTutorEntry={showTutorEntry} />
+      <Sidebar page={page} onNavigate={navigate} onLogout={logout} showTutorEntry={showTutorEntry} />
       {navOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-ink/45" onClick={() => setNavOpen(false)} />
@@ -533,7 +544,7 @@ function App() {
             className="absolute inset-y-0 left-0 flex w-64 shadow-2xl"
             page={page}
             onNavigate={(next) => {
-              setPage(next);
+              navigate(next);
               setNavOpen(false);
             }}
             onLogout={logout}
@@ -555,14 +566,14 @@ function App() {
             page === "questions" ? "题库" :
             page === "wrong-book" ? "错题本" :
             page === "homework" ? "作业" :
-            page === "knowledge" ? "知识库" :
-            page === "tutor" ? "学习私教" : "设置"
+            page === "knowledge" ? "知识库" : "设置"
           }
           familyName={settings?.family?.name || home?.stats?.familyName}
           childName={home?.children?.[0]?.name}
           onOpenNav={() => setNavOpen(true)}
         />
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-7">
+        {/* 浮标是固定定位的，正文底部多留一截，免得它永远压住最后一行内容 */}
+        <main className={`min-w-0 flex-1 overflow-y-auto p-4 md:p-7 ${showTutorEntry ? "pb-24 md:pb-24" : ""}`}>
           <div className="mx-auto max-w-[1180px] space-y-5">
 
           {page === "home" && home && (
@@ -706,10 +717,6 @@ function App() {
                 ))}
               </div>
             </Panel>
-          )}
-
-          {page === "tutor" && home && showTutorEntry && (
-            <TutorChat token={token} apiBase={apiBase} children={home.children} request={request} />
           )}
 
           {page === "settings" && (
@@ -966,6 +973,18 @@ function App() {
           </div>
         </main>
       </div>
+
+      {showTutorEntry && home && (
+        <TutorDock
+          open={tutorOpen}
+          onOpen={() => setTutorOpen(true)}
+          onClose={() => setTutorOpen(false)}
+          token={token}
+          apiBase={apiBase}
+          children={home.children}
+          request={request}
+        />
+      )}
 
       {educationChild && (
         <ChildEducation

@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Bot,
+  BookmarkPlus,
   CircleStop,
   ImagePlus,
   Loader2,
   Mic,
+  MoreHorizontal,
   Plus,
   Printer,
   Radio,
-  RefreshCw,
   Send,
   User,
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Badge, ChildTabs, PageHeader, Panel } from "./Layout";
+import { Badge, ChildTabs, Panel } from "./Layout";
 import { splitParagraphs, streamTutorMessage, type TutorStreamEvent } from "../lib/tutor";
 import { useTutorVoice } from "../lib/use-tutor-voice";
 
@@ -33,6 +34,8 @@ type Props = {
   apiBase: string;
   children: Child[];
   request: (path: string, options?: RequestInit, token?: string) => Promise<any>;
+  /** 挂在标题栏最右侧的额外内容（关掉浮窗的按钮）。 */
+  headerExtra?: ReactNode;
 };
 
 const EMPTY_HINT = "拍一张错题照片，或者直接问一道题。我会先问你思路，不会直接给答案。";
@@ -45,10 +48,10 @@ const LOOP_STATE_TEXT: Record<string, string> = {
 };
 
 /**
- * 内置学习私教对话页。
+ * 内置学习私教的对话主体，装在外层浮窗里。
  * 与 WorkBuddy 接入共用同一份数据：这里聊出来的证据同样要家长确认后才生效。
  */
-export default function TutorChat({ token, apiBase, children, request }: Props) {
+export default function TutorChat({ token, apiBase, children, request, headerExtra }: Props) {
   const [selectedChildId, setSelectedChildId] = useState(children[0]?.id || "");
   const [conversationId, setConversationId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,6 +65,8 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
   const [quotaLeft, setQuotaLeft] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
   const [autoRead, setAutoRead] = useState(true);
+  /** 次要操作（记录/打印/新对话）按移动端惯例收进「更多」，标题栏才放得下孩子名字 */
+  const [actionsOpen, setActionsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -103,6 +108,19 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
   useEffect(() => {
     autoReadRef.current = autoRead;
   }, [autoRead]);
+
+  // 「更多」开着时按 Esc 只收菜单：用捕获阶段拦下来，
+  // 免得冒泡到浮窗外层，顺手把整个对话窗口也关了。
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setActionsOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [actionsOpen]);
 
   const voice = useTutorVoice({
     apiBase,
@@ -429,29 +447,9 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
     [children, selectedChildId],
   );
 
-  if (status && !status.enabled) {
-    return (
-      <Panel title="学习私教" description="私教还没有开启。">
-        <p className="text-sm text-muted">管理员开启后，这里就可以和孩子的 AI 私教对话了。</p>
-      </Panel>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <PageHeader
-        title="学习私教"
-        description={
-          selectedChild
-            ? `正在和 ${selectedChild.name} 的私教对话。它会结合孩子的错题和掌握情况讲题，聊完的证据要你确认后才进成长记录。`
-            : "结合孩子的错题和掌握情况讲题，讲完的证据要你确认后才进成长记录。"
-        }
-      />
-
-      {children.length > 1 && (
-        <ChildTabs children={children} activeChildId={selectedChildId} onChange={setSelectedChildId} />
-      )}
-
+  /** 模型没配好 / 出错 / 被替换 这几条提示，浮窗和整页共用一份。 */
+  const alerts = (
+    <>
       {status && !status.model_configured && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           私教还没配置模型密钥，暂时不能对话。
@@ -459,32 +457,97 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
       )}
       {error && <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-accent">{error}</div>}
       {notice && <div className="rounded-xl border border-teal/20 bg-teal/5 px-4 py-3 text-sm text-teal">{notice}</div>}
+    </>
+  );
 
-      <Panel className="flex min-h-[62vh] flex-col p-0">
-        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-bold text-ink">
-            <Bot size={16} className="text-teal" />
-            {selectedChild?.name ? `${selectedChild.name} 的私教` : "私教"}
+  if (status && !status.enabled) {
+    return (
+      <div className="grid flex-1 place-items-center px-6 text-center">
+        <p className="text-sm text-muted">管理员开启后，这里就可以和孩子的 AI 私教对话了。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {children.length > 1 && (
+        <div className="shrink-0 border-b border-line px-3 py-2">
+          <ChildTabs children={children} activeChildId={selectedChildId} onChange={setSelectedChildId} />
+        </div>
+      )}
+
+      <div className="shrink-0 space-y-2 px-3 pt-2">{alerts}</div>
+
+      <Panel bare className="flex min-h-0 flex-1 flex-col">
+        <div className="relative flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2 text-sm font-bold text-ink">
+            <Bot size={16} className="shrink-0 text-teal" />
+            <div className="min-w-0">
+              <div className="truncate">{selectedChild?.name ? `${selectedChild.name} 的私教` : "私教"}</div>
+              <div className="truncate text-[10px] font-normal text-muted">记录需家长确认</div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {quotaLeft !== null && <Badge tone="muted">今日剩余 {quotaLeft} 条</Badge>}
-            <button
-              type="button"
-              onClick={saveEvidence}
-              disabled={!conversationId || messages.length === 0}
-              className="rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-ink-soft disabled:opacity-40"
-            >
-              记录这次情况
-            </button>
-            <button
-              type="button"
-              onClick={printWorksheet}
-              disabled={!conversationId || messages.length === 0}
-              aria-label="打印讲义"
-              className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold text-ink-soft disabled:opacity-40"
-            >
-              <Printer size={13} /> 打印讲义
-            </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* 剩余条数只在快用完时提示，平时不占标题栏的地方 */}
+            {quotaLeft !== null && quotaLeft <= 10 && <Badge tone="warn">今日剩余 {quotaLeft} 条</Badge>}
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="更多操作"
+                title="更多操作"
+                aria-expanded={actionsOpen}
+                onClick={() => setActionsOpen((current) => !current)}
+                className="grid h-10 w-10 place-items-center rounded-lg border border-line text-ink-soft"
+              >
+                <MoreHorizontal size={18} />
+              </button>
+              {actionsOpen && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="关闭菜单"
+                    tabIndex={-1}
+                    onClick={() => setActionsOpen(false)}
+                    className="fixed inset-0 z-10 cursor-default"
+                  />
+                  <div
+                    data-testid="tutor-dock-menu"
+                    className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-xl border border-line bg-panel py-1 shadow-[0_12px_32px_rgba(38,52,59,0.16)]"
+                  >
+                    {[
+                      {
+                        label: "记录这次情况",
+                        icon: <BookmarkPlus size={15} />,
+                        disabled: !conversationId || messages.length === 0,
+                        run: saveEvidence,
+                      },
+                      {
+                        label: "打印讲义",
+                        icon: <Printer size={15} />,
+                        disabled: !conversationId || messages.length === 0,
+                        run: printWorksheet,
+                      },
+                      { label: "开新对话", icon: <Plus size={15} />, disabled: false, run: startNewConversation },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        disabled={item.disabled}
+                        onClick={() => {
+                          setActionsOpen(false);
+                          item.run();
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-bold text-ink-soft hover:bg-teal-soft disabled:opacity-40"
+                      >
+                        {item.icon}
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {headerExtra}
           </div>
         </div>
 
@@ -668,22 +731,6 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
         </div>
       </Panel>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-        <button
-          type="button"
-          onClick={() => selectedChildId && openConversation(selectedChildId)}
-          className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 font-bold text-ink-soft"
-        >
-          <RefreshCw size={13} /> 重新载入
-        </button>
-        <button
-          type="button"
-          onClick={startNewConversation}
-          className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 font-bold text-ink-soft"
-        >
-          <Plus size={13} /> 开新对话
-        </button>
-      </div>
     </div>
   );
 }
