@@ -67,6 +67,12 @@ describe("人格渲染（纯函数）", () => {
     expect(prompt).toContain("可执行的动作与话术");
   });
 
+  it("会话只钉住一个孩子，问到兄弟姐妹要收回", () => {
+    const prompt = renderTutorPrompt({ persona: "child_tutor", settings: {} });
+    expect(prompt).toContain("只针对当前这个孩子");
+    expect(prompt).toContain("兄弟姐妹");
+  });
+
   it("性别影响称呼，未设置时不出现称呼", () => {
     expect(renderTutorPrompt({ persona: "child_tutor", gender: "female", settings: {} })).toContain("女孩");
     expect(renderTutorPrompt({ persona: "child_tutor", gender: "male", settings: {} })).toContain("男孩");
