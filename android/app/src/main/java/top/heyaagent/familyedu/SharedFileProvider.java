@@ -25,7 +25,12 @@ import java.io.IOException;
  */
 public class SharedFileProvider extends ContentProvider {
 
-    static final String AUTHORITY = "top.heyaagent.familyedu.files";
+    /**
+     * 用 BuildConfig.APPLICATION_ID 而不是写死的包名：调试包带 .debug 后缀，
+     * 写死会导致调试包和正式包抢同一个 authority，两个包无法同时安装
+     * （INSTALL_FAILED_CONFLICTING_PROVIDER）。正式包的取值与原来一致。
+     */
+    static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".files";
     private static final String DIR_NAME = "shared";
 
     /** 拍照输出固定放在缓存目录，不占用户相册，系统清理缓存时也会一并回收。 */

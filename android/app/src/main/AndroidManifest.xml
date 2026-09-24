@@ -66,7 +66,7 @@
         -->
         <provider
             android:name=".SharedFileProvider"
-            android:authorities="top.heyaagent.familyedu.files"
+            android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true" />
     </application>
