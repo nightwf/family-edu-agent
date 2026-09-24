@@ -10,8 +10,9 @@
   "scripts": {
     "dev": "npm run dev --workspace @family-edu/api",
     "build": "npm run build --workspace @family-edu/web",
-    "test": "npm run test --workspaces --if-present && npm run test:miniprogram && npm run check:miniprogram",
+    "test": "npm run test --workspaces --if-present && npm run test:voice && npm run test:miniprogram && npm run check:miniprogram",
     "test:api": "npm run test --workspace @family-edu/api",
+    "test:voice": "tsx scripts/test-tutor-voice.ts",
     "test:e2e": "npx playwright test --config apps/web/playwright.config.js",
     "test:mcp": "bash scripts/mcp-smoke.sh",
     "smoke:learning": "node scripts/mcp-learning-engine-smoke.mjs",

@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, CircleStop, ImagePlus, Loader2, Mic, Plus, Printer, RefreshCw, Send, User } from "lucide-react";
+import {
+  Bot,
+  CircleStop,
+  ImagePlus,
+  Loader2,
+  Mic,
+  Plus,
+  Printer,
+  Radio,
+  RefreshCw,
+  Send,
+  User,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { Badge, ChildTabs, PageHeader, Panel } from "./Layout";
 import { splitParagraphs, streamTutorMessage, type TutorStreamEvent } from "../lib/tutor";
+import { useTutorVoice } from "../lib/use-tutor-voice";
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
 
@@ -22,6 +37,13 @@ type Props = {
 
 const EMPTY_HINT = "拍一张错题照片，或者直接问一道题。我会先问你思路，不会直接给答案。";
 
+const LOOP_STATE_TEXT: Record<string, string> = {
+  idle: "点一下开始听",
+  listening: "在听，直接说就行",
+  speech: "听到了，继续说",
+  transcribing: "正在识别…",
+};
+
 /**
  * 内置学习私教对话页。
  * 与 WorkBuddy 接入共用同一份数据：这里聊出来的证据同样要家长确认后才生效。
@@ -33,15 +55,20 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [status, setStatus] = useState<{ enabled: boolean; ready: boolean; model_configured: boolean } | null>(null);
-  const [voice, setVoice] = useState<{ asr: boolean; tts: boolean }>({ asr: false, tts: false });
+  const [voiceStatus, setVoiceStatus] = useState<{ asr: boolean; tts: boolean }>({ asr: false, tts: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [quotaLeft, setQuotaLeft] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
+  const [autoRead, setAutoRead] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const pressTimerRef = useRef<number | null>(null);
+  const busyRef = useRef(false);
+  const autoReadRef = useRef(true);
+  const sendRef = useRef<(text: string) => void | Promise<void>>(async () => {});
 
   useEffect(() => {
     setSelectedChildId((current) => (children.some((child) => child.id === current) ? current : children[0]?.id || ""));
@@ -55,13 +82,28 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
       })
       .catch((err) => setError((err as Error).message));
     request("/api/tutor/voice/status", {}, token)
-      .then((data) => setVoice({ asr: Boolean(data?.asr), tts: Boolean(data?.tts) }))
-      .catch(() => setVoice({ asr: false, tts: false }));
+      .then((data) => setVoiceStatus({ asr: Boolean(data?.asr), tts: Boolean(data?.tts) }))
+      .catch(() => setVoiceStatus({ asr: false, tts: false }));
   }, [token, request]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  useEffect(() => {
+    autoReadRef.current = autoRead;
+  }, [autoRead]);
+
+  const voice = useTutorVoice({
+    apiBase,
+    token,
+    asrReady: voiceStatus.asr,
+    ttsReady: voiceStatus.tts,
+    onTranscript: (text) => sendRef.current(text),
+    onError: (message) => setError(message),
+  });
+  const speakRef = useRef(voice.speak);
+  speakRef.current = voice.speak;
 
   const loadConversation = useCallback(
     async (id: string) => {
@@ -141,78 +183,101 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
     }
   }
 
-  async function send() {
-    const text = input.trim();
-    if ((!text && !attachments.length) || !conversationId || busy) return;
+  /**
+   * 发一条消息。抽成独立函数是因为语音连续对话要绕过输入框直接发送，
+   * 但它必须走和打字完全一样的链路：同样的流式、同样的配额、同样的证据边界。
+   */
+  const sendText = useCallback(
+    async (rawText: string, extraAttachments: string[] = []) => {
+      const text = rawText.trim();
+      if (!conversationId || busyRef.current) return;
+      if (!text && !extraAttachments.length) return;
 
-    const userMessage: Message = { id: `local-${Date.now()}`, role: "user", content: text || "（图片）" };
-    const assistantId = `stream-${Date.now()}`;
-    setMessages((current) => [...current, userMessage, { id: assistantId, role: "assistant", content: "", pending: true }]);
-    setInput("");
-    const sentAttachments = attachments;
-    setAttachments([]);
-    setBusy(true);
-    setError("");
-    setNotice("");
+      const userMessage: Message = { id: `local-${Date.now()}`, role: "user", content: text || "（图片）" };
+      const assistantId = `stream-${Date.now()}`;
+      setMessages((current) => [
+        ...current,
+        userMessage,
+        { id: assistantId, role: "assistant", content: "", pending: true },
+      ]);
+      setInput("");
+      setAttachments([]);
+      busyRef.current = true;
+      setBusy(true);
+      setError("");
+      setNotice("");
 
-    const controller = new AbortController();
-    abortRef.current = controller;
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let answer = "";
 
-    try {
-      await streamTutorMessage({
-        apiBase,
-        token,
-        conversationId,
-        text,
-        attachments: sentAttachments,
-        signal: controller.signal,
-        onEvent: (event: TutorStreamEvent) => {
-          if (event.type === "text") {
-            setMessages((current) =>
-              current.map((message) =>
-                message.id === assistantId ? { ...message, content: message.content + event.delta, pending: true } : message,
-              ),
-            );
-          } else if (event.type === "tool") {
-            setMessages((current) =>
-              current.map((message) =>
-                message.id === assistantId
-                  ? { ...message, toolNote: event.ok ? "已读取孩子的学习记录" : "有一项信息没读到" }
-                  : message,
-              ),
-            );
-          } else if (event.type === "replace") {
-            setNotice(`有一段内容被替换了：${event.reason}`);
-          } else if (event.type === "error") {
-            setError(event.message);
-            setMessages((current) => current.filter((message) => message.id !== assistantId || message.content));
-          } else if (event.type === "done") {
-            setQuotaLeft(event.quotaLeft);
-          }
-        },
-      });
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") setError((err as Error).message);
-    } finally {
-      setBusy(false);
-      abortRef.current = null;
-      setMessages((current) =>
-        current.map((message) => (message.id === assistantId ? { ...message, pending: false } : message)),
-      );
-    }
-  }
+      try {
+        await streamTutorMessage({
+          apiBase,
+          token,
+          conversationId,
+          text,
+          attachments: extraAttachments,
+          signal: controller.signal,
+          onEvent: (event: TutorStreamEvent) => {
+            if (event.type === "text") {
+              answer += event.delta;
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === assistantId ? { ...message, content: message.content + event.delta, pending: true } : message,
+                ),
+              );
+            } else if (event.type === "tool") {
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, toolNote: event.ok ? "已读取孩子的学习记录" : "有一项信息没读到" }
+                    : message,
+                ),
+              );
+            } else if (event.type === "replace") {
+              setNotice(`有一段内容被替换了：${event.reason}`);
+            } else if (event.type === "error") {
+              setError(event.message);
+              setMessages((current) => current.filter((message) => message.id !== assistantId || message.content));
+            } else if (event.type === "done") {
+              setQuotaLeft(event.quotaLeft);
+            }
+          },
+        });
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") setError((err as Error).message);
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+        abortRef.current = null;
+        setMessages((current) =>
+          current.map((message) => (message.id === assistantId ? { ...message, pending: false } : message)),
+        );
+        // 自动朗读放在最后：先让孩子看到字，再听到声音，避免声音先于内容出现
+        if (answer.trim() && autoReadRef.current) void speakRef.current(answer, assistantId);
+      }
+    },
+    [apiBase, conversationId, token],
+  );
+
+  useEffect(() => {
+    sendRef.current = sendText;
+  }, [sendText]);
 
   function stop() {
     abortRef.current?.abort();
+    busyRef.current = false;
     setBusy(false);
   }
 
-  /** 按住说话：录音 → 识别 → 填进输入框，识别结果先确认再发送。 */
-  async function toggleRecording() {
-    if (recording) {
-      recorderRef.current?.stop();
-      return;
-    }
+  /**
+   * 按住说话：录音 → 识别 → 填进输入框。
+   * 识别结果先落到输入框而不是直接发，是因为儿童语音识别准确率不如成人，
+   * 让孩子（或家长）看一眼再发，比答错题强。
+   */
+  async function startRecording() {
+    if (recording || recorderRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks: Blob[] = [];
@@ -221,7 +286,12 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
         if (event.data.size) chunks.push(event.data);
       };
       recorder.onstop = async () => {
+        if (pressTimerRef.current !== null) {
+          window.clearTimeout(pressTimerRef.current);
+          pressTimerRef.current = null;
+        }
         stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
         setRecording(false);
         const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
         const form = new FormData();
@@ -236,9 +306,15 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
       recorderRef.current = recorder;
       recorder.start();
       setRecording(true);
+      // 手感兜底：万一抬起事件没触发（切后台、来电），最多录 60 秒就自己停
+      pressTimerRef.current = window.setTimeout(() => recorderRef.current?.stop(), 60_000);
     } catch {
       setError("没有拿到麦克风权限，检查手机的授权设置。");
     }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
   }
 
   async function saveEvidence() {
@@ -345,6 +421,38 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
           </div>
         </div>
 
+        {(voiceStatus.asr || voiceStatus.tts) && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-line bg-cream/30 px-4 py-2 text-xs">
+            {voiceStatus.asr && (
+              <button
+                type="button"
+                onClick={voice.toggleContinuous}
+                aria-label={voice.continuous ? "关闭连续对话" : "开启连续对话"}
+                aria-pressed={voice.continuous}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-bold ${
+                  voice.continuous ? "border-teal bg-teal/10 text-teal" : "border-line text-ink-soft"
+                }`}
+              >
+                <Radio size={13} /> 连续对话
+              </button>
+            )}
+            {voiceStatus.tts && (
+              <button
+                type="button"
+                onClick={() => setAutoRead((current) => !current)}
+                aria-label={autoRead ? "关闭自动朗读" : "开启自动朗读"}
+                aria-pressed={autoRead}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-bold ${
+                  autoRead ? "border-teal bg-teal/10 text-teal" : "border-line text-ink-soft"
+                }`}
+              >
+                <Volume2 size={13} /> 自动朗读
+              </button>
+            )}
+            {voice.continuous && <span className="text-muted">{LOOP_STATE_TEXT[voice.loopState] || ""}</span>}
+          </div>
+        )}
+
         <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-cream/40 px-4 py-4">
           {messages.length === 0 && (
             <p className="mx-auto max-w-md py-10 text-center text-sm leading-6 text-muted">{EMPTY_HINT}</p>
@@ -375,6 +483,17 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
                 )}
                 {message.pending && message.content && <Loader2 size={12} className="mt-2 animate-spin text-muted" />}
                 {message.toolNote && <div className="mt-2 text-xs text-muted">{message.toolNote}</div>}
+                {message.role === "assistant" && voiceStatus.tts && message.content && !message.pending && (
+                  <button
+                    type="button"
+                    onClick={() => void voice.speak(message.content, message.id)}
+                    aria-label={voice.speakingId === message.id ? "停止朗读" : "朗读这段"}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-ink-soft hover:text-teal"
+                  >
+                    {voice.speakingId === message.id ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                    {voice.speakingId === message.id ? "停止" : "朗读"}
+                  </button>
+                )}
               </div>
               {message.role === "user" && (
                 <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gold/20 text-teal-deep">
@@ -392,11 +511,15 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
         )}
 
         <div className="flex items-end gap-2 border-t border-line px-3 py-3">
-          <label className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-line text-ink-soft hover:text-teal">
+          <label
+            title="插一张照片"
+            className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-xl border border-line text-ink-soft hover:text-teal"
+          >
             <ImagePlus size={18} />
             <input
               type="file"
               accept="image/*"
+              aria-label="插一张照片"
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -405,14 +528,29 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
               }}
             />
           </label>
-          {voice.asr && (
+          {voiceStatus.asr && (
             <button
               type="button"
-              onClick={toggleRecording}
-              aria-label={recording ? "停止录音" : "按住说话"}
+              title="按住说话"
+              aria-label="按住说话"
+              aria-pressed={recording}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                void startRecording();
+              }}
+              onPointerUp={stopRecording}
+              onPointerLeave={stopRecording}
+              onPointerCancel={stopRecording}
+              onKeyDown={(event) => {
+                if (event.key === " " || event.key === "Enter") event.preventDefault();
+              }}
+              onKeyUp={(event) => {
+                if (event.key === " " || event.key === "Enter") stopRecording();
+              }}
+              onContextMenu={(event) => event.preventDefault()}
               className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${
                 recording ? "border-accent bg-accent text-white" : "border-line text-ink-soft hover:text-teal"
-              }`}
+              } touch-none select-none`}
             >
               <Mic size={18} />
             </button>
@@ -423,7 +561,7 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                void send();
+                void sendText(input, attachments);
               }
             }}
             rows={1}
@@ -442,7 +580,7 @@ export default function TutorChat({ token, apiBase, children, request }: Props) 
           ) : (
             <button
               type="button"
-              onClick={send}
+              onClick={() => void sendText(input, attachments)}
               disabled={(!input.trim() && !attachments.length) || !conversationId}
               aria-label="发送"
               className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal text-white disabled:opacity-40"

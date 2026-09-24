@@ -65,6 +65,29 @@ const home = {
   stats: { familyName: "验证家庭", childCount: 1, recordCount: 12, reportCount: 3, homeworkCount: 2 },
 };
 
+// 朗读桩：一段 1.5 秒的静音 WAV。真实 TTS 要密钥，这里只验证"前端能拿到可播放音频"。
+const speechWav = (() => {
+  const sampleRate = 8000;
+  const seconds = 1.5;
+  const samples = Math.floor(sampleRate * seconds);
+  const buffer = Buffer.alloc(44 + samples);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + samples, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate, 28);
+  buffer.writeUInt16LE(1, 32);
+  buffer.writeUInt16LE(8, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(samples, 40);
+  buffer.fill(128, 44);
+  return buffer;
+})();
+
 const stubs = [
   [/\/api\/home(\?|$)/, () => home],
   [
@@ -92,7 +115,14 @@ const stubs = [
   // 私教接口：只用于验证安卓端入口与聊天页骨架，不触发任何真实模型调用。
   [/\/api\/tutor\/status(\?|$)/, () => ({ enabled: true, ready: true, model_configured: true, quota: { message_limit: 60, used_messages: 0, left_messages: 60 } })],
   [/\/api\/tutor\/voice\/status(\?|$)/, () => ({ asr: true, tts: true })],
-  [/\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/, () => ({ messages: [] })],
+  [
+    /\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/,
+    () => ({
+      messages: [
+        { id: "msg-assistant-1", role: "assistant", content: "先别急着算。题目里的 45 是哪一步来的？", createdAt: "2026-09-24T02:00:00.000Z" },
+      ],
+    }),
+  ],
   [
     /\/api\/tutor\/conversations(\?|$)/,
     () => ({ conversations: [{ id: "conv-1", childId: "c1", persona: "child_tutor", status: "active" }], conversation: { id: "conv-1", childId: "c1", persona: "child_tutor", status: "active" } }),
@@ -135,13 +165,22 @@ if (!liveUrlArg) {
   await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
 }
 
-const browser = await chromium.launch({ channel: "chrome" });
+// 假麦克风让"连续对话"能在无人工干预下走通；自动播放放开是为了让朗读按钮点一次就出声。
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: [
+    "--use-fake-ui-for-media-stream",
+    "--use-fake-device-for-media-stream",
+    "--autoplay-policy=no-user-gesture-required",
+  ],
+});
 const report = [];
 try {
   for (const viewport of viewports) {
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
+      ...(viewport.apk ? { permissions: ["microphone"] } : {}),
       ...(viewport.apk
         ? {
             userAgent:
@@ -163,6 +202,16 @@ try {
         return;
       }
       const url = route.request().url();
+      // 朗读接口返回真音频字节，前端要能直接塞给 audio 播放
+      if (/\/api\/tutor\/voice\/speak(\?|$)/.test(url)) {
+        await route.fulfill({
+          status: 200,
+          contentType: "audio/wav",
+          headers: { "access-control-allow-origin": "*" },
+          body: speechWav,
+        });
+        return;
+      }
       const match = stubs.find(([pattern]) => pattern.test(url));
       const body = match ? match[1]() : {};
       await route.fulfill({
@@ -324,11 +373,33 @@ try {
         const heading = document.querySelector("header div")?.textContent?.trim() || "";
         const rect = (el) => (el ? el.getBoundingClientRect() : null);
         const send = rect(sendButton);
+        const speakButton = document.querySelector('button[aria-label="朗读这段"]');
         return {
           heading,
           hasComposer: !!composer,
           hasSend: !!sendButton,
           hasWorksheetButton: !!document.querySelector('button[aria-label="打印讲义"]'),
+          hasSpeakButton: !!speakButton,
+          hasAutoReadToggle: !!document.querySelector('button[aria-label="开启自动朗读"], button[aria-label="关闭自动朗读"]'),
+          hasContinuousToggle: !!document.querySelector(
+            'button[aria-label="开启连续对话"], button[aria-label="关闭连续对话"]',
+          ),
+          hasHoldToTalk: !!document.querySelector('button[aria-label="按住说话"]'),
+          // 语音工具条在窄屏上要能点得到：高度别低于移动端最小点击区，也不能出视口
+          voiceToolbar: (() => {
+            const buttons = [
+              document.querySelector('button[aria-label="开启连续对话"], button[aria-label="关闭连续对话"]'),
+              document.querySelector('button[aria-label="开启自动朗读"], button[aria-label="关闭自动朗读"]'),
+            ].filter(Boolean);
+            const rects = buttons.map((button) => button.getBoundingClientRect());
+            return {
+              count: buttons.length,
+              minHeight: rects.length ? Math.round(Math.min(...rects.map((rect) => rect.height))) : 0,
+              allInsideViewport: rects.every(
+                (rect) => rect.left >= 0 && rect.right <= window.innerWidth + 1 && rect.top >= 0,
+              ),
+            };
+          })(),
           // 发送键必须完整落在视口内，不能被裁掉
           sendInsideViewport: send ? send.left >= 0 && send.right <= window.innerWidth + 1 : false,
           overflowX: document.documentElement.scrollWidth - window.innerWidth,
@@ -336,16 +407,76 @@ try {
           evidenceNote: (document.querySelector("main")?.innerText || "").includes("要你确认后才进成长记录"),
         };
       });
+
+      // 朗读：点一次要真的出声（按钮切成"停止"），再点一次要能停下。
+      let speakProbe = { started: false, stopped: false };
+      const speakButton = page.locator('button[aria-label="朗读这段"]').first();
+      if (await speakButton.count()) {
+        await speakButton.click();
+        speakProbe.started = await page
+          .locator('button[aria-label="停止朗读"]')
+          .first()
+          .waitFor({ state: "visible", timeout: 4000 })
+          .then(() => true)
+          .catch(() => false);
+        if (speakProbe.started) {
+          await page.locator('button[aria-label="停止朗读"]').first().click();
+          speakProbe.stopped = await page
+            .locator('button[aria-label="朗读这段"]')
+            .first()
+            .waitFor({ state: "visible", timeout: 4000 })
+            .then(() => true)
+            .catch(() => false);
+        }
+      }
+
+      // 连续对话：开着麦克风自己听，音量上来就该进入"听到了"状态。
+      const continuousToggle = page.locator('button[aria-label="开启连续对话"]').first();
+      const continuousProbe = { started: false, reachedSpeech: false, stopped: false, rowFits: true };
+      if (await continuousToggle.count()) {
+        await continuousToggle.click();
+        continuousProbe.reachedSpeech = await page
+          .getByText("听到了，继续说")
+          .first()
+          .waitFor({ state: "visible", timeout: 6000 })
+          .then(() => true)
+          .catch(() => false);
+        continuousProbe.started = await page
+          .locator('button[aria-label="关闭连续对话"]')
+          .first()
+          .isVisible()
+          .catch(() => false);
+        // 多出来的语音工具条不能让窄屏横向溢出
+        continuousProbe.rowFits = await page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth <= 0,
+        );
+        await page.locator('button[aria-label="关闭连续对话"]').first().click();
+        continuousProbe.stopped = await page
+          .locator('button[aria-label="开启连续对话"]')
+          .first()
+          .isVisible()
+          .catch(() => false);
+      }
+
       await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-tutor.png`), fullPage: true });
       tutorProbe = {
         ...tutor,
         entryVisible,
+        speakProbe,
+        continuousProbe,
         checks: {
           entryOnlyOnApk: entryVisible,
           chatReachable: tutor.heading === "学习私教" && tutor.hasComposer && tutor.hasSend,
           composerFits: tutor.sendInsideViewport && tutor.overflowX <= 0,
           worksheetPrintable: tutor.hasWorksheetButton,
           honestEvidenceBoundary: tutor.evidenceNote,
+          voiceControlsPresent:
+            tutor.hasHoldToTalk && tutor.hasAutoReadToggle && tutor.hasContinuousToggle && tutor.hasSpeakButton,
+          readAloudWorks: speakProbe.started && speakProbe.stopped,
+          continuousListeningWorks: continuousProbe.started && continuousProbe.reachedSpeech && continuousProbe.stopped,
+          voiceRowFits: continuousProbe.rowFits,
+          voiceToolbarUsable:
+            tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
         },
       };
       await page.keyboard.press("Escape").catch(() => {});

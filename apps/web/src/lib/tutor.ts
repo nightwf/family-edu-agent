@@ -113,3 +113,41 @@ export function splitParagraphs(text: string) {
     .map((part) => part.trim())
     .filter(Boolean);
 }
+
+/**
+ * 朗读前的文本清理。
+ *
+ * 模型回答里有标题符号、列表符号、加粗星号和公式括号，念出来是噪音；
+ * 语音合成只该拿到"人话"。数值和单位保留，只去掉排版记号。
+ */
+export function stripForSpeech(text: string) {
+  return text
+    .replace(/```[\s\S]*?```/g, "（这里有一段代码，我看屏幕上）")
+    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+/**
+ * 取一段回答的朗读音频。
+ * 走服务端代理，密钥不出前端；失败时抛出可读提示，由调用方决定要不要提示家长。
+ */
+export async function fetchTutorSpeech(options: { apiBase: string; token: string; text: string }): Promise<Blob> {
+  const response = await fetch(`${options.apiBase}/api/tutor/voice/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${options.token}` },
+    body: JSON.stringify({ text: options.text }),
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data?.error || `朗读失败（${response.status}）`);
+  }
+  return response.blob();
+}
