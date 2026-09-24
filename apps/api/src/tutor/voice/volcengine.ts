@@ -39,11 +39,15 @@ export function createVolcTts(options: {
       });
 
       if (!response.ok) {
-        throw new Error(`语音合成失败：${response.status}`);
+        const body = await response.text().catch(() => "");
+        throw new Error(`语音合成失败：HTTP ${response.status} ${body.slice(0, 200)}`);
       }
       const payload: any = await response.json();
       if (!payload?.data) {
-        throw new Error(`语音合成失败：${payload?.message || "未返回音频"}`);
+        // 火山 TTS 的业务错误也是 HTTP 200：鉴权、cluster、音色填错都走这里，
+        // 所以必须把上游 code/message 带出去，否则前端只看得到"未返回音频"。
+        const code = payload?.code !== undefined ? `code=${payload.code} ` : "";
+        throw new Error(`语音合成失败：${code}${payload?.message || "未返回音频"}`);
       }
       return { audio: Buffer.from(payload.data, "base64"), contentType: "audio/mpeg" };
     },
@@ -73,10 +77,17 @@ export function createVolcAsr(options: { appId: string; accessToken: string; clu
       });
 
       if (!response.ok) {
-        throw new Error(`语音识别失败：${response.status}`);
+        const body = await response.text().catch(() => "");
+        throw new Error(`语音识别失败：HTTP ${response.status} ${body.slice(0, 200)}`);
       }
       const payload: any = await response.json();
       const text = payload?.result?.text || payload?.result?.utterances?.map((item: any) => item.text).join("") || "";
+      // 识别失败时正文常常是空对象，真正的 code/message 在响应头里
+      if (!text) {
+        const status = response.headers.get("x-api-status-code") || "";
+        const message = response.headers.get("x-api-message") || "未识别出内容";
+        throw new Error(`语音识别失败：${status ? `code=${status} ` : ""}${message}`);
+      }
       return String(text || "").trim();
     },
   };

@@ -121,6 +121,23 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 
 **这是和方舟分开的产品，Key 不通用**，要单独开通。不开通的表现是：语音按钮隐藏、接口返回 503，文字对话不受影响。
 
+### 0. 先看清"很多模型"里只要哪两个
+
+「语音技术」页面下的模型列表很长（流式识别、录音文件识别、实时对话、多种音色……），
+**私教只用到下面两项**，其余一律不用开：
+
+| 要开的 | 私教用在哪 | 代码实际调用的接口 |
+|---|---|---|
+| **语音合成 TTS**（普通/大模型音色都行，选一个音色即可） | 把回答念出来 | `openspeech.bytedance.com/api/v1/tts`，需要 `cluster` + `voice_type` |
+| **语音识别 ASR —— 录音文件识别（极速版 / 大模型）** | 孩子「按住说话」把一段录音转文字 | `openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash`，资源标识 `volc.bigasr.auc_turbo` |
+
+不要开的：**流式语音识别**（WebSocket 协议，和上面的 HTTP 极速版不是同一个接口，
+代码没走它）、**实时对话式 AI / 端到端语音大模型**（那是另一套协议，本项目的编排在
+我方服务端，不需要它）、方舟里的 Embedding / 内容审核。
+
+判断标准很简单：本项目是「孩子说完一整段再上传识别」，不是边说话边识别，
+所以只要能做**录音文件识别**的型号就够了。
+
 ### 1. 准备
 
 1. 控制台进「语音技术」，**创建应用**；
@@ -143,6 +160,22 @@ bash scripts/enable-tutor.sh --key=xxx --chat-model=m1 \
 
 `TUTOR_ASR_CLUSTER` / `TUTOR_TTS_CLUSTER` / `TUTOR_TTS_VOICE_TYPE` 三个值**必须从你开通的那个服务的文档页抄**，
 代码里的适配（`apps/api/src/tutor/voice/volcengine.ts`）按火山文档写的，但没有真实凭据跑过，这三个值极可能要按你的实际开通项微调。
+
+### 2.5 拿到凭据先跑自检（合成一句再识别回来）
+
+```bash
+npm run check:voice -- --asr-app-id=xxx --asr-token=xxx --asr-cluster=volc.bigasr.auc_turbo \
+                     --tts-app-id=xxx --tts-token=xxx --tts-cluster=xxx --tts-voice=xxx
+```
+
+它做的是一圈**闭环**：先合成一句「今天我们一起把这道题弄明白」，再把这段音频回灌给识别，
+比对读回来的字。这一圈过了，等于同时证明**凭据、cluster、音色三样全对**，
+而不是"单个接口没报错"。
+
+火山语音有个坑：**业务错误常常是 HTTP 200，正文里才带 `code`/`message`**；
+识别失败时正文甚至可能是空对象，真正的 `code` 在响应头里。自检脚本两种情况都会把
+**上游原始 code 与 message 原样打出来**，并给出对应的处置动作（凭据 / cluster / 音色 / 开通 / 配额），
+不用靠猜。服务端实现里也做了同样的透出。
 
 ### 3. 这一块的已知风险
 
