@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles, X } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import TutorChat from "./TutorChat";
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
@@ -93,17 +93,7 @@ export default function TutorDock({ open, onOpen, onClose, token, apiBase, child
                 apiBase={apiBase}
                 children={children}
                 request={request}
-                headerExtra={
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label="收起私教"
-                    title="收起私教"
-                    className="grid h-10 w-10 place-items-center rounded-lg border border-line text-ink-soft"
-                  >
-                    <X size={17} />
-                  </button>
-                }
+                onClose={onClose}
               />
             )}
           </div>

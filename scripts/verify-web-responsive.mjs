@@ -704,8 +704,10 @@ try {
       const fromNav = await measureWindow();
       const navTitle = await page.evaluate(() => document.querySelector("header div")?.textContent?.trim() || "");
 
-      // 收起再点浮标打开，走一遍孩子最可能用的路径
-      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="收起私教"]').first().click();
+      // 收起再点浮标打开，走一遍孩子最可能用的路径；关闭要二次确认
+      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="退出私教"]').first().click();
+      await page.waitForTimeout(250);
+      await page.locator('button[aria-label="确认退出"]').first().click();
       await page.waitForTimeout(400);
       const afterClose = await page.evaluate(() => ({
         windowGone: !document.querySelector('[data-testid="tutor-dock-window"]'),
@@ -954,7 +956,7 @@ try {
         continuousProbe.liveView = await page.evaluate(() => {
           const live = document.querySelector('[data-testid="voice-live"]');
           const transcript = document.querySelector('[data-testid="voice-transcript"]');
-          const closeBtn = document.querySelector('button[aria-label="退出免提模式"]');
+          const closeBtn = document.querySelector('button[aria-label="退出私教"]');
           const figure = live?.querySelector("img");
           const rect = (el) => (el ? el.getBoundingClientRect() : null);
           const close = rect(closeBtn);
@@ -972,6 +974,7 @@ try {
             ripples: live?.querySelectorAll(".voice-ripple").length || 0,
             stateText: (live?.innerText || "").replace(/\s+/g, " ").trim(),
             hasTranscript: !!transcript,
+            hasSwitchToText: !!live?.querySelector('button[aria-label="切换到文本对话"]'),
             transcriptText: (transcript?.innerText || "").trim(),
             // 这一屏不许有播放按钮，也不许有输入框
             transcriptHasPlayButton: !!transcript?.querySelector('button[aria-label="朗读这段"], button[aria-label="停止朗读"]'),
@@ -1047,9 +1050,9 @@ try {
           .catch(() => false);
       }
 
-      // 退出实时对话：小叉要能回到普通对话，麦克风也要还回去。
-      if (await page.locator('button[aria-label="退出免提模式"]').first().count()) {
-        await page.locator('button[aria-label="退出免提模式"]').first().click();
+      // 退出实时对话：点"切换到文本对话"要能回到普通对话，麦克风也要还回去。
+      if (await page.locator('button[aria-label="切换到文本对话"]').first().count()) {
+        await page.locator('button[aria-label="切换到文本对话"]').first().click();
         continuousProbe.stopped = await page
           .locator('button[aria-label="开启连续对话"]')
           .first()
@@ -1079,9 +1082,21 @@ try {
         return window.__micProbe();
       });
 
-      // 收起浮窗：整个对话组件被卸载，麦克风必须彻底释放
-      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="收起私教"]').first().click();
+      // 收起浮窗要二次确认：点关闭 → 弹确认 → 点"再想想"不退出 →
+      // 再点关闭 → 点"退出"才真的关，同时麦克风必须彻底释放。
+      const closeConfirmProbe = { shown: false, cancelKeepsOpen: false, cancelClearsDialog: false, exited: false };
+      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="退出私教"]').first().click();
+      await page.waitForTimeout(250);
+      closeConfirmProbe.shown = (await page.locator('[data-testid="tutor-exit-confirm"]').count()) > 0;
+      await page.locator('[data-testid="tutor-exit-confirm"] button', { hasText: "再想想" }).first().click();
+      await page.waitForTimeout(250);
+      closeConfirmProbe.cancelKeepsOpen = (await page.locator('[data-testid="tutor-dock-window"]').count()) > 0;
+      closeConfirmProbe.cancelClearsDialog = (await page.locator('[data-testid="tutor-exit-confirm"]').count()) === 0;
+      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="退出私教"]').first().click();
+      await page.waitForTimeout(250);
+      await page.locator('button[aria-label="确认退出"]').first().click();
       await page.waitForTimeout(500);
+      closeConfirmProbe.exited = (await page.locator('[data-testid="tutor-dock-window"]').count()) === 0;
       const micAfterClose = await page.evaluate(() => window.__micProbe());
 
       // 浮窗开着的时候底下的导航够不着（遮罩拦住），所以手机上不存在
@@ -1116,6 +1131,7 @@ try {
         navBlockedWhileOpen,
         streamProbe,
         bargeProbe,
+        closeConfirmProbe,
         net: {
           messagePosts: netProbe.messagePosts,
           transcribeCalls: netProbe.transcribeCalls,
@@ -1204,7 +1220,12 @@ try {
             (continuousProbe.liveView?.closeBox?.w ?? 0) >= 32 &&
             (continuousProbe.liveView?.closeBox?.h ?? 0) >= 32 &&
             continuousProbe.liveView?.closeBox?.inside === true,
+          voiceLiveHasSwitchToText: continuousProbe.liveView?.hasSwitchToText === true,
           voiceLiveExits: continuousProbe.stopped === true && continuousProbe.exited === true,
+          // 两个页面都有关闭按钮，点一下先弹确认，不是直接关
+          closeNeedsConfirm: closeConfirmProbe.shown === true,
+          closeConfirmCancels: closeConfirmProbe.cancelKeepsOpen === true && closeConfirmProbe.cancelClearsDialog === true,
+          closeConfirmExits: closeConfirmProbe.exited === true,
           // 麦克风只在"真的在连续对话"时开着，别的时候必须一路都不留
           micSilentUntilAsked: micIdle.liveAudioTracks === 0,
           micOpenWhileListening: micListening.liveAudioTracks >= 1,
@@ -1447,7 +1468,9 @@ try {
       await speechPage.waitForTimeout(300);
     };
     const closeTutor = async () => {
-      await speechPage.locator('[data-testid="tutor-dock-window"] button[aria-label="收起私教"]').first().click();
+      await speechPage.locator('[data-testid="tutor-dock-window"] button[aria-label="退出私教"]').first().click();
+      await speechPage.waitForTimeout(250);
+      await speechPage.locator('button[aria-label="确认退出"]').first().click();
       await speechPage.waitForTimeout(500);
     };
     const autoReadSwitch = () =>

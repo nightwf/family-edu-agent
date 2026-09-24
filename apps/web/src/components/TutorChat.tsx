@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   BookmarkPlus,
   CircleStop,
   ImagePlus,
   Loader2,
+  MessageSquare,
   Mic,
   MoreHorizontal,
   Plus,
@@ -35,8 +36,8 @@ type Props = {
   apiBase: string;
   children: Child[];
   request: (path: string, options?: RequestInit, token?: string) => Promise<any>;
-  /** 挂在标题栏最右侧的额外内容（关掉浮窗的按钮）。 */
-  headerExtra?: ReactNode;
+  /** 关闭整个私教浮窗（二次确认之后才调用）。 */
+  onClose?: () => void;
 };
 
 const EMPTY_HINT = "拍一张错题照片，或者直接问一道题。我会先问你思路，不会直接给答案。";
@@ -90,7 +91,7 @@ function writeAutoReadPreference(value: boolean) {
  * 内置学习私教的对话主体，装在外层浮窗里。
  * 与 WorkBuddy 接入共用同一份数据：这里聊出来的证据同样要家长确认后才生效。
  */
-export default function TutorChat({ token, apiBase, children, request, headerExtra }: Props) {
+export default function TutorChat({ token, apiBase, children, request, onClose }: Props) {
   const [selectedChildId, setSelectedChildId] = useState(children[0]?.id || "");
   const [conversationId, setConversationId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -108,6 +109,7 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   const [quotaLeft, setQuotaLeft] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
   const [autoRead, setAutoRead] = useState(readAutoReadPreference);
+  const [confirmClose, setConfirmClose] = useState(false);
   /** 次要操作（记录/打印/新对话）按移动端惯例收进「更多」，标题栏才放得下孩子名字 */
   const [actionsOpen, setActionsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -196,6 +198,19 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [actionsOpen]);
+
+  // 退出确认打开时，Esc 只该关掉确认框，不该顺手把整个私教也关掉。
+  // 用捕获阶段拦下来，抢在浮窗外层那个"按 Esc 关闭"之前。
+  useEffect(() => {
+    if (!confirmClose) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setConfirmClose(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [confirmClose]);
 
   const voice = useTutorVoice({
     apiBase,
@@ -575,6 +590,44 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
     );
   }
 
+  /** 点关闭时的二次确认：实时对话和文本对话两个页面共用同一个。 */
+  const confirmOverlay = confirmClose ? (
+    <div
+      data-testid="tutor-exit-confirm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/50 p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="退出私教确认"
+    >
+      <div className="w-full max-w-xs rounded-2xl border border-line bg-panel p-5 shadow-2xl">
+        <p className="text-center text-base font-bold text-ink">要退出私教吗？</p>
+        <p className="mt-2 text-center text-xs leading-5 text-muted">
+          这次对话会保留，下次进来接着聊。
+        </p>
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirmClose(false)}
+            className="flex-1 rounded-xl border border-line py-2.5 text-sm font-bold text-ink-soft"
+          >
+            再想想
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmClose(false);
+              onClose?.();
+            }}
+            aria-label="确认退出"
+            className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-bold text-white"
+          >
+            退出
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // 实时对话：整个私教窗口换成全屏的"听/说"界面。
   // 孩子在这里不看键盘，也不打任何一个字，全靠画面和声音判断轮到谁了。
   if (voice.continuous) {
@@ -586,22 +639,27 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
       : LOOP_STATE_TEXT[voice.loopState] || "正在说话…";
 
     return (
-      <div className="voice-live flex h-full min-h-0 flex-col" data-testid="voice-live">
+      <div className="voice-live flex min-h-0 flex-1 flex-col" data-testid="voice-live">
         <div className="relative z-10 flex shrink-0 items-center justify-between gap-3 px-4 py-3 text-white">
-          <div className="min-w-0 truncate text-sm font-bold">
-            {selectedChild?.name ? `和 ${selectedChild.name} 实时对话` : "实时对话"}
-          </div>
+          <button
+            type="button"
+            onClick={voice.toggleContinuous}
+            aria-label="切换到文本对话"
+            className="inline-flex h-9 items-center gap-2 rounded-full bg-white/15 px-3.5 text-sm font-bold text-white backdrop-blur transition hover:bg-white/25 active:scale-95"
+          >
+            <MessageSquare size={15} />
+            切换到文本对话
+          </button>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={voice.toggleContinuous}
-              aria-label="退出免提模式"
-              title="退出实时对话"
+              onClick={() => setConfirmClose(true)}
+              aria-label="退出私教"
+              title="退出私教"
               className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25 active:scale-95"
             >
               <X size={18} />
             </button>
-            {headerExtra}
           </div>
         </div>
 
@@ -660,12 +718,13 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
           )}
           {busy && <p className="mt-2 text-left text-white/45">…</p>}
         </div>
+        {confirmOverlay}
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {children.length > 1 && (
         <div className="shrink-0 border-b border-line px-3 py-2">
           <ChildTabs children={children} activeChildId={selectedChildId} onChange={setSelectedChildId} />
@@ -743,7 +802,15 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
                 </>
               )}
             </div>
-            {headerExtra}
+            <button
+              type="button"
+              onClick={() => setConfirmClose(true)}
+              aria-label="退出私教"
+              title="退出私教"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line text-ink-soft transition hover:border-accent/40 hover:text-accent"
+            >
+              <X size={17} />
+            </button>
           </div>
         </div>
 
@@ -961,6 +1028,7 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
         </div>
       </Panel>
 
+      {confirmOverlay}
     </div>
   );
 }
