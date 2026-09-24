@@ -19,6 +19,15 @@ export type VoiceLoopConfig = {
   maxUtteranceMs: number;
   /** 短于这个有效时长的声音当作杂音丢掉 */
   minSpeechMs: number;
+  /**
+   * 一直没人说话多久就自动关掉连续对话。
+   *
+   * 连续对话期间麦克风是常开的（插话打断靠它），孩子点了开关就去干别的，
+   * 麦克风会一直亮着。这里给个兜底上限；0 或负数表示不自动关。
+   *
+   * 私教正在思考或念答案的时间不算"没人说话"，见 isIdleTimeout。
+   */
+  idleMs: number;
 };
 
 export const VOICE_LOOP_DEFAULTS: VoiceLoopConfig = {
@@ -26,6 +35,7 @@ export const VOICE_LOOP_DEFAULTS: VoiceLoopConfig = {
   silenceMs: 1100,
   maxUtteranceMs: 15000,
   minSpeechMs: 350,
+  idleMs: 180000,
 };
 
 /** 一段采样的音量（均方根）。采样值域按 -1..1 的浮点波形算。 */
@@ -38,6 +48,26 @@ export function rmsOf(samples: ArrayLike<number>): number {
 /** 太短的声音（咳嗽、碰桌子、底噪尖峰）不当一句话，避免把杂音发给模型。 */
 export function isUsableUtterance(speechMs: number, config: VoiceLoopConfig = VOICE_LOOP_DEFAULTS) {
   return speechMs >= config.minSpeechMs;
+}
+
+/**
+ * 免提模式是不是该自动收工了。
+ *
+ * 连续对话开着的时候麦克风是常开的，孩子放下手机去吃饭，麦克风就一直亮着。
+ * 但"没人说话"不包括私教在思考或念答案的那段时间 —— 那时候孩子安静地听是正常的，
+ * 按静音计时会把正在听讲的麦克风关掉，插话打断也就没了。
+ */
+export function isIdleTimeout(input: {
+  now: number;
+  /** 上一次听到人声（或私教开口）的时刻 */
+  lastHeardAt: number;
+  idleMs: number;
+  /** 私教正在思考或正在念 */
+  tutorActive: boolean;
+}) {
+  if (input.tutorActive) return false;
+  if (!(input.idleMs > 0)) return false;
+  return input.now - input.lastHeardAt >= input.idleMs;
 }
 
 export type UtteranceStep = {
@@ -176,6 +206,8 @@ export type VoiceLoop = {
   isRunning: () => boolean;
   /** 私教开口时抬门槛，避免把自己的声音当成孩子在说话 */
   setSensitivity: (multiplier: number) => void;
+  /** 私教正在思考或念答案：这段时间不计入"没人说话" */
+  setTutorActive: (active: boolean) => void;
 };
 
 /**
@@ -191,6 +223,8 @@ export function createVoiceLoop(options: {
   /** 刚听到孩子开口。用来做插话打断：私教还在念就让他停嘴。 */
   onSpeechStart?: () => void;
   onUtterance: (blob: Blob, speechMs: number) => void | Promise<void>;
+  /** 静默太久自动收工，让界面把开关拨回去并告诉孩子为什么 */
+  onIdle?: () => void;
   onError: (message: string) => void;
 }): VoiceLoop {
   const config: VoiceLoopConfig = { ...VOICE_LOOP_DEFAULTS, ...(options.config || {}) };
@@ -205,6 +239,9 @@ export function createVoiceLoop(options: {
   let chunks: Blob[] = [];
   let speechMs = 0;
   let wasSpeaking = false;
+  let lastHeardAt = deps.now();
+  let tutorActive = false;
+  let idleFired = false;
   const mimeType = { value: "" };
 
   function setState(state: VoiceLoopState) {
@@ -228,6 +265,8 @@ export function createVoiceLoop(options: {
     chunks = [];
     speechMs = 0;
     tracker.reset();
+    // 每段重新开始听，静默计时也跟着重新走
+    lastHeardAt = deps.now();
     try {
       recorder.start();
     } catch {
@@ -239,7 +278,8 @@ export function createVoiceLoop(options: {
 
   function tick() {
     if (!running || !recorder || !meter) return;
-    const step = tracker.push(meter.read(), deps.now());
+    const now = deps.now();
+    const step = tracker.push(meter.read(), now);
     if (step.state === "speech" && !wasSpeaking) {
       wasSpeaking = true;
       options.onSpeechStart?.();
@@ -248,6 +288,21 @@ export function createVoiceLoop(options: {
       speechMs = step.speechMs;
       setState("speech");
     }
+
+    // 听到人声、或私教正在开口，都算"有事发生"，静默计时往后推。
+    // 私教念长答案时孩子安静听着，不能把这当成孩子走开了。
+    if (step.state === "speech" || tutorActive) lastHeardAt = now;
+    if (
+      !idleFired &&
+      isIdleTimeout({ now, lastHeardAt, idleMs: config.idleMs, tutorActive })
+    ) {
+      idleFired = true;
+      // 先告诉上层"收工了"，让它把开关拨回去；再由自己把麦克风放掉。
+      options.onIdle?.();
+      stop();
+      return;
+    }
+
     if (step.shouldStop && recorder.state === "recording") {
       recorder.stop();
       return;
@@ -282,6 +337,8 @@ export function createVoiceLoop(options: {
   async function start() {
     if (running) return;
     running = true;
+    idleFired = false;
+    lastHeardAt = deps.now();
     try {
       stream = await deps.getUserMedia({ audio: true });
       recorder = deps.createRecorder(stream);
@@ -328,5 +385,10 @@ export function createVoiceLoop(options: {
     stop,
     isRunning: () => running,
     setSensitivity: (multiplier: number) => tracker.setMultiplier(multiplier),
+    setTutorActive: (active: boolean) => {
+      tutorActive = active;
+      // 私教刚开口那一刻就把计时刷新掉，它念完孩子还能有完整的一个静默窗口
+      if (active) lastHeardAt = deps.now();
+    },
   };
 }

@@ -80,7 +80,8 @@ compose 那一段是白名单，只往 `.env` 里写值是不生效的（曾因�
 
 配额与超时都有默认值，可按需覆盖：
 `TUTOR_DAILY_MESSAGE_LIMIT`（默认 60 条/孩子/天）、`TUTOR_DAILY_TOKEN_LIMIT`（默认 0 即不限）、
-`TUTOR_MAX_TOOL_ROUNDS`（6）、`TUTOR_REQUEST_TIMEOUT_MS`（45000）、`TUTOR_TOOL_RESULT_LIMIT`（6000）。
+`TUTOR_MAX_TOOL_ROUNDS`（6）、`TUTOR_REQUEST_TIMEOUT_MS`（45000）、`TUTOR_TOOL_RESULT_LIMIT`（6000）、
+`TUTOR_VOICE_IDLE_MS`（180000，即免提模式下静默 3 分钟自动关麦克风）。
 
 **内容审核不需要额外开通**：私教的三层安全（输入规则、人格硬规则、输出校验）都是内置逻辑，不走第三方审核服务，`TUTOR_MODERATION_ENABLED` 保持默认即可。
 

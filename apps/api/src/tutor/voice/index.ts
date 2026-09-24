@@ -15,6 +15,8 @@ import { resolveVoiceCredentials } from "./credentials.js";
 export type VoiceStatus = {
   asr: boolean;
   tts: boolean;
+  /** 连续对话静默多久自动关麦克风，毫秒。前端据此给免提模式加兜底。 */
+  idle_ms: number;
 };
 
 /** 识别与合成共用同一把 API Key（新版控制台），只填一栏也当两栏都有 */
@@ -33,7 +35,7 @@ function credentials() {
 }
 
 export function getVoiceStatus(): VoiceStatus {
-  return credentials().status;
+  return { ...credentials().status, idle_ms: env.TUTOR_VOICE_IDLE_MS };
 }
 
 export class VoiceNotConfiguredError extends Error {

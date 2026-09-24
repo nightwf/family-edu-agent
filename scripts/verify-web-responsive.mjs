@@ -144,6 +144,33 @@ const fakeMicWav = (() => {
 const fakeMicPath = path.join(os.tmpdir(), "heya-fake-mic.wav");
 if (!liveUrlArg) fs.writeFileSync(fakeMicPath, fakeMicWav);
 
+/**
+ * 一段 5 秒的纯静音，给"静默自动收工"那条用例当麦克风输入。
+ * 默认的假麦克风一直在响，永远走不到"没人说话"，那条路径就验不了。
+ */
+const silentMicWav = (() => {
+  const sampleRate = 48000;
+  const samples = sampleRate * 5;
+  const dataBytes = samples * 2;
+  const buffer = Buffer.alloc(44 + dataBytes);
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataBytes, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataBytes, 40);
+  return buffer;
+})();
+const silentMicPath = path.join(os.tmpdir(), "heya-silent-mic.wav");
+if (!liveUrlArg) fs.writeFileSync(silentMicPath, silentMicWav);
+
 const stubs = [
   [/\/api\/home(\?|$)/, () => home],
   [
@@ -170,7 +197,7 @@ const stubs = [
   [/\/api\/v2\/education-methods(\?|$)/, () => []],
   // 私教接口：只用于验证安卓端入口与聊天页骨架，不触发任何真实模型调用。
   [/\/api\/tutor\/status(\?|$)/, () => ({ enabled: true, ready: true, model_configured: true, quota: { message_limit: 60, used_messages: 0, left_messages: 60 } })],
-  [/\/api\/tutor\/voice\/status(\?|$)/, () => ({ asr: true, tts: true })],
+  [/\/api\/tutor\/voice\/status(\?|$)/, () => ({ asr: true, tts: true, idle_ms: probeState.voiceIdleMs })],
   [
     /\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/,
     () => ({
@@ -185,6 +212,37 @@ const stubs = [
   ],
   [/\/api\/tutor\/quota(\?|$)/, () => ({ allowed: true, used_messages: 0, message_limit: 60, left_messages: 60 })],
 ];
+
+/** 服务端下发的静默兜底时长。主用例给大值，免得验证过程里被自动收工打断。 */
+const probeState = { voiceIdleMs: 180_000 };
+
+/**
+ * 麦克风生命周期探针：把每次拿到的流留一份引用，事后能数出"还有几路在采音"。
+ * 固定定位那套思路在这里不适用，只有真的数轨道才骗不了人。
+ */
+const MIC_PROBE_SCRIPT = () => {
+  const streams = [];
+  let trackStops = 0;
+  const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = async (constraints) => {
+    const stream = await originalGetUserMedia(constraints);
+    streams.push(stream);
+    return stream;
+  };
+  const originalStop = MediaStreamTrack.prototype.stop;
+  MediaStreamTrack.prototype.stop = function stop(...args) {
+    trackStops += 1;
+    return originalStop.apply(this, args);
+  };
+  window.__micProbe = () => ({
+    liveAudioTracks: streams.reduce(
+      (count, stream) => count + stream.getAudioTracks().filter((track) => track.readyState === "live").length,
+      0,
+    ),
+    streamsOpened: streams.length,
+    trackStops,
+  });
+};
 
 const viewports = [
   { name: "pad-landscape", width: 1366, height: 940, expectSidebar: true },
@@ -325,29 +383,7 @@ try {
     // 麦克风生命周期探针：把每次拿到的流留一份引用，事后能数出"还有几路在采音"。
     // 只在安卓形态下装：其他形态本来就不该碰麦克风。
     if (viewport.apk) {
-      await page.addInitScript(() => {
-        const streams = [];
-        let trackStops = 0;
-        const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-        navigator.mediaDevices.getUserMedia = async (constraints) => {
-          const stream = await originalGetUserMedia(constraints);
-          streams.push(stream);
-          return stream;
-        };
-        const originalStop = MediaStreamTrack.prototype.stop;
-        MediaStreamTrack.prototype.stop = function stop(...args) {
-          trackStops += 1;
-          return originalStop.apply(this, args);
-        };
-        window.__micProbe = () => ({
-          liveAudioTracks: streams.reduce(
-            (count, stream) => count + stream.getAudioTracks().filter((track) => track.readyState === "live").length,
-            0,
-          ),
-          streamsOpened: streams.length,
-          trackStops,
-        });
-      });
+      await page.addInitScript(MIC_PROBE_SCRIPT);
     }
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     await page.waitForTimeout(800);
@@ -687,20 +723,30 @@ try {
       const holdProbe = { recording: false, afterRelease: 0, afterHide: 0 };
       const holdButton = page.locator('button[aria-label="按住说话"]').first();
       if (await holdButton.count()) {
+        // 录音要先等 getUserMedia 回来，固定等某个毫秒数会时好时坏，
+        // 这里改成轮询"麦克风有没有真的开起来"。
+        const waitForTracks = async (expected, timeoutMs = 6000) => {
+          const deadline = Date.now() + timeoutMs;
+          let last = -1;
+          while (Date.now() < deadline) {
+            last = (await page.evaluate(() => window.__micProbe())).liveAudioTracks;
+            if (expected(last)) return last;
+            await page.waitForTimeout(120);
+          }
+          return last;
+        };
         const box = await holdButton.boundingBox();
         const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
         await page.mouse.move(center.x, center.y);
         await page.mouse.down();
-        await page.waitForTimeout(700);
-        holdProbe.recording = (await page.evaluate(() => window.__micProbe())).liveAudioTracks >= 1;
+        holdProbe.recording = (await waitForTracks((count) => count >= 1)) >= 1;
         await page.mouse.up();
-        await page.waitForTimeout(600);
-        holdProbe.afterRelease = (await page.evaluate(() => window.__micProbe())).liveAudioTracks;
+        holdProbe.afterRelease = await waitForTracks((count) => count === 0);
 
         // 再按一次，这次按住不放，直接把页面置为不可见
         await page.mouse.move(center.x, center.y);
         await page.mouse.down();
-        await page.waitForTimeout(600);
+        await waitForTracks((count) => count >= 1);
         holdProbe.afterHide = await page.evaluate(async () => {
           Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
           Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
@@ -909,6 +955,102 @@ try {
 
     report.push({ viewport: viewport.name, ...before, homeLayout, pageProbe, tutorProbe, drawer, errors: [...new Set(errors)].slice(0, 4) });
     await context.close();
+  }
+
+  /**
+   * 静默自动收工单独跑一遍：真实兜底是 3 分钟，这里让服务端下发 2.5 秒，
+   * 并换上一路完全静音的麦克风 —— 默认假麦克风一直在响，永远走不到"没人说话"。
+   *
+   * 这条用例要证明的是：孩子点了免提就去干别的，麦克风不会一直开着。
+   */
+  if (!liveUrlArg) {
+    probeState.voiceIdleMs = 2500;
+    // 换一个浏览器实例：麦克风输入是启动参数，跑起来之后换不了。
+    // 这次喂的是纯静音文件，模拟"孩子点了免提就走开了"。
+    const idleBrowser = await chromium.launch({
+      channel: "chrome",
+      args: [
+        "--use-fake-ui-for-media-stream",
+        "--use-fake-device-for-media-stream",
+        `--use-file-for-fake-audio-capture=${silentMicPath}`,
+        "--autoplay-policy=no-user-gesture-required",
+      ],
+    });
+    const idleContext = await idleBrowser.newContext({
+      viewport: { width: 393, height: 851 },
+      deviceScaleFactor: 2,
+      permissions: ["microphone"],
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14; V2312A Build/UP1A) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36 HeYaAndroid/1.0",
+    });
+    const idlePage = await idleContext.newPage();
+    const idleErrors = [];
+    idlePage.on("pageerror", (error) => idleErrors.push(String(error.message).slice(0, 160)));
+    idlePage.on("console", (message) => {
+      if (message.type() === "error") idleErrors.push(message.text().slice(0, 160));
+    });
+    await idlePage.route("**/api/**", async (route) => {
+      const url = route.request().url();
+      const match = stubs.find(([pattern]) => pattern.test(url));
+      const body = match ? match[1]() : {};
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify(body),
+      });
+    });
+    await idlePage.addInitScript(() => localStorage.setItem("familyEduToken", "responsive-check-token"));
+    await idlePage.addInitScript(MIC_PROBE_SCRIPT);
+    await idlePage.goto(baseUrl, { waitUntil: "networkidle" });
+    await idlePage.waitForTimeout(800);
+
+    await idlePage.locator('[data-testid="tutor-dock-bubble"]').click();
+    await idlePage.waitForTimeout(700);
+
+    const idleProbe = { enabled: false, micWhileListening: 0, micAfterIdle: null, switchBack: false, noticeShown: false };
+    const idleToggle = idlePage.locator('button[aria-label="开启连续对话"]').first();
+    if (await idleToggle.count()) {
+      await idleToggle.click();
+      await idlePage.waitForTimeout(900);
+      idleProbe.enabled = await idlePage
+        .locator('button[aria-label="关闭连续对话"]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      idleProbe.micWhileListening = (await idlePage.evaluate(() => window.__micProbe())).liveAudioTracks;
+
+      // 静音上限是 2.5 秒，等它过去；轮询到麦克风被放掉为止
+      const deadline = Date.now() + 12_000;
+      while (Date.now() < deadline) {
+        const probe = await idlePage.evaluate(() => window.__micProbe());
+        if (probe.liveAudioTracks === 0) break;
+        await idlePage.waitForTimeout(250);
+      }
+      idleProbe.micAfterIdle = await idlePage.evaluate(() => window.__micProbe());
+      idleProbe.switchBack = await idlePage
+        .locator('button[aria-label="开启连续对话"]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      idleProbe.noticeShown = (await idlePage.locator("body").innerText()).includes("连续对话先关上了");
+    }
+
+    await idlePage.screenshot({ path: path.join(outDir, "web-apk-webview-idle.png"), fullPage: false });
+    report.push({
+      viewport: "apk-idle-timeout",
+      idleProbe,
+      checks: {
+        idleEnabled: idleProbe.enabled && idleProbe.micWhileListening >= 1,
+        micReleasedAfterIdle: idleProbe.micAfterIdle?.liveAudioTracks === 0,
+        switchBackToOff: idleProbe.switchBack,
+        // 得告诉孩子为什么麦克风自己关了，不然会以为坏了
+        tellsChildWhy: idleProbe.noticeShown,
+      },
+      errors: [...new Set(idleErrors)].slice(0, 4),
+    });
+    await idleContext.close();
+    await idleBrowser.close();
   }
 } finally {
   await browser.close();

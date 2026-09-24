@@ -47,4 +47,7 @@ export const env = {
   TUTOR_TTS_ACCESS_TOKEN: process.env.TUTOR_TTS_ACCESS_TOKEN || "",
   TUTOR_TTS_CLUSTER: process.env.TUTOR_TTS_CLUSTER || "",
   TUTOR_TTS_VOICE_TYPE: process.env.TUTOR_TTS_VOICE_TYPE || "",
+  // 连续对话静默多久自动关麦克风。连续对话期间麦克风是常开的（插话打断靠它），
+  // 孩子开着就去干别的了，这里给个兜底上限。
+  TUTOR_VOICE_IDLE_MS: Number(process.env.TUTOR_VOICE_IDLE_MS || 180000),
 };

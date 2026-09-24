@@ -21,10 +21,14 @@ export function useTutorVoice(options: {
   token: string;
   ttsReady: boolean;
   asrReady: boolean;
+  /** 连续对话静默多久自动关麦克风（毫秒，服务端下发）。0 或未给则用默认值。 */
+  idleMs?: number;
   /** 连续对话里识别出一句之后，交给上层发送 */
   onTranscript: (text: string) => void | Promise<void>;
   /** 听到孩子开口（用来判断要不要打断正在念的答案） */
   onSpeechStart?: () => void;
+  /** 静默太久自动收工，上层据此提示孩子 */
+  onIdle?: () => void;
   onError: (message: string) => void;
 }) {
   const [speakingId, setSpeakingId] = useState("");
@@ -38,12 +42,14 @@ export function useTutorVoice(options: {
   const loopRef = useRef<VoiceLoop | null>(null);
   const transcriptRef = useRef(options.onTranscript);
   const speechStartRef = useRef(options.onSpeechStart);
+  const idleRef = useRef(options.onIdle);
   const errorRef = useRef(options.onError);
   const asrReadyRef = useRef(options.asrReady);
   const speechRef = useRef<SpeechQueue>({ urls: [], playing: false, current: null, settle: null, stopped: false });
 
   transcriptRef.current = options.onTranscript;
   speechStartRef.current = options.onSpeechStart;
+  idleRef.current = options.onIdle;
   errorRef.current = options.onError;
   asrReadyRef.current = options.asrReady;
 
@@ -183,6 +189,19 @@ export function useTutorVoice(options: {
   }, []);
 
   /**
+   * 静默太久，循环自己收工了。
+   *
+   * 这里不能走 stopContinuous：麦克风是循环自己放掉的，再 stop 一次是多余的，
+   * 只要把界面上的开关拨回去、并告诉孩子为什么，别让他以为坏了。
+   */
+  const handleIdleStop = useCallback(() => {
+    loopRef.current = null;
+    setLoopState("idle");
+    setContinuous(false);
+    idleRef.current?.();
+  }, []);
+
+  /**
    * 页面被切到后台（或锁屏）就停掉连续对话。
    *
    * 连续对话期间麦克风是持续开着的，这是插话打断的前提；但不管的话，
@@ -206,8 +225,11 @@ export function useTutorVoice(options: {
   const startContinuous = useCallback(async () => {
     if (loopRef.current) return;
     const loop = createVoiceLoop({
+      // 静默兜底：服务端下发的值优先，没给就用循环自己的默认值
+      ...(options.idleMs ? { config: { idleMs: options.idleMs } } : {}),
       onState: setLoopState,
       onSpeechStart: () => speechStartRef.current?.(),
+      onIdle: handleIdleStop,
       onError: (message) => {
         errorRef.current(message);
         stopContinuous();
@@ -232,7 +254,7 @@ export function useTutorVoice(options: {
     loopRef.current = loop;
     setContinuous(true);
     await loop.start();
-  }, [options.apiBase, options.token, stopContinuous]);
+  }, [handleIdleStop, options.apiBase, options.idleMs, options.token, stopContinuous]);
 
   const toggleContinuous = useCallback(() => {
     if (loopRef.current) {
@@ -248,7 +270,12 @@ export function useTutorVoice(options: {
 
   /** 私教开口时抬麦克风门槛，避免把自己的声音当成孩子在说话 */
   const setTutorSpeaking = useCallback((tutorSpeaking: boolean) => {
-    loopRef.current?.setSensitivity(tutorSpeaking ? 3 : 1);
+    const loop = loopRef.current;
+    if (!loop) return;
+    loop.setSensitivity(tutorSpeaking ? 3 : 1);
+    // 同时也告诉循环"私教在忙"：它念答案时孩子安静听着是正常的，
+    // 不该被算成走开了而把麦克风关掉。
+    loop.setTutorActive(tutorSpeaking);
   }, []);
 
   // 语音能力被关掉（例如服务端未开通）时，别留下一个开着但用不了的循环

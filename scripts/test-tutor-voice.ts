@@ -9,6 +9,7 @@
  */
 import { stripForSpeech } from "../apps/web/src/lib/tutor.js";
 import {
+  isIdleTimeout,
   isUsableUtterance,
   rmsOf,
   UtteranceTracker,
@@ -86,6 +87,43 @@ console.log("断句状态机");
   tracker.push(0.5, 0);
   tracker.push(0.5, 100);
   check("缩短静音阈值后更快断句", tracker.push(0.0, 600).shouldStop);
+}
+
+console.log("静默自动收工");
+{
+  const idleMs = 60_000;
+  check(
+    "刚说完话不会收工",
+    !isIdleTimeout({ now: 10_000, lastHeardAt: 10_000, idleMs, tutorActive: false }),
+  );
+  check(
+    "安静没到上限不收工",
+    !isIdleTimeout({ now: 69_999, lastHeardAt: 10_000, idleMs, tutorActive: false }),
+  );
+  check(
+    "安静超过上限就收工",
+    isIdleTimeout({ now: 70_000, lastHeardAt: 10_000, idleMs, tutorActive: false }),
+  );
+  // 私教在思考或念答案时，孩子安静听着是正常的，不能按静音计时把麦克风关掉
+  check(
+    "私教在念的时候不收工",
+    !isIdleTimeout({ now: 70_000, lastHeardAt: 10_000, idleMs, tutorActive: true }),
+  );
+  check(
+    "私教念完才重新开始计时",
+    isIdleTimeout({ now: 129_999, lastHeardAt: 70_000, idleMs, tutorActive: false }) === false &&
+      isIdleTimeout({ now: 130_000, lastHeardAt: 70_000, idleMs, tutorActive: false }),
+  );
+  // 关掉兜底（0 或没配）表示一直听，不要自作主张收工
+  check(
+    "配 0 表示不自动收工",
+    !isIdleTimeout({ now: 10_000_000, lastHeardAt: 0, idleMs: 0, tutorActive: false }),
+  );
+  check(
+    "没配（NaN）也不自动收工",
+    !isIdleTimeout({ now: 10_000_000, lastHeardAt: 0, idleMs: Number(undefined), tutorActive: false }),
+  );
+  check("默认兜底是 3 分钟", VOICE_LOOP_DEFAULTS.idleMs === 180_000);
 }
 
 console.log("朗读文本清理");

@@ -58,7 +58,11 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [status, setStatus] = useState<{ enabled: boolean; ready: boolean; model_configured: boolean } | null>(null);
-  const [voiceStatus, setVoiceStatus] = useState<{ asr: boolean; tts: boolean }>({ asr: false, tts: false });
+  const [voiceStatus, setVoiceStatus] = useState<{ asr: boolean; tts: boolean; idleMs: number }>({
+    asr: false,
+    tts: false,
+    idleMs: 0,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -97,8 +101,15 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
       })
       .catch((err) => setError((err as Error).message));
     request("/api/tutor/voice/status", {}, token)
-      .then((data) => setVoiceStatus({ asr: Boolean(data?.asr), tts: Boolean(data?.tts) }))
-      .catch(() => setVoiceStatus({ asr: false, tts: false }));
+      .then((data) =>
+        setVoiceStatus({
+          asr: Boolean(data?.asr),
+          tts: Boolean(data?.tts),
+          // 静默自动收工的时长由服务端下发，前端不写死
+          idleMs: Number(data?.idle_ms) > 0 ? Number(data.idle_ms) : 0,
+        }),
+      )
+      .catch(() => setVoiceStatus({ asr: false, tts: false, idleMs: 0 }));
   }, [token, request]);
 
   useEffect(() => {
@@ -150,6 +161,11 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
       await sendRef.current(text);
     },
     onSpeechStart: () => bargeInRef.current(),
+    onIdle: () =>
+      setNotice(
+        `有一会儿没听到声音，连续对话先关上了。想接着说，再点一下「连续对话」。`,
+      ),
+    idleMs: voiceStatus.idleMs,
     onError: (message) => setError(message),
   });
   const speakRef = useRef(voice.speak);
