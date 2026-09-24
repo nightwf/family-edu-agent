@@ -105,7 +105,14 @@ function tutorTurnSse() {
 }
 
 /** 记录这一轮桩接口被打了哪些关键请求（每个形态重置一次）。 */
-const netProbe = { messagePosts: 0, interruptCalls: 0, conversationCreates: 0, speakFlags: [] };
+const netProbe = {
+  messagePosts: 0,
+  interruptCalls: 0,
+  conversationCreates: 0,
+  transcribeCalls: 0,
+  continuousTranscribeCalls: 0,
+  speakFlags: [],
+};
 
 /**
  * 给 Chromium 喂一段可控的"麦克风输入"：说 0.7 秒、停 1.6 秒，循环 5 遍。
@@ -214,7 +221,7 @@ const stubs = [
 ];
 
 /** 服务端下发的静默兜底时长。主用例给大值，免得验证过程里被自动收工打断。 */
-const probeState = { voiceIdleMs: 180_000 };
+const probeState = { voiceIdleMs: 180_000, continuousMode: false };
 
 /**
  * 麦克风生命周期探针：把每次拿到的流留一份引用，事后能数出"还有几路在采音"。
@@ -408,6 +415,10 @@ try {
     netProbe.messagePosts = 0;
     netProbe.interruptCalls = 0;
     netProbe.conversationCreates = 0;
+    netProbe.transcribeCalls = 0;
+    netProbe.continuousTranscribeCalls = 0;
+    netProbe.speakFlags = [];
+    probeState.continuousMode = false;
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
@@ -472,6 +483,22 @@ try {
         });
         return;
       }
+      // 实时对话里孩子说出的第一句会识别成文字，触发一轮真实回答；
+      // 之后的话用来验证插话打断，不再重复发消息。
+      // 注意"按住说话"也走同一个识别接口，所以这里要用"是否正在实时对话"
+      // 来区分，否则按住说话的第一次识别会把这句话抢走，实时对话里就没词了。
+      if (/\/api\/tutor\/voice\/transcribe(\?|$)/.test(url)) {
+        netProbe.transcribeCalls += 1;
+        const answerThis = probeState.continuousMode && netProbe.continuousTranscribeCalls === 0;
+        if (probeState.continuousMode) netProbe.continuousTranscribeCalls += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": "*" },
+          body: JSON.stringify({ text: answerThis ? "这道题我不会" : "" }),
+        });
+        return;
+      }
       const match = stubs.find(([pattern]) => pattern.test(url));
       const body = match ? match[1]() : {};
       await route.fulfill({
@@ -489,6 +516,8 @@ try {
     // 只在安卓形态下装：其他形态本来就不该碰麦克风。
     if (viewport.apk) {
       await page.addInitScript(MIC_PROBE_SCRIPT);
+      // 实时对话里"系统在说话"靠 audio 元素确认，不是靠一个会变的按钮
+      await page.addInitScript(AUDIO_PROBE_SCRIPT);
     }
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     await page.waitForTimeout(800);
@@ -829,9 +858,7 @@ try {
         const autoRead =
           document.querySelector('button[aria-label="开启自动朗读"]') ||
           document.querySelector('button[aria-label="关闭自动朗读"]');
-        const continuous =
-          document.querySelector('button[aria-label="开启连续对话"]') ||
-          document.querySelector('button[aria-label="关闭连续对话"]');
+        const continuous = document.querySelector('button[aria-label="开启连续对话"]');
         const box = (el) => {
           const rect = el?.getBoundingClientRect();
           return rect ? { h: Math.round(rect.height), inside: rect.left >= 0 && rect.right <= window.innerWidth + 1 } : null;
@@ -842,11 +869,11 @@ try {
           autoReadBox: box(autoRead),
           hasKnob: !!autoRead?.querySelector('span[aria-hidden="true"] span'),
           continuousIsSeparateButton: continuous?.tagName === "BUTTON" && !!continuous?.getAttribute("aria-pressed"),
-          continuousRole: continuous?.getAttribute("role") || "",
+          // 入口要求是"一个好看的语音图标，不需要文字说明"
+          continuousHasNoText: (continuous?.textContent || "").trim() === "",
           continuousBox: box(continuous),
-          // 免提还没开时，舞台上不该出现人物
-          stageBefore: !!document.querySelector('[data-testid="voice-stage"]'),
-          roomBgBefore: getComputedStyle(document.querySelector('[data-testid="tutor-scroll"]')).backgroundImage,
+          // 没点入口前，实时对话整屏不该出现
+          liveViewBefore: !document.querySelector('[data-testid="voice-live"]'),
         };
       });
 
@@ -895,53 +922,63 @@ try {
         });
       }
 
-      // 先把连续对话打开：麦克风一直开着，私教念答案时才谈得上插话打断。
+      // 点一下 Siri 入口，整个窗口换成实时对话。
       if (await continuousToggle.count()) {
+        probeState.continuousMode = true;
         await continuousToggle.click();
-        continuousProbe.reachedSpeech = await page
-          .getByText("听到了，继续说")
+        continuousProbe.started = await page
+          .locator('[data-testid="voice-live"]')
           .first()
           .waitFor({ state: "visible", timeout: 6000 })
           .then(() => true)
           .catch(() => false);
-        continuousProbe.started = await page
-          .locator('button[aria-label="关闭连续对话"]')
+        // 假麦克风会先进入"在听"，说上话之后再进入"听到了，继续说"
+        continuousProbe.reachedListening = await page
+          .getByText("在听，直接说就行")
           .first()
-          .isVisible()
+          .waitFor({ state: "visible", timeout: 6000 })
+          .then(() => true)
           .catch(() => false);
-        // 多出来的语音工具条不能让窄屏横向溢出
+        continuousProbe.reachedSpeech = await page
+          .getByText("听到了，继续说")
+          .first()
+          .waitFor({ state: "visible", timeout: 8000 })
+          .then(() => true)
+          .catch(() => false);
+        // 整屏模式也不能让窄屏横向溢出
         continuousProbe.rowFits = await page.evaluate(
           () => document.documentElement.scrollWidth - window.innerWidth <= 0,
         );
 
-        // 免提模式下要出现的"人物舞台"
-        continuousProbe.stage = await page.evaluate(() => {
-          const stage = document.querySelector('[data-testid="voice-stage"]');
-          const scroll = document.querySelector('[data-testid="tutor-scroll"]');
+        // 实时对话这一屏长什么样：人物 + 光环 + 波纹 + 只读文字，没有输入框。
+        continuousProbe.liveView = await page.evaluate(() => {
+          const live = document.querySelector('[data-testid="voice-live"]');
+          const transcript = document.querySelector('[data-testid="voice-transcript"]');
           const closeBtn = document.querySelector('button[aria-label="退出免提模式"]');
-          const figure = stage?.querySelector("img");
+          const figure = live?.querySelector("img");
           const rect = (el) => (el ? el.getBoundingClientRect() : null);
           const close = rect(closeBtn);
           const figRect = rect(figure);
+          const liveRect = rect(live);
           return {
-            present: !!stage,
-            // 人物要真的画出来了，不是个空框
+            present: !!live,
             figureSrc: figure?.getAttribute("src") || "",
             figureBox: figRect ? { w: Math.round(figRect.width), h: Math.round(figRect.height) } : null,
-            // 尺寸对了也可能是张裂图，还要看它有没有真的解码出像素
             figureLoaded: !!figure && figure.complete && figure.naturalWidth > 0 && figure.naturalHeight > 0,
             figureAnim: figure ? getComputedStyle(figure).animationName : "",
-            hasSpotlight: !!stage?.querySelector(".voice-spotlight"),
-            orbs: stage?.querySelectorAll(".voice-orb").length || 0,
-            rings: stage?.querySelectorAll(".voice-ring").length || 0,
-            bars: stage?.querySelectorAll(".voice-bar").length || 0,
-            stateText: (stage?.innerText || "").trim(),
-            // 舞台和它正下方那条纯背景带的坐标，拿去按像素验
-            stageBox: (() => {
-              const box = rect(stage);
-              return box ? { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.width), h: Math.round(box.height) } : null;
-            })(),
-            // 小关闭按钮：不能是个点不到的小点，也不能跑出屏幕
+            hasHalo: !!live?.querySelector(".voice-halo"),
+            hasSpotlight: !!live?.querySelector(".voice-spotlight"),
+            rings: live?.querySelectorAll(".voice-ring").length || 0,
+            ripples: live?.querySelectorAll(".voice-ripple").length || 0,
+            stateText: (live?.innerText || "").replace(/\s+/g, " ").trim(),
+            hasTranscript: !!transcript,
+            transcriptText: (transcript?.innerText || "").trim(),
+            // 这一屏不许有播放按钮，也不许有输入框
+            transcriptHasPlayButton: !!transcript?.querySelector('button[aria-label="朗读这段"], button[aria-label="停止朗读"]'),
+            hasAnyTextInput: !!live?.querySelector("textarea, input"),
+            liveBox: liveRect
+              ? { x: Math.round(liveRect.x), y: Math.round(liveRect.y), w: Math.round(liveRect.width), h: Math.round(liveRect.height) }
+              : null,
             closeBox: close
               ? {
                   w: Math.round(close.width),
@@ -949,103 +986,84 @@ try {
                   inside: close.left >= 0 && close.right <= window.innerWidth + 1 && close.top >= 0,
                 }
               : null,
-            // 免提时整片底色要和平时的米色明显不同
-            roomBgAfter: scroll ? getComputedStyle(scroll).backgroundImage : "",
           };
         });
+        await page.screenshot({ path: path.join(outDir, `voice-live-${viewport.name}.png`), fullPage: false });
       }
 
-      // 舞台和它下方那条背景带各截一小块，用像素确认"真的画出来了"。
-      // 这两条是纯看元素测不出来的：图裂了盒子还在，底色没换类名也在。
+      // 实时对话背景按像素验一下：是沉浸式深绿，而不是一块白底。
       continuousProbe.pixels = null;
-      if (continuousProbe.stage?.present) {
-        const stageShot = await page.locator('[data-testid="voice-stage"]').screenshot();
+      if (continuousProbe.started) {
+        const liveShot = await page.locator('[data-testid="voice-live"]').screenshot();
         continuousProbe.pixels = {
-          stage: await pixelStats(browser, stageShot, {
-            x: 0,
-            y: 0,
-            w: continuousProbe.stage.stageBox.w,
-            h: continuousProbe.stage.stageBox.h,
-          }),
+          live: await pixelStats(browser, liveShot, { x: 6, y: 6, w: 90, h: 64 }),
         };
-        const zone = continuousProbe.stage.stageBox;
-        // Playwright 的 clip 要 width/height，下面喂给 canvas 的是 w/h，两套名字别搞混
-        const strip = { x: zone.x + 10, y: zone.y + zone.h + 4, width: 24, height: 8 };
-        const stripShot = await page.screenshot({ clip: strip });
-        continuousProbe.pixels.strip = await pixelStats(
-          browser,
-          stripShot,
-          { x: 0, y: 0, w: strip.width, h: strip.height },
-        );
       }
       // 连续对话期间麦克风是持续开着的（这是插话打断的前提）
       const micListening = await page.evaluate(() => window.__micProbe());
 
-      // 发一条消息：SSE 桩会先吐文本、再吐两段语音。
-      // 「停一下」按钮出现，说明语音片段真的被排队播放了（文本已经先出现在屏幕上）。
-      const streamProbe = { sent: false, playing: false };
-      const composer = page.locator('textarea[placeholder="说说你卡在哪一步"]').first();
-      if (await composer.count()) {
-        await composer.fill("这道题我不会");
-        await page.locator('button[aria-label="发送"]').first().click();
-        streamProbe.sent = await page
-          .getByText("先读一遍题。")
-          .first()
-          .waitFor({ state: "visible", timeout: 6000 })
-          .then(() => true)
-          .catch(() => false);
-        streamProbe.playing = await page
-          .locator('button[aria-label="停止朗读"]')
-          .first()
-          .waitFor({ state: "visible", timeout: 6000 })
-          .then(() => true)
-          .catch(() => false);
-      }
+      // 孩子说出的第一句被识别成文字，自动发出去；答案边生成边流进实时文字。
+      const streamProbe = { sent: false, userShown: false, playing: false };
+      streamProbe.userShown = await page
+        .locator('[data-testid="voice-transcript"]', { hasText: "这道题我不会" })
+        .first()
+        .waitFor({ state: "visible", timeout: 12_000 })
+        .then(() => true)
+        .catch(() => false);
+      streamProbe.sent = await page
+        .locator('[data-testid="voice-transcript"]', { hasText: "先读一遍题" })
+        .first()
+        .waitFor({ state: "visible", timeout: 12_000 })
+        .then(() => true)
+        .catch(() => false);
+      // 答案已经流进实时文字了，再验一遍这一屏"只读对话"的约束：
+      // 有文字、没有播放按钮、也没有输入框。
+      continuousProbe.transcript = await page.evaluate(() => {
+        const live = document.querySelector('[data-testid="voice-live"]');
+        const transcript = document.querySelector('[data-testid="voice-transcript"]');
+        return {
+          present: !!transcript,
+          text: (transcript?.innerText || "").trim(),
+          hasPlayButton: !!transcript?.querySelector(
+            'button[aria-label="朗读这段"], button[aria-label="停止朗读"]',
+          ),
+          hasAnyInput: !!live?.querySelector("textarea, input"),
+        };
+      });
+      // 私教真的在念：audio 元素活着，不是按钮变了个颜色
+      streamProbe.playing = await page
+        .waitForFunction(() => window.__audioProbe().live >= 1, null, { timeout: 12_000 })
+        .then(() => true)
+        .catch(() => false);
 
-      // 插话打断：麦克风是开着的、私教正在念，这时报上"听到孩子说话"，
-      // 前端应当本地停嘴并让服务端停止生成。
-      const bargeProbe = { interruptCalls: 0, noticeShown: false };
+      // 插话打断：私教念着的时候孩子又开口，本地停嘴 + 服务端停止生成。
+      const bargeProbe = { interruptCalls: 0, audioStopped: false };
       if (streamProbe.playing) {
-        // 假麦克风按"说 0.7 秒、停 1.6 秒"循环；等它进入下一段人声，
-        // 前端就该发一次打断请求，并把本地正在念的音频掐掉。
         await waitFor(() => netProbe.interruptCalls > 0, 12000);
         bargeProbe.interruptCalls = netProbe.interruptCalls;
-        bargeProbe.noticeShown = (await page.locator('button[aria-label="停止朗读"]').count()) === 0;
+        bargeProbe.audioStopped = await page
+          .waitForFunction(() => window.__audioProbe().live === 0, null, { timeout: 6000 })
+          .then(() => true)
+          .catch(() => false);
       }
 
-      if (await page.locator('button[aria-label="关闭连续对话"]').first().count()) {
-        await page.locator('button[aria-label="关闭连续对话"]').first().click();
+      // 退出实时对话：小叉要能回到普通对话，麦克风也要还回去。
+      if (await page.locator('button[aria-label="退出免提模式"]').first().count()) {
+        await page.locator('button[aria-label="退出免提模式"]').first().click();
         continuousProbe.stopped = await page
           .locator('button[aria-label="开启连续对话"]')
           .first()
-          .isVisible()
+          .waitFor({ state: "visible", timeout: 5000 })
+          .then(() => true)
           .catch(() => false);
+        continuousProbe.exited = await page.evaluate(
+          () => !document.querySelector('[data-testid="voice-live"]'),
+        );
       }
 
-      // 关掉连续对话，麦克风要立刻还回去，不能留一路在采音
+      // 关掉实时对话，麦克风要立刻还回去，不能留一路在采音
       await page.waitForTimeout(400);
       const micAfterStop = await page.evaluate(() => window.__micProbe());
-
-      // 舞台上那个小叉要能退出免提，而不是摆设
-      const stageCloseProbe = { clicked: false, exited: false, stageGone: false };
-      if (await page.locator('button[aria-label="开启连续对话"]').first().count()) {
-        await page.locator('button[aria-label="开启连续对话"]').first().click();
-        await page.waitForTimeout(700);
-        const stageClose = page.locator('button[aria-label="退出免提模式"]').first();
-        if (await stageClose.count()) {
-          await stageClose.click();
-          stageCloseProbe.clicked = true;
-          await page.waitForTimeout(500);
-          stageCloseProbe.exited = await page
-            .locator('button[aria-label="开启连续对话"]')
-            .first()
-            .isVisible()
-            .catch(() => false);
-          stageCloseProbe.stageGone = await page.evaluate(
-            () => !document.querySelector('[data-testid="voice-stage"]'),
-          );
-        }
-      }
 
       // 再开一次，验证"手机切到后台"这条路径：页面不可见了还在采音，
       // 就是家长会看到麦克风指示灯一直亮、也真的在被录。
@@ -1098,6 +1116,11 @@ try {
         navBlockedWhileOpen,
         streamProbe,
         bargeProbe,
+        net: {
+          messagePosts: netProbe.messagePosts,
+          transcribeCalls: netProbe.transcribeCalls,
+          interruptCalls: netProbe.interruptCalls,
+        },
         checks: {
           entryOnlyOnApk: entryVisible,
           // 常驻浮标：首屏可见、大小够点、完整在视口内
@@ -1130,7 +1153,11 @@ try {
           voiceControlsPresent:
             tutor.hasHoldToTalk && tutor.hasAutoReadToggle && tutor.hasContinuousToggle && tutor.hasSpeakButton,
           readAloudWorks: speakProbe.started && speakProbe.stopped,
-          continuousListeningWorks: continuousProbe.started && continuousProbe.reachedSpeech && continuousProbe.stopped,
+          continuousListeningWorks:
+            continuousProbe.started &&
+            continuousProbe.reachedListening &&
+            continuousProbe.reachedSpeech &&
+            continuousProbe.stopped,
           voiceRowFits: continuousProbe.rowFits,
           // 自动朗读是"开关"语义：role=switch + aria-checked + 看得见的滑块。
           // 屏幕上一个开/关选项和一个"点一下执行一次"的动作长一样，家长就分不清了。
@@ -1140,44 +1167,44 @@ try {
             readModeControls.hasKnob &&
             (readModeControls.autoReadBox?.h ?? 0) >= 24 &&
             readModeControls.autoReadBox?.inside === true,
-          // 连续对话是独立按钮，不和开关挤成一段文字
+          // 连续对话是独立按钮，不和开关挤成一段文字；入口是图标，不带文字说明
           continuousIsOwnButton:
             readModeControls.continuousIsSeparateButton &&
-            (readModeControls.continuousBox?.h ?? 0) >= 28 &&
+            (readModeControls.continuousBox?.h ?? 0) >= 40 &&
             readModeControls.continuousBox?.inside === true,
-          // 免提没开时不该有舞台，底色也该是平时那片米色
-          stageOnlyWhenContinuous: readModeControls.stageBefore === false && readModeControls.roomBgBefore === "none",
-          // 免提舞台：人物真的画出来了，带呼吸/点头动画，身后有追光垫底
-          voiceStagePresent:
-            continuousProbe.stage?.present === true &&
-            (continuousProbe.stage.figureBox?.w ?? 0) > 0 &&
-            (continuousProbe.stage.figureBox?.h ?? 0) > 0 &&
-            (continuousProbe.stage.figureSrc || "").includes("brand/child-") &&
-            continuousProbe.stage.figureLoaded === true &&
-            continuousProbe.stage.figureAnim !== "none" &&
-            continuousProbe.stage.hasSpotlight === true,
-          voiceStageAnimated: (continuousProbe.stage?.orbs ?? 0) >= 3 && (continuousProbe.stage?.bars ?? 0) >= 7,
-          voiceStageStateCopy: (continuousProbe.stage?.stateText || "").includes("听到了，继续说"),
-          // 落在像素上：舞台里得真有内容（不是一块纯色），
-          // 而且那一块是深色的舞台，和旁边浅色背景形成对比。
-          voiceStageHasContent:
-            (continuousProbe.pixels?.stage?.distinctColors ?? 0) >= 8 &&
-            (continuousProbe.pixels?.stage?.luminanceRange ?? 0) >= 60 &&
-            (continuousProbe.pixels?.stage?.avgLuminance ?? 255) <= 160,
-          // 舞台正下方那条纯背景带要浅、且偏冷（绿 ≥ 红）。
-          // 平时那片米色是红最多的暖色，换成薄荷之后绿才会压过红——
-          // 这一条同时证明"底色真的换了"和"消息里的深色文字还读得清"。
-          voiceModeBackgroundIsMint:
-            (continuousProbe.pixels?.strip?.avgLuminance ?? 0) >= 190 &&
-            (continuousProbe.pixels?.strip?.avgGreen ?? 0) >= (continuousProbe.pixels?.strip?.avgRed ?? 255),
-          // 舞台上的小叉不能是个点不到的小点，也不能跑出屏幕
-          voiceStageCloseUsable:
-            (continuousProbe.stage?.closeBox?.w ?? 0) >= 32 &&
-            (continuousProbe.stage?.closeBox?.h ?? 0) >= 32 &&
-            continuousProbe.stage?.closeBox?.inside === true,
-          // 免提时整片背景换过，和平时明显区分
-          roomBackgroundDiffers: (continuousProbe.stage?.roomBgAfter || "none") !== "none",
-          stageCloseExits: stageCloseProbe.clicked && stageCloseProbe.exited && stageCloseProbe.stageGone,
+          continuousIsIconOnly: readModeControls.continuousHasNoText,
+          // 没点入口前，实时对话整屏不该出现
+          stageOnlyWhenContinuous: readModeControls.liveViewBefore === true,
+          // 实时对话：人物真的画出来、带光环和追光、还带呼吸/点头动画
+          voiceLivePresent:
+            continuousProbe.liveView?.present === true &&
+            (continuousProbe.liveView.figureBox?.w ?? 0) > 0 &&
+            (continuousProbe.liveView.figureBox?.h ?? 0) > 0 &&
+            (continuousProbe.liveView.figureSrc || "").includes("brand/child-") &&
+            continuousProbe.liveView.figureLoaded === true &&
+            continuousProbe.liveView.figureAnim !== "none" &&
+            continuousProbe.liveView.hasHalo === true &&
+            continuousProbe.liveView.hasSpotlight === true,
+          // 孩子在说话：光圈扩散 + 人物下面出现水波纹
+          voiceLiveReactive:
+            (continuousProbe.liveView?.rings ?? 0) >= 2 &&
+            (continuousProbe.liveView?.ripples ?? 0) >= 3,
+          voiceLiveStateCopy: (continuousProbe.liveView?.stateText || "").includes("听到了，继续说"),
+          // 实时文字：孩子这句和私教答案都出现了，且这一屏没有播放按钮、没有输入框
+          voiceTranscriptIsReadOnly:
+            continuousProbe.transcript?.present === true &&
+            (continuousProbe.transcript?.text || "").includes("这道题我不会") &&
+            (continuousProbe.transcript?.text || "").includes("先读一遍题") &&
+            continuousProbe.transcript?.hasPlayButton === false &&
+            continuousProbe.transcript?.hasAnyInput === false,
+          // 落在像素上：这一屏是沉浸式深绿，不是一块白底
+          voiceLiveBackgroundIsDark: (continuousProbe.pixels?.live?.avgLuminance ?? 255) <= 160,
+          // 小叉能点到，也能真的退回普通对话
+          voiceLiveCloseUsable:
+            (continuousProbe.liveView?.closeBox?.w ?? 0) >= 32 &&
+            (continuousProbe.liveView?.closeBox?.h ?? 0) >= 32 &&
+            continuousProbe.liveView?.closeBox?.inside === true,
+          voiceLiveExits: continuousProbe.stopped === true && continuousProbe.exited === true,
           // 麦克风只在"真的在连续对话"时开着，别的时候必须一路都不留
           micSilentUntilAsked: micIdle.liveAudioTracks === 0,
           micOpenWhileListening: micListening.liveAudioTracks >= 1,
@@ -1189,9 +1216,9 @@ try {
           voiceToolbarUsable:
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
           // 文本先出现，语音片段随后边到边念
-          streamedSpeechWorks: streamProbe.sent && streamProbe.playing && netProbe.messagePosts === 1,
+          streamedSpeechWorks: streamProbe.userShown && streamProbe.sent && streamProbe.playing && netProbe.messagePosts === 1,
           // 孩子插话：本地停嘴 + 服务端停止生成
-          bargeInWorks: bargeProbe.interruptCalls > 0 && bargeProbe.noticeShown,
+          bargeInWorks: bargeProbe.interruptCalls > 0 && bargeProbe.audioStopped,
         },
       };
       await page.keyboard.press("Escape").catch(() => {});
@@ -1308,7 +1335,7 @@ try {
       await idleToggle.click();
       await idlePage.waitForTimeout(900);
       idleProbe.enabled = await idlePage
-        .locator('button[aria-label="关闭连续对话"]')
+        .locator('[data-testid="voice-live"]')
         .first()
         .isVisible()
         .catch(() => false);

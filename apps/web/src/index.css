@@ -52,45 +52,81 @@ body {
   );
 }
 
-/* 免提模式下整片背景换成薄荷色。和平时那片米色拉开距离，
-   但保持浅色：下面的消息还是深色文字，底色一变深就没法读了。 */
-.voice-room-bg {
-  background:
-    radial-gradient(80% 55% at 50% 0%, rgba(15, 118, 110, 0.16) 0%, transparent 70%),
-    linear-gradient(180deg, #e4f5f0 0%, #eef9f5 45%, #e6f4ef 100%);
-}
-
-/* 免提模式的对话舞台。
-
-   孩子在这个模式里是不看键盘的：有没有在听、有没有听懂，全靠画面回答。
-   所以背景换成明显不同的一片，把人物放大、让它随状态动起来，
-   一眼就能看出"现在轮到我说话"还是"它在想"。 */
-.voice-stage {
+/* 实时对话：整块窗口都换成沉浸式深绿，不再是一个嵌在消息列表上面的小舞台。
+   孩子进来就是在"说话"，一眼就该知道现在是另一件事。 */
+.voice-live {
   background:
     radial-gradient(120% 90% at 50% 0%, #1c8f83 0%, transparent 58%),
     radial-gradient(90% 70% at 12% 100%, #2fa79a 0%, transparent 60%),
     linear-gradient(170deg, #0f766e 0%, #12907f 55%, #16796f 100%);
 }
 
-/* 背景里慢慢飘的光斑，给"它在听"一点活着的感觉 */
-.voice-orb {
-  position: absolute;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.16);
-  filter: blur(2px);
-  animation: voice-orb-float 9s ease-in-out infinite;
+/* 私教工具条上的实时对话入口：一颗 Siri 味的小球，不写字。 */
+.siri-toggle {
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  color: #0f766e;
 }
 
-@keyframes voice-orb-float {
+.siri-toggle-active {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 0 0 5px rgba(15, 118, 110, 0.14),
+    0 12px 26px rgba(15, 118, 110, 0.28);
+}
+
+.siri-toggle-active .siri-glyph {
+  animation: siri-pulse 1.9s ease-in-out infinite;
+}
+
+.siri-glyph {
+  position: relative;
+  width: 23px;
+  height: 23px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #8ff2e2 34%, #13a291 64%, #0b5f59 100%);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.55),
+    0 7px 14px rgba(4, 48, 44, 0.28);
+}
+
+.siri-glyph::before,
+.siri-glyph::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+}
+
+.siri-glyph::before {
+  inset: 4px;
+  opacity: 0.72;
+}
+
+.siri-glyph::after {
+  inset: 7px;
+  opacity: 0.48;
+}
+
+@keyframes siri-pulse {
   0%,
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0.5;
+    transform: scale(1);
   }
   50% {
-    transform: translate3d(0, -16px, 0) scale(1.12);
-    opacity: 0.85;
+    transform: scale(1.14);
   }
+}
+
+/* 人物身后更大的那圈柔光，和追光一起把透明底人物从深色背景里托出来 */
+.voice-halo {
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.34) 0%,
+    rgba(143, 242, 226, 0.2) 40%,
+    rgba(255, 255, 255, 0) 72%
+  );
+  filter: blur(2px);
 }
 
 /* 人物：安静听着的时候轻轻起伏 */
@@ -162,36 +198,52 @@ body {
   }
 }
 
-/* 音量条：收声时上下跳，让人相信"它真的在听" */
-.voice-bar {
-  width: 5px;
-  height: 8px;
-  border-radius: 9999px;
-  background: currentColor;
-  animation: voice-bar-jump 1s ease-in-out infinite;
+/* 孩子开口时，人物下面一圈圈水波纹。它要往下铺开、淡出，
+   像水面被声音推开，而不是竖着跳的音量条。 */
+.voice-ripples {
+  position: relative;
+  height: 42px;
+  width: 210px;
+  flex-shrink: 0;
 }
 
-@keyframes voice-bar-jump {
-  0%,
-  100% {
-    height: 8px;
-    opacity: 0.55;
+.voice-ripple {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 150px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  transform: translateX(-50%);
+  animation: voice-water 1.9s ease-out infinite;
+}
+
+@keyframes voice-water {
+  0% {
+    transform: translateX(-50%) translateY(0) scale(0.42, 0.55);
+    opacity: 0;
   }
-  50% {
-    height: 26px;
-    opacity: 1;
+  22% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-50%) translateY(-22px) scale(1.15, 1.35);
+    opacity: 0;
   }
 }
 
 /* 动效是把状态讲清楚的手段，不是装饰；系统要求少动就老实停住 */
 @media (prefers-reduced-motion: reduce) {
-  .voice-orb,
   .voice-figure,
   .voice-ring,
-  .voice-bar {
+  .voice-halo,
+  .voice-ripple,
+  .siri-glyph {
     animation: none;
   }
-  .voice-ring {
+  .voice-ring,
+  .voice-ripple {
     opacity: 0.35;
   }
 }

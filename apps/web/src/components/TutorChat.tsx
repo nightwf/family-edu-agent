@@ -9,7 +9,6 @@ import {
   MoreHorizontal,
   Plus,
   Printer,
-  Radio,
   Send,
   User,
   Volume2,
@@ -61,14 +60,6 @@ const LOOP_STATE_POSE: Record<string, string> = {
   listening: "stable",
   speech: "progress",
   transcribing: "thinking",
-};
-
-/** 免提模式里那句话下面的小提醒，说清"什么时候会发出去" */
-const LOOP_STATE_HINT: Record<string, string> = {
-  idle: "点下面的按钮开始，或者直接说话",
-  listening: "说完停一下，我会自动接上",
-  speech: "说完停一下，我就去回答",
-  transcribing: "听清了，正在想怎么讲",
 };
 
 /**
@@ -126,6 +117,8 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   const busyRef = useRef(false);
   const autoReadRef = useRef(autoRead);
   const voiceStatusRef = useRef(voiceStatus);
+  /** 实时对话里的文字流，跟着最新一句自动滚到底 */
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
   /**
    * 这一轮回答的朗读被孩子自己打断了：他按了录音、发了新消息、关了开关，
    * 或者干脆开口插了话。打断之后就不再自动接着念——剩下的片段、收尾时
@@ -170,6 +163,10 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  useEffect(() => {
+    if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
+  }, [messages, busy]);
 
   useEffect(() => {
     autoReadRef.current = autoRead;
@@ -578,6 +575,95 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
     );
   }
 
+  // 实时对话：整个私教窗口换成全屏的"听/说"界面。
+  // 孩子在这里不看键盘，也不打任何一个字，全靠画面和声音判断轮到谁了。
+  if (voice.continuous) {
+    const speaking = voice.speaking;
+    const userSpeaking = voice.loopState === "speech";
+    const thinking = voice.loopState === "transcribing";
+    const statusText = speaking
+      ? "我在讲，先听我说完"
+      : LOOP_STATE_TEXT[voice.loopState] || "正在说话…";
+
+    return (
+      <div className="voice-live flex h-full min-h-0 flex-col" data-testid="voice-live">
+        <div className="relative z-10 flex shrink-0 items-center justify-between gap-3 px-4 py-3 text-white">
+          <div className="min-w-0 truncate text-sm font-bold">
+            {selectedChild?.name ? `和 ${selectedChild.name} 实时对话` : "实时对话"}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={voice.toggleContinuous}
+              aria-label="退出免提模式"
+              title="退出实时对话"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25 active:scale-95"
+            >
+              <X size={18} />
+            </button>
+            {headerExtra}
+          </div>
+        </div>
+
+        <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+          <div className="relative grid h-44 w-44 place-items-center">
+            <span aria-hidden="true" className="voice-halo absolute inset-0" />
+            <span aria-hidden="true" className="voice-spotlight absolute inset-4" />
+            {(speaking || userSpeaking) && (
+              <>
+                <span className="voice-ring" />
+                <span className="voice-ring" style={{ animationDelay: "0.8s" }} />
+              </>
+            )}
+            <img
+              src={stateAsset(LOOP_STATE_POSE[voice.loopState] || "stable", selectedChild?.gender)}
+              alt=""
+              className={`voice-figure relative h-36 w-auto drop-shadow-[0_18px_28px_rgba(4,48,44,0.45)] ${
+                speaking ? "is-speech" : thinking ? "is-thinking" : ""
+              }`}
+            />
+          </div>
+
+          {/* 孩子开口时，人物下面一圈圈水波纹，表示"正在说话" */}
+          {userSpeaking && (
+            <div aria-hidden="true" data-testid="voice-ripples" className="voice-ripples">
+              <span className="voice-ripple" />
+              <span className="voice-ripple" style={{ animationDelay: "0.55s" }} />
+              <span className="voice-ripple" style={{ animationDelay: "1.1s" }} />
+            </div>
+          )}
+
+          <div className="relative mt-3 text-center text-white">
+            <div className="text-lg font-black tracking-normal">{statusText}</div>
+          </div>
+        </div>
+
+        {/* 实时文字：纯对话，没有播放按钮，也没有输入框 */}
+        <div
+          ref={transcriptRef}
+          data-testid="voice-transcript"
+          className="relative z-10 max-h-[38%] shrink-0 overflow-y-auto border-t border-white/10 px-5 py-4 text-sm leading-6 text-white"
+        >
+          {messages.length === 0 ? (
+            <p className="text-center text-white/55">直接说就行，说完停一下，我会接上</p>
+          ) : (
+            messages
+              .filter((message) => message.content)
+              .map((message) => (
+                <p
+                  key={message.id}
+                  className={message.role === "user" ? "mt-2 text-right text-white/85" : "mt-2 text-left"}
+                >
+                  {message.content}
+                </p>
+              ))
+          )}
+          {busy && <p className="mt-2 text-left text-white/45">…</p>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {children.length > 1 && (
@@ -669,13 +755,12 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
                 onClick={voice.toggleContinuous}
                 aria-label={voice.continuous ? "关闭连续对话" : "开启连续对话"}
                 aria-pressed={voice.continuous}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-bold transition ${
-                  voice.continuous
-                    ? "bg-teal text-white shadow-[0_6px_16px_rgba(15,118,110,0.32)]"
-                    : "border border-teal/40 bg-white/70 text-teal"
+                title="实时对话"
+                className={`siri-toggle grid h-11 w-11 shrink-0 place-items-center rounded-full transition ${
+                  voice.continuous ? "siri-toggle-active" : "bg-white/80 hover:bg-white"
                 }`}
               >
-                <Radio size={14} /> 连续对话
+                <span className="siri-glyph" aria-hidden="true" />
               </button>
             )}
             {voiceStatus.tts && (
@@ -732,81 +817,8 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
         <div
           ref={scrollRef}
           data-testid="tutor-scroll"
-          className={`min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 transition-colors ${
-            // 免提时整片换成薄荷底，和平时那片米色明显不同；
-            // 但保持浅色，否则消息里的深色文字会读不清。
-            voice.continuous ? "voice-room-bg" : "bg-cream/40"
-          }`}
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-cream/40 px-4 py-4 transition-colors"
         >
-          {/*
-            免提模式的舞台。整块背景换成深绿，和平时那片米色拉开距离，
-            孩子扫一眼就知道"现在是说话模式"。人物按当前状态换姿势和动效，
-            右上角一个小叉随时退出。
-          */}
-          {voice.continuous && (
-            <section
-              data-testid="voice-stage"
-              className="voice-stage relative overflow-hidden rounded-2xl px-5 pb-5 pt-9 text-white shadow-[0_18px_40px_rgba(4,48,44,0.35)]"
-            >
-              <span className="voice-orb" style={{ width: 92, height: 92, left: "7%", top: "10%" }} />
-              <span
-                className="voice-orb"
-                style={{ width: 58, height: 58, right: "10%", top: "30%", animationDelay: "1.7s" }}
-              />
-              <span
-                className="voice-orb"
-                style={{ width: 40, height: 40, right: "26%", bottom: "12%", animationDelay: "3.1s" }}
-              />
-
-              {/* 小关闭按钮：退出免提，回到普通对话 */}
-              <button
-                type="button"
-                onClick={voice.toggleContinuous}
-                aria-label="退出免提模式"
-                title="退出免提"
-                className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/20 text-white backdrop-blur transition active:scale-95 hover:bg-white/30"
-              >
-                <X size={15} />
-              </button>
-
-              <div className="relative mx-auto grid h-36 w-36 place-items-center">
-                {/* 人物素材是透明底的，深色舞台上要垫一层浅色光晕才看得清 */}
-                <span aria-hidden="true" className="voice-spotlight absolute inset-0" />
-                {(voice.loopState === "listening" || voice.loopState === "speech") && (
-                  <>
-                    <span className="voice-ring" />
-                    <span className="voice-ring" style={{ animationDelay: "0.8s" }} />
-                  </>
-                )}
-                <img
-                  src={stateAsset(LOOP_STATE_POSE[voice.loopState] || "stable", selectedChild?.gender)}
-                  alt=""
-                  className={`voice-figure relative h-32 w-auto drop-shadow-[0_14px_20px_rgba(6,52,47,0.35)] ${
-                    voice.loopState === "speech"
-                      ? "is-speech"
-                      : voice.loopState === "transcribing"
-                        ? "is-thinking"
-                        : ""
-                  }`}
-                />
-              </div>
-
-              <div className="relative mt-3 text-center">
-                <div className="text-xl font-black tracking-normal">{LOOP_STATE_TEXT[voice.loopState] || ""}</div>
-                <div className="mt-1.5 text-xs text-white/80">{LOOP_STATE_HINT[voice.loopState] || ""}</div>
-              </div>
-
-              {/* 音量条：收声的时候跳起来，让"它在听"这件事看得见 */}
-              {(voice.loopState === "listening" || voice.loopState === "speech") && (
-                <div aria-hidden="true" className="relative mt-3 flex h-7 items-center justify-center gap-1.5 text-white/90">
-                  {[0, 1, 2, 3, 4, 5, 6].map((index) => (
-                    <span key={index} className="voice-bar" style={{ animationDelay: `${index * 0.11}s` }} />
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
           {messages.length === 0 && (
             <p className="mx-auto max-w-md py-10 text-center text-sm leading-6 text-muted">{EMPTY_HINT}</p>
           )}
