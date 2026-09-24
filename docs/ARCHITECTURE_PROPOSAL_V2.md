@@ -64,6 +64,31 @@
 
 每周回顾、延迟复测、4–8 周阶段报告、计划到期提醒，都需要定时任务或异步任务，但当前只有一次 HTTP 请求内同步处理。
 
+### 1.6 五项断点的当前状态（2026-09-24 复核）
+
+本节写于 V2 改造之前，是问题清单而非待办清单。复核结论如下，其中 1.3 仍是活的问题：
+
+| 断点 | 状态 | 依据 |
+|---|---|---|
+| 1.1 目标与周计划 | **已闭环** | `StageGoal` / `WeeklyPlan` / `PlanItem` / `PlanChange` 已建模，`apps/api/src/v2/goal-plan.ts` 大量使用 |
+| 1.2 学生状态与证据 | **已闭环** | `EvidenceRecord` 已有 `confidence`、`counterEvidence`、`reviewStatus`、`environment`、`observedBehavior`；`ChildStateSnapshot`、`ChildRelationshipSnapshot` 已投入 `child-state.ts` |
+| 1.3 教育方法像配置项 | **仍存在** | 新旧两套并存：新的 `v2/education-methods-v2.ts`（DB + `MethodEffect` 效果记录）已被网页端使用；旧的 `education-methods.ts`（字符串匹配）**仍在服务中**，见下方说明 |
+| 1.4 AI 能力分层 | **未实现（按设计预留）** | 出站异步通道仍未实现，见 3.3；本项不要求当前实现 |
+| 1.5 后台任务 | **未实现** | `BackgroundJob` 模型已在 schema 中，但**全代码库零引用**；无 Worker 文件、无 Worker 容器、无 cron/定时器。`WeeklyReview` 与 `StageReport` 只有按需触发的创建函数 |
+
+关于 1.3 的具体存留路径（这是本次复核最值得注意的一条）：
+
+```
+apps/api/src/personalization.ts:116  →  recommendEducationMethods（旧·字符串匹配）
+        ↓
+getEffectiveSkill()  返回 recommended_methods
+        ↓
+MCP 工具 get_effective_skill（apps/api/src/mcp.ts:222）→ 供 WorkBuddy 读取
+      同时 → GET /api/education-methods（apps/api/src/app.ts:1122）→ 小程序旧接口 educationMethods()
+```
+
+也就是说：**家长选择的教育流派式字符串匹配推荐，仍在进入 WorkBuddy 看到的技能内容**。这与本节 1.3 的整改目标（家长设置边界、方法应有证据强度与适用条件、个性化来自效果记录）尚未完全一致。新体系已在 `v2/education-methods-v2.ts` 落地，收敛工作只剩把上面这条旧链路的引用切过去。
+
 ## 2. 目标架构总览
 
 第一阶段不建议拆成微服务。建议保持“单 API 服务 + 独立 Worker”的部署形态，但把业务边界在代码层明确拆开。
