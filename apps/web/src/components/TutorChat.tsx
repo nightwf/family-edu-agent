@@ -109,6 +109,17 @@ export default function TutorChat({ token, apiBase, children, request, headerExt
     autoReadRef.current = autoRead;
   }, [autoRead]);
 
+  // 录音期间被切到后台（来电、锁屏、切 App），抬起事件不会再来，
+  // 录音会一直挂到 60 秒兜底才停。这里听见页面不可见就直接收工。
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") recorderRef.current?.stop();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
   // 「更多」开着时按 Esc 只收菜单：用捕获阶段拦下来，
   // 免得冒泡到浮窗外层，顺手把整个对话窗口也关了。
   useEffect(() => {

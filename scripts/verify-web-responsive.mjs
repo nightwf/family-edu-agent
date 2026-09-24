@@ -322,6 +322,33 @@ try {
     // 线上检查用一个无效口令：接口会返回 401，但页面外壳（导航、顶栏）照常渲染，
     // 正好用来验证骨架在小屏下的表现，且不触碰任何真实家庭数据。
     await page.addInitScript(() => localStorage.setItem("familyEduToken", "responsive-check-token"));
+    // 麦克风生命周期探针：把每次拿到的流留一份引用，事后能数出"还有几路在采音"。
+    // 只在安卓形态下装：其他形态本来就不该碰麦克风。
+    if (viewport.apk) {
+      await page.addInitScript(() => {
+        const streams = [];
+        let trackStops = 0;
+        const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = async (constraints) => {
+          const stream = await originalGetUserMedia(constraints);
+          streams.push(stream);
+          return stream;
+        };
+        const originalStop = MediaStreamTrack.prototype.stop;
+        MediaStreamTrack.prototype.stop = function stop(...args) {
+          trackStops += 1;
+          return originalStop.apply(this, args);
+        };
+        window.__micProbe = () => ({
+          liveAudioTracks: streams.reduce(
+            (count, stream) => count + stream.getAudioTracks().filter((track) => track.readyState === "live").length,
+            0,
+          ),
+          streamsOpened: streams.length,
+          trackStops,
+        });
+      });
+    }
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     await page.waitForTimeout(800);
 
@@ -651,6 +678,45 @@ try {
       const continuousToggle = page.locator('button[aria-label="开启连续对话"]').first();
       const continuousProbe = { started: false, reachedSpeech: false, stopped: false, rowFits: true };
 
+      // 浮窗开着、但没开连续对话时，麦克风必须是关的：
+      // 打开聊天窗口本身不该采音，只有明确点了「连续对话」才开。
+      const micIdle = await page.evaluate(() => window.__micProbe());
+
+      // 按住说话：按下才录、松手就停；按住期间被切后台（来电、锁屏）
+      // 抬起事件不会再来，也必须自己停，否则麦克风会一直挂到 60 秒兜底。
+      const holdProbe = { recording: false, afterRelease: 0, afterHide: 0 };
+      const holdButton = page.locator('button[aria-label="按住说话"]').first();
+      if (await holdButton.count()) {
+        const box = await holdButton.boundingBox();
+        const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        await page.mouse.move(center.x, center.y);
+        await page.mouse.down();
+        await page.waitForTimeout(700);
+        holdProbe.recording = (await page.evaluate(() => window.__micProbe())).liveAudioTracks >= 1;
+        await page.mouse.up();
+        await page.waitForTimeout(600);
+        holdProbe.afterRelease = (await page.evaluate(() => window.__micProbe())).liveAudioTracks;
+
+        // 再按一次，这次按住不放，直接把页面置为不可见
+        await page.mouse.move(center.x, center.y);
+        await page.mouse.down();
+        await page.waitForTimeout(600);
+        holdProbe.afterHide = await page.evaluate(async () => {
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+          Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+          document.dispatchEvent(new Event("visibilitychange"));
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          return window.__micProbe().liveAudioTracks;
+        });
+        await page.mouse.up();
+        // 恢复成可见，免得后面几条用例都活在"后台"状态里
+        await page.evaluate(() => {
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+          Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+      }
+
       // 先把连续对话打开：麦克风一直开着，私教念答案时才谈得上插话打断。
       if (await continuousToggle.count()) {
         await continuousToggle.click();
@@ -670,6 +736,8 @@ try {
           () => document.documentElement.scrollWidth - window.innerWidth <= 0,
         );
       }
+      // 连续对话期间麦克风是持续开着的（这是插话打断的前提）
+      const micListening = await page.evaluate(() => window.__micProbe());
 
       // 发一条消息：SSE 桩会先吐文本、再吐两段语音。
       // 「停一下」按钮出现，说明语音片段真的被排队播放了（文本已经先出现在屏幕上）。
@@ -712,6 +780,41 @@ try {
           .catch(() => false);
       }
 
+      // 关掉连续对话，麦克风要立刻还回去，不能留一路在采音
+      await page.waitForTimeout(400);
+      const micAfterStop = await page.evaluate(() => window.__micProbe());
+
+      // 再开一次，验证"手机切到后台"这条路径：页面不可见了还在采音，
+      // 就是家长会看到麦克风指示灯一直亮、也真的在被录。
+      if (await page.locator('button[aria-label="开启连续对话"]').first().count()) {
+        await page.locator('button[aria-label="开启连续对话"]').first().click();
+        await page.waitForTimeout(700);
+      }
+      const micAfterHide = await page.evaluate(async () => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+        document.dispatchEvent(new Event("visibilitychange"));
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return window.__micProbe();
+      });
+
+      // 收起浮窗：整个对话组件被卸载，麦克风必须彻底释放
+      await page.locator('[data-testid="tutor-dock-window"] button[aria-label="收起私教"]').first().click();
+      await page.waitForTimeout(500);
+      const micAfterClose = await page.evaluate(() => window.__micProbe());
+
+      // 浮窗开着的时候底下的导航够不着（遮罩拦住），所以手机上不存在
+      // "一边听着一边切到别的页面"这条路径。这里把它验出来，免得留个想当然的漏洞。
+      await bubble.click();
+      await page.waitForTimeout(600);
+      const navBlockedWhileOpen = await page.evaluate(() => {
+        const target = document.querySelector("header button[aria-label='打开导航']");
+        if (!target) return null;
+        const rect = target.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return !(hit === target || target.contains(hit));
+      });
+
       await page.screenshot({ path: path.join(outDir, `web-${viewport.name}-tutor.png`), fullPage: true });
       tutorProbe = {
         ...tutor,
@@ -727,6 +830,9 @@ try {
         menuEscProbe,
         speakProbe,
         continuousProbe,
+        micProbe: { idle: micIdle, listening: micListening, afterStop: micAfterStop, afterHide: micAfterHide, afterClose: micAfterClose },
+        holdProbe,
+        navBlockedWhileOpen,
         streamProbe,
         bargeProbe,
         checks: {
@@ -763,6 +869,14 @@ try {
           readAloudWorks: speakProbe.started && speakProbe.stopped,
           continuousListeningWorks: continuousProbe.started && continuousProbe.reachedSpeech && continuousProbe.stopped,
           voiceRowFits: continuousProbe.rowFits,
+          // 麦克风只在"真的在连续对话"时开着，别的时候必须一路都不留
+          micSilentUntilAsked: micIdle.liveAudioTracks === 0,
+          micOpenWhileListening: micListening.liveAudioTracks >= 1,
+          micReleasedOnToggleOff: micAfterStop.liveAudioTracks === 0,
+          // 切到后台还要继续采音，等于孩子把 App 放兜里也在被录
+          micReleasedWhenHidden: micAfterHide.liveAudioTracks === 0,
+          micReleasedOnClose: micAfterClose.liveAudioTracks === 0,
+          holdToTalkReleases: holdProbe.recording && holdProbe.afterRelease === 0 && holdProbe.afterHide === 0,
           voiceToolbarUsable:
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
           // 文本先出现，语音片段随后边到边念

@@ -182,6 +182,27 @@ export function useTutorVoice(options: {
     setContinuous(false);
   }, []);
 
+  /**
+   * 页面被切到后台（或锁屏）就停掉连续对话。
+   *
+   * 连续对话期间麦克风是持续开着的，这是插话打断的前提；但不管的话，
+   * 孩子把 App 切走、手机锁屏，麦克风会一直亮着也开始采音，既费电，
+   * 家长看到指示灯常亮也会觉得是在偷听。
+   * 回到前台不自动重开：开关必须和真实状态一致，要听就再点一下。
+   */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") stopContinuous();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", stopContinuous);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", stopContinuous);
+    };
+  }, [stopContinuous]);
+
   const startContinuous = useCallback(async () => {
     if (loopRef.current) return;
     const loop = createVoiceLoop({
