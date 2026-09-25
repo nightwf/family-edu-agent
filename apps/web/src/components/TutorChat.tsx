@@ -717,15 +717,30 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
             messages
               .filter((message) => message.content)
               .map((message) => (
-                <p
+                <div
                   key={message.id}
-                  className={message.role === "user" ? "mt-2 text-right text-white/85" : "mt-2 text-left"}
+                  data-role={message.role}
+                  className={`voice-transcript-row ${message.role === "user" ? "is-user" : "is-tutor"}`}
                 >
-                  {message.content}
-                </p>
+                  <div className="voice-transcript-speaker">
+                    <span className="voice-transcript-mark" aria-hidden="true">
+                      {message.role === "user" ? <User size={11} /> : <Bot size={11} />}
+                    </span>
+                    {message.role === "user" ? "我" : "禾芽"}
+                  </div>
+                  <div className="voice-transcript-bubble">{message.content}</div>
+                </div>
               ))
           )}
-          {busy && <p className="mt-2 text-left text-white/45">…</p>}
+          {busy && (
+            <div className="voice-transcript-row is-tutor is-pending">
+              <div className="voice-transcript-speaker">
+                <span className="voice-transcript-mark" aria-hidden="true"><Bot size={11} /></span>
+                禾芽
+              </div>
+              <div className="voice-transcript-bubble">正在整理回答…</div>
+            </div>
+          )}
         </div>
         {confirmOverlay}
       </div>

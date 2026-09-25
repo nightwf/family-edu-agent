@@ -70,6 +70,75 @@ body {
   mask-image: linear-gradient(to bottom, black, transparent 76%);
 }
 
+/* 实时对话记录必须只靠一眼就能分清谁在说话：
+   私教使用冷色半透明面板，孩子使用暖黄色实底，并保留明确角色名。 */
+.voice-transcript-row {
+  display: flex;
+  width: 100%;
+  margin-top: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.voice-transcript-row.is-user {
+  align-items: flex-end;
+}
+
+.voice-transcript-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 8px 5px;
+  color: rgba(220, 255, 247, 0.78);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.voice-transcript-row.is-user .voice-transcript-speaker {
+  color: #ffe8a6;
+}
+
+.voice-transcript-mark {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.voice-transcript-row.is-user .voice-transcript-mark {
+  background: rgba(255, 214, 103, 0.2);
+}
+
+.voice-transcript-bubble {
+  max-width: min(88%, 38rem);
+  padding: 10px 13px;
+  border: 1px solid rgba(203, 255, 243, 0.18);
+  border-left: 3px solid #72e1cf;
+  border-radius: 5px 16px 16px 16px;
+  background: rgba(3, 57, 54, 0.48);
+  color: #f4fffc;
+  box-shadow: 0 8px 22px rgba(1, 42, 40, 0.16);
+  backdrop-filter: blur(10px);
+  overflow-wrap: anywhere;
+}
+
+.voice-transcript-row.is-user .voice-transcript-bubble {
+  border-color: rgba(255, 238, 182, 0.9);
+  border-right: 3px solid #fff1b8;
+  border-left-width: 1px;
+  border-radius: 16px 5px 16px 16px;
+  background: #f4c95f;
+  color: #173c3a;
+  box-shadow: 0 8px 22px rgba(2, 51, 48, 0.2);
+}
+
+.voice-transcript-row.is-pending .voice-transcript-bubble {
+  color: rgba(226, 255, 248, 0.7);
+  font-style: italic;
+}
+
 /* 私教工具条上的实时对话入口：玻璃质感声纹钮，无文字也能一眼识别。 */
 .siri-toggle {
   position: relative;
