@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   BookmarkPlus,
+  AudioWaveform,
   CircleStop,
   ImagePlus,
   Loader2,
@@ -844,7 +845,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
                   voice.continuous ? "siri-toggle-active" : "bg-white/80 hover:bg-white"
                 }`}
               >
-                <span className="siri-glyph" aria-hidden="true" />
+                <AudioWaveform className="voice-entry-wave" size={23} strokeWidth={2.2} aria-hidden="true" />
               </button>
             )}
             {voiceStatus.tts && (
