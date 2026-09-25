@@ -12,6 +12,7 @@ import {
   isIdleTimeout,
   isUsableUtterance,
   rmsOf,
+  shouldBargeIn,
   UtteranceTracker,
   VOICE_LOOP_DEFAULTS,
 } from "../apps/web/src/lib/tutor-voice.js";
@@ -39,6 +40,10 @@ console.log("杂音过滤");
 check("说话 800ms 算一句话", isUsableUtterance(800));
 check("碰一下桌子 100ms 不算", !isUsableUtterance(100));
 check("刚好到下限算一句话", isUsableUtterance(VOICE_LOOP_DEFAULTS.minSpeechMs));
+check("默认音量阈值已降低环境噪声灵敏度", VOICE_LOOP_DEFAULTS.speechThreshold === 0.035);
+check("短于 550ms 的声音不提交识别", !isUsableUtterance(549));
+check("持续不足 200ms 不打断私教", !shouldBargeIn(199));
+check("持续达到 200ms 才允许打断私教", shouldBargeIn(200));
 
 console.log("断句状态机");
 {

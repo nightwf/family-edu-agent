@@ -19,6 +19,8 @@ export type VoiceLoopConfig = {
   maxUtteranceMs: number;
   /** 短于这个有效时长的声音当作杂音丢掉 */
   minSpeechMs: number;
+  /** 声音持续达到这个时长才允许打断正在说话的私教 */
+  bargeInMs: number;
   /**
    * 一直没人说话多久就自动关掉连续对话。
    *
@@ -31,10 +33,11 @@ export type VoiceLoopConfig = {
 };
 
 export const VOICE_LOOP_DEFAULTS: VoiceLoopConfig = {
-  speechThreshold: 0.02,
+  speechThreshold: 0.035,
   silenceMs: 1100,
   maxUtteranceMs: 15000,
-  minSpeechMs: 350,
+  minSpeechMs: 550,
+  bargeInMs: 200,
   idleMs: 180000,
 };
 
@@ -48,6 +51,11 @@ export function rmsOf(samples: ArrayLike<number>): number {
 /** 太短的声音（咳嗽、碰桌子、底噪尖峰）不当一句话，避免把杂音发给模型。 */
 export function isUsableUtterance(speechMs: number, config: VoiceLoopConfig = VOICE_LOOP_DEFAULTS) {
   return speechMs >= config.minSpeechMs;
+}
+
+/** 单帧噪声不打断私教，必须累计到明确的说话时长。 */
+export function shouldBargeIn(speechMs: number, config: VoiceLoopConfig = VOICE_LOOP_DEFAULTS) {
+  return speechMs >= config.bargeInMs;
 }
 
 /**
@@ -238,7 +246,7 @@ export function createVoiceLoop(options: {
   let recorder: MediaRecorder | null = null;
   let chunks: Blob[] = [];
   let speechMs = 0;
-  let wasSpeaking = false;
+  let bargeInFired = false;
   let lastHeardAt = deps.now();
   let tutorActive = false;
   let idleFired = false;
@@ -264,6 +272,7 @@ export function createVoiceLoop(options: {
     if (!recorder || !stream) return;
     chunks = [];
     speechMs = 0;
+    bargeInFired = false;
     tracker.reset();
     // 每段重新开始听，静默计时也跟着重新走
     lastHeardAt = deps.now();
@@ -280,8 +289,8 @@ export function createVoiceLoop(options: {
     if (!running || !recorder || !meter) return;
     const now = deps.now();
     const step = tracker.push(meter.read(), now);
-    if (step.state === "speech" && !wasSpeaking) {
-      wasSpeaking = true;
+    if (step.state === "speech" && !bargeInFired && shouldBargeIn(step.speechMs, config)) {
+      bargeInFired = true;
       options.onSpeechStart?.();
     }
     if (step.state === "speech") {
@@ -314,7 +323,7 @@ export function createVoiceLoop(options: {
     const blob = new Blob(chunks, { type: mimeType.value || "audio/webm" });
     const capturedMs = speechMs;
     chunks = [];
-    wasSpeaking = false;
+    bargeInFired = false;
     if (!running) return;
     if (!isUsableUtterance(capturedMs, config)) {
       // 杂音：不打扰上层，直接接着听下一句

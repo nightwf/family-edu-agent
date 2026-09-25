@@ -283,7 +283,7 @@ export function useTutorVoice(options: {
   const setTutorSpeaking = useCallback((tutorSpeaking: boolean) => {
     const loop = loopRef.current;
     if (!loop) return;
-    loop.setSensitivity(tutorSpeaking ? 3 : 1);
+    loop.setSensitivity(tutorSpeaking ? 4 : 1);
     // 同时也告诉循环"私教在忙"：它念答案时孩子安静听着是正常的，
     // 不该被算成走开了而把麦克风关掉。
     loop.setTutorActive(tutorSpeaking);
