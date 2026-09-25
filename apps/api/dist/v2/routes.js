@@ -6,6 +6,7 @@ import { getKnowledgeContext, importSourceDocument, listKnowledgeNodes, listSour
 import { getLatestRelationship, listRelationshipHistory, saveRelationshipSnapshot, } from "./relationship.js";
 import { ensurePlanningRequest, getLearningPriorities, getPlanningRequest, linkQuestionKnowledgeNodes, linkQuestionTypeKnowledgeNodes, listPlanningRequests, listQuestionKnowledgeNodes, listQuestionTypeKnowledgeNodes, listRecommendationOutcomes, recordRecommendationOutcome, resolveLearningSignal, syncLearningSignals, unlinkQuestionTypeKnowledgeNode, updatePlanningRequestStatus, } from "./learning-engine.js";
 import { verifyStoredQuestion } from "../question-bank.js";
+import { confirmAiPlanDraft, generateAiPlanDraft } from "./ai-planner.js";
 async function respond(reply, action) {
     try {
         return await action();
@@ -304,6 +305,16 @@ export function registerV2Routes(app, requireAuth, getAuth) {
             stage_goal_id: body?.stage_goal_id,
             note: body?.note,
         });
+    });
+    app.post("/api/v2/planning-requests/:planningRequestId/generate-ai", auth, async (request, reply) => {
+        const { familyId, id } = getAuth(request);
+        const { planningRequestId } = request.params;
+        return respond(reply, () => generateAiPlanDraft(familyId, planningRequestId, { type: "system_ai", id }));
+    });
+    app.post("/api/v2/planning-requests/:planningRequestId/confirm-ai", auth, async (request, reply) => {
+        const { familyId, id } = getAuth(request);
+        const { planningRequestId } = request.params;
+        return respond(reply, () => confirmAiPlanDraft(familyId, planningRequestId, { type: "parent", id }));
     });
     app.get("/api/v2/recommendation-outcomes", auth, async (request) => {
         const { familyId } = getAuth(request);

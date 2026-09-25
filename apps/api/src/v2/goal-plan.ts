@@ -167,12 +167,14 @@ export async function createWeeklyPlan(
   weekStart: Date | string,
   items: PlanItemInput[],
   actor: { type: string; id?: string } = { type: "workbuddy" },
+  options: { allowProposedGoal?: boolean; activateGoal?: boolean } = {},
 ) {
   const goal = await prisma.stageGoal.findFirst({
     where: { id: stageGoalId, familyId },
   });
   if (!goal) throw new Error("阶段目标不存在或不属于当前家庭");
-  if (!["CONFIRMED", "ACTIVE"].includes(goal.status)) {
+  const allowedStatuses = options.allowProposedGoal ? ["PROPOSED", "CONFIRMED", "ACTIVE"] : ["CONFIRMED", "ACTIVE"];
+  if (!allowedStatuses.includes(goal.status)) {
     throw new Error("只有已确认或执行中的目标可以生成周计划");
   }
   if (items.length === 0) throw new Error("周计划不能为空");
@@ -211,10 +213,12 @@ export async function createWeeklyPlan(
     include: { items: true },
   });
 
-  await prisma.stageGoal.update({
-    where: { id: goal.id },
-    data: { status: "ACTIVE" },
-  });
+  if (options.activateGoal !== false) {
+    await prisma.stageGoal.update({
+      where: { id: goal.id },
+      data: { status: "ACTIVE" },
+    });
+  }
 
   await writeAudit({
     familyId,
@@ -252,6 +256,11 @@ export async function confirmWeeklyPlan(
       confirmedAt: new Date(),
     },
     include: { items: { orderBy: { sequence: "asc" } } },
+  });
+
+  await prisma.stageGoal.update({
+    where: { id: plan.stageGoalId },
+    data: { status: "ACTIVE" },
   });
 
   await writeAudit({

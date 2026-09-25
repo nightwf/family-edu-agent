@@ -26,7 +26,7 @@ Page({
     subjects: [],
     characterImage: "",
     planningCard: null,
-    planningCopyText: "复制规划指令",
+    planningBusy: false,
     pendingTasks: []
   },
 
@@ -67,7 +67,7 @@ Page({
         subjects: subjects.mapSubjectRows(rawSubjects),
         characterImage: presentation.stateAsset(characterState, activeChild && activeChild.gender),
         planningCard: planning.buildPlanningCard(activeChild, home.learning_priorities, home.planning_request),
-        planningCopyText: "复制规划指令",
+        planningBusy: false,
         pendingTasks: childHomework
           .filter((item) => !["done", "cancelled"].includes(item.status))
           .slice(0, 3)
@@ -111,14 +111,36 @@ Page({
     wx.navigateTo({ url: `/pages/child-state/child-state?childId=${this.data.activeChild.id}` });
   },
 
-  copyPlanningInstruction() {
+  async generateAiPlan() {
     const card = this.data.planningCard;
-    if (!card || !card.instruction) return;
-    wx.setClipboardData({
-      data: card.instruction,
-      success: () => {
-        this.setData({ planningCopyText: "已复制" });
-        setTimeout(() => this.setData({ planningCopyText: "复制规划指令" }), 1500);
+    if (!card || !card.canGenerate || this.data.planningBusy) return;
+    this.setData({ planningBusy: true, error: "" });
+    try {
+      await api.generateAiPlan(card.id);
+      wx.showToast({ title: "计划草稿已生成", icon: "success" });
+      await this.load();
+    } catch (error) {
+      this.setData({ error: error.message, planningBusy: false });
+    }
+  },
+
+  confirmAiPlan() {
+    const card = this.data.planningCard;
+    if (!card || !card.canConfirm || this.data.planningBusy) return;
+    wx.showModal({
+      title: "确认学习计划",
+      content: "确认后，这份阶段目标和本周任务会正式开始执行。",
+      confirmText: "确认开始",
+      success: async (result) => {
+        if (!result.confirm) return;
+        this.setData({ planningBusy: true, error: "" });
+        try {
+          await api.confirmAiPlan(card.id);
+          wx.showToast({ title: "计划已开始", icon: "success" });
+          await this.load();
+        } catch (error) {
+          this.setData({ error: error.message, planningBusy: false });
+        }
       }
     });
   }

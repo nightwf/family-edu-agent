@@ -1,3 +1,28 @@
+# Findings & Decisions: AI Learning Plan Generation
+
+## Current findings
+
+- Web and mini-program home cards currently build a clipboard instruction locally.
+- `PlanningRequest` already stores pending/in-progress/completed state and a priority snapshot.
+- Existing `proposeStageGoals`, `confirmStageGoal`, `createWeeklyPlan`, and `confirmWeeklyPlan` services provide audited persistence.
+- WorkBuddy can read pending requests through MCP but Heya cannot proactively start a WorkBuddy run.
+- The built-in Doubao provider already supports streaming chat; the planner needs a strict JSON collection wrapper and validation.
+- Current child-tutor tool policy intentionally forbids creating plans, so planning must be a separate server workflow, not a hidden chat tool escalation.
+- `StageGoal` and `WeeklyPlan` already expose proposal, draft, confirmation, and active states; the AI planner can reuse them without creating a parallel planning model.
+- `createWeeklyPlan` currently activates its goal immediately while the plan is still `DRAFT`; the AI path must keep both inactive until parent confirmation.
+- `PlanningRequest` has no structured AI draft, generated timestamp, or error field, so an additive migration is needed for a durable review workflow.
+- The production Doubao model answers a minimal probe quickly but exceeded the tutor's 45-second timeout for a full structured plan. Planning now has an independent 90-second timeout and the mini-program request waits up to 110 seconds without replaying a mutating request.
+- Doubao Seed 2.1 enables deep thinking by default. Planning does not need a long reasoning trace, so its request explicitly sends `thinking.type=disabled` while keeping the longer timeout as a safety margin.
+
+## Product decisions
+
+- Remove clipboard instructions everywhere.
+- Parent explicitly starts AI planning to control cost.
+- AI produces draft candidates and a weekly-plan draft; no task becomes active before parent confirmation.
+- WorkBuddy remains compatible because drafts use the existing StageGoal/WeeklyPlan/PlanningRequest tables.
+
+## Archived findings
+
 # Findings & Decisions: WorkBuddy OAuth QR Binding
 
 ## Current findings
@@ -13,7 +38,7 @@
 - A direct family invitation remains a separate one-time flow and offers join-invited-family or create-new-family.
 - Existing X-MCP-Token clients must remain valid while the OAuth connector is rolled out.
 
-## Archived findings
+## Earlier archived findings
 
 # Findings & Decisions
 

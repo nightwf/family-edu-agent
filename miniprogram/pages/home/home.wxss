@@ -51,12 +51,24 @@
 
 /* 待规划提示 */
 .plan-card{margin-top:30rpx;padding:24rpx;border:1rpx solid var(--line);border-radius:26rpx;background:#fffdf7;box-shadow:var(--shadow-soft)}
+.plan-head{display:flex;align-items:center;justify-content:space-between;gap:16rpx}
 .card-kicker{color:var(--accent);font-size:22rpx;font-weight:800}
+.plan-status{flex:none;padding:7rpx 16rpx;border-radius:999rpx;background:var(--gold-soft);color:#7d5a12;font-size:20rpx;font-weight:800}
 .plan-cta{display:flex;align-items:center;gap:18rpx;margin-top:14rpx;padding:20rpx 22rpx;border-radius:20rpx;background:var(--gold-soft)}
 .plan-main{min-width:0;flex:1}
 .plan-title{font-size:27rpx;font-weight:900}
 .plan-reason{margin-top:6rpx;color:#7d5a12;font-size:22rpx;line-height:1.5}
 .plan-button{flex:none;min-height:64rpx;padding:0 22rpx;font-size:23rpx}
+.plan-draft{margin-top:18rpx;padding-top:18rpx;border-top:1rpx solid var(--line-soft)}
+.plan-summary{font-size:25rpx;font-weight:900;line-height:1.45}
+.plan-rationale{margin-top:8rpx;color:var(--muted);font-size:21rpx;line-height:1.55}
+.plan-items{display:grid;gap:12rpx;margin-top:16rpx}
+.plan-item{padding:16rpx 18rpx;border-radius:18rpx;background:#fff}
+.plan-item-title{font-size:23rpx;font-weight:800;line-height:1.45}
+.plan-item-meta{margin-top:5rpx;color:var(--muted);font-size:20rpx}
+.plan-error{margin-top:14rpx;color:var(--accent);font-size:22rpx;line-height:1.5}
+
+@media (max-width:360px){.plan-cta{align-items:stretch;flex-direction:column}.plan-button{width:100%}}
 
 /* 最近任务 */
 .home-section{margin-top:34rpx}

@@ -193,7 +193,7 @@ ${connectionNote}
 - 制定 4–8 周阶段目标前，必须先调用 get_child_state、get_learning_priorities 和 get_planning_context
 - get_learning_priorities 返回的是禾芽按规则算好的真实优先级（前置缺口 > 重复出错 > 复测到期 > 掌握度偏低 > 变式不足），不要自己另排一套优先级，也不要编造依据
 - 目标必须覆盖排在前面的优先级，并引用对应信号的 reason 与 priority_score 作为依据
-- 家长端存在待规划事项时，先调用 list_planning_requests 找到该事项，规划完成后用 update_planning_request_status 标记 completed，并按需关联 stage_goal_id
+- 家长端存在 pending 待规划事项时，可先调用 list_planning_requests 找到该事项并制定计划，完成后用 update_planning_request_status 标记 completed；若状态为 awaiting_confirmation，表示禾芽内置 AI 已生成草稿，应等待家长确认，不要覆盖
 - 阶段目标必须返回 2 至 3 个候选目标，并包含可验证的标准、开始日期和结束日期
 - 通过 propose_stage_goals 写回候选目标，等待家长在禾芽确认，不直接创建已确认目标
 - 家长确认后调用 get_stage_goal 读取目标，再调用 create_weekly_plan 生成周计划

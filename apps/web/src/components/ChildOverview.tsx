@@ -29,7 +29,8 @@ export default function ChildOverview({ token, children, home, request, onNaviga
   const [detail, setDetail] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [copyText, setCopyText] = useState("复制规划指令");
+  const [planningBusy, setPlanningBusy] = useState(false);
+  const [planningError, setPlanningError] = useState("");
   const [imageFailed, setImageFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -90,26 +91,32 @@ export default function ChildOverview({ token, children, home, request, onNaviga
     return rows.filter((item: any) => !["done", "cancelled"].includes(item.status)).slice(0, 3);
   }, [detail, home, activeChild]);
 
-  async function copyInstruction() {
-    if (!planningCard?.instruction) return;
+  async function generatePlan() {
+    if (!planningCard?.canGenerate || planningBusy) return;
+    setPlanningBusy(true);
+    setPlanningError("");
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(planningCard.instruction);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = planningCard.instruction;
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-      setCopyText("已复制");
-      window.setTimeout(() => setCopyText("复制规划指令"), 1500);
-    } catch {
-      setCopyText("复制失败");
-      window.setTimeout(() => setCopyText("复制规划指令"), 1500);
+      await request(`/api/v2/planning-requests/${planningCard.id}/generate-ai`, { method: "POST" }, token);
+      setReloadKey((value) => value + 1);
+    } catch (err) {
+      setPlanningError((err as Error).message);
+    } finally {
+      setPlanningBusy(false);
+    }
+  }
+
+  async function confirmPlan() {
+    if (!planningCard?.canConfirm || planningBusy) return;
+    if (!window.confirm("确认后，这份阶段目标和本周任务会正式开始执行。是否确认？")) return;
+    setPlanningBusy(true);
+    setPlanningError("");
+    try {
+      await request(`/api/v2/planning-requests/${planningCard.id}/confirm-ai`, { method: "POST" }, token);
+      setReloadKey((value) => value + 1);
+    } catch (err) {
+      setPlanningError((err as Error).message);
+    } finally {
+      setPlanningBusy(false);
     }
   }
 
@@ -236,18 +243,43 @@ export default function ChildOverview({ token, children, home, request, onNaviga
 
       {planningCard && (
         <section className="rounded-2xl border border-line bg-panel p-5">
-          <div className="text-xs font-extrabold text-accent">学习计划</div>
-          <div className="mt-3 flex flex-wrap items-center gap-4 rounded-2xl bg-gold-soft p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs font-extrabold text-accent">学习计划</div>
+            <span className="rounded-full bg-gold-soft px-3 py-1 text-xs font-bold text-[#7d5a12]">{planningCard.statusText}</span>
+          </div>
+          <div className="mt-3 rounded-2xl bg-gold-soft p-4">
+            <div className="flex flex-wrap items-center gap-4">
             <div className="min-w-0 flex-1">
               <div className="text-base font-black text-ink">{planningCard.focusText}</div>
               <div className="mt-1.5 text-sm leading-6 text-[#7d5a12]">{planningCard.reason}</div>
             </div>
-            <button
-              onClick={copyInstruction}
-              className="shrink-0 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white"
-            >
-              {copyText}
-            </button>
+            {(planningCard.canGenerate || planningCard.canConfirm) && (
+              <button
+                onClick={planningCard.canConfirm ? confirmPlan : generatePlan}
+                disabled={planningBusy}
+                className="shrink-0 rounded-lg bg-teal px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {planningBusy ? "处理中..." : planningCard.actionText}
+              </button>
+            )}
+            </div>
+            {planningCard.draft && (
+              <div className="mt-4 border-t border-[#ead9aa] pt-4">
+                <div className="text-sm font-bold text-ink">{planningCard.draft.summary}</div>
+                <div className="mt-1 text-xs leading-5 text-muted">{planningCard.draft.rationale}</div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {(planningCard.draft.week_items || []).map((item: any, index: number) => (
+                    <div key={item.id || index} className="rounded-xl bg-white/75 px-3 py-2.5">
+                      <div className="text-sm font-bold text-ink">{index + 1}. {item.title}</div>
+                      <div className="mt-1 text-xs text-muted">约 {item.estimated_minutes || "-"} 分钟</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(planningCard.error || planningError) && (
+              <div className="mt-3 text-sm text-accent">{planningError || planningCard.error}</div>
+            )}
           </div>
         </section>
       )}
@@ -284,7 +316,7 @@ export default function ChildOverview({ token, children, home, request, onNaviga
       )}
 
       {detail?.learning_priorities?.planning_required && !planningCard && (
-        <p className="text-sm text-muted">学习记录显示需要重新规划，补充更多练习后这里会给出可发送的规划指令。</p>
+        <p className="text-sm text-muted">学习记录显示需要重新规划，补充更多练习后可由 AI 直接生成计划草稿。</p>
       )}
     </div>
   );

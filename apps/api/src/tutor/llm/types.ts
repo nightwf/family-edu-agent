@@ -30,6 +30,7 @@ export type ChatInput = {
   tools?: ToolSchema[];
   temperature?: number;
   maxTokens?: number;
+  thinking?: "enabled" | "disabled" | "auto";
 };
 
 export type StreamEvent =

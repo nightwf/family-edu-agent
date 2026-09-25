@@ -46,12 +46,16 @@ priority_score = 类型基础分 + 严重度 × 5 + 目标相关性(最多 15) +
 ## 四、待规划事项
 
 - 没有生效中的阶段目标，或存在 `priority_score ≥ 70` 的信号时，`ensurePlanningRequest` 创建 `pending` 事项。
-- 同一学生同时只保留一条 `pending` / `in_progress` 事项，避免重复。
-- 家长在小程序首页看到「学习计划 · 待规划」，可一键复制发给 WorkBuddy 的指令。
-- WorkBuddy 制定目标后用 `update_planning_request_status` 标记 `completed`，并关联 `stage_goal_id`。
+- 同一学生同时只保留一条 `pending` / `in_progress` / `awaiting_confirmation` / `failed` 事项，避免重复。
+- 家长在网页或小程序首页点击「让 AI 制定计划」，禾芽内置豆包读取规划上下文并生成候选阶段目标与周计划草稿。
+- 草稿保存为 `PROPOSED` 目标与 `DRAFT` 周计划；家长确认前不会进入执行状态。
+- 家长确认后，推荐目标与周计划一起变为 `ACTIVE`，未采用的候选目标自动取消。
+- 规划模型请求使用独立的 `PLANNER_REQUEST_TIMEOUT_MS`（默认 90 秒），避免影响实时私教对话的 45 秒上限。
+- 规划属于结构化生成任务，豆包请求显式关闭深度思考，减少等待时间和无关推理开销。
+- WorkBuddy 仍可读取同一条待规划事项，并通过原有目标、周计划工具写入同一套数据。
 
-**设计取舍**：WorkBuddy 目前不会因为数据库变化自动醒来，因此采用“禾芽发现 + 家长一键触发”。
-后续接入 WorkBuddy 开放平台第三方应用后，可改为自动生成计划草稿，但仍需家长确认后才生效。
+**设计取舍**：WorkBuddy 不会因为数据库变化自动醒来，因此默认采用“禾芽发现 + 家长点击 + 内置 AI 生成草稿”。
+生成动作由家长明确触发以控制成本，最终仍由家长确认；WorkBuddy 是兼容的另一条规划入口，不再依赖复制提示词。
 
 ## 五、答案验证
 
@@ -81,6 +85,7 @@ MCP 工具：`get_learning_priorities`、`list_learning_signals`、`resolve_lear
 REST 接口：`/api/v2/children/:childId/learning-priorities`、`/api/v2/children/:childId/learning-signals`、
 `/api/v2/learning-signals/:signalId/resolve`、`/api/v2/question-types/:id/knowledge-nodes`、
 `/api/v2/questions/:id/knowledge-nodes`、`/api/v2/questions/:id/verify-answer`、
-`/api/v2/planning-requests`、`/api/v2/recommendation-outcomes`。
+`/api/v2/planning-requests`、`POST /api/v2/planning-requests/:id/generate-ai`、
+`POST /api/v2/planning-requests/:id/confirm-ai`、`/api/v2/recommendation-outcomes`。
 
 `get_planning_context` 现在会同时返回 `learning_priorities` 和 `learning_signals`，WorkBuddy 制定目标时必须先读取。

@@ -244,17 +244,17 @@ console.log("\n首页待规划提示");
     { top: { label: "看图列式", reason: "14 天内重复出错 2 次", priority_score: 104 } },
     { id: "pr1", status: "pending", trigger_reason: "看图列式重复出错" },
   );
-  assert(withPriority.statusText === "待规划", "待规划事项显示为待规划状态");
+  assert(withPriority.statusText === "待制定", "待规划事项显示为待制定状态");
   assert(withPriority.focusText === "看图列式", "规划卡片显示第一优先的学习重点");
-  assert(withPriority.instruction.includes("JOJO") && withPriority.instruction.includes("看图列式"), "复制指令带上孩子与学习重点");
-  assert(withPriority.instruction.includes("4 周"), "复制指令明确计划周期");
+  assert(withPriority.canGenerate === true && withPriority.actionText === "让 AI 制定计划", "待规划事项可直接交给系统 AI 生成");
+  assert(!Object.prototype.hasOwnProperty.call(withPriority, "instruction"), "规划卡片不再生成剪贴板指令");
 
   const inProgress = planning.buildPlanningCard(
     { name: "JOJO" },
     { top: { label: "看图列式", reason: "重复出错" } },
     { id: "pr2", status: "in_progress" },
   );
-  assert(inProgress.statusText === "规划中", "进行中的待规划事项显示为规划中");
+  assert(inProgress.statusText === "AI 正在规划", "进行中的待规划事项显示 AI 生成状态");
   assert(inProgress.reason === "重复出错", "没有触发原因时回退到优先级原因");
 
   const noSignal = planning.buildPlanningCard(
@@ -263,7 +263,23 @@ console.log("\n首页待规划提示");
     { id: "pr3", status: "pending", trigger_reason: "长期没有新的学习记录" },
   );
   assert(noSignal.focusText === "需要先补充学习记录", "没有优先级时提示先补充学习记录");
-  assert(noSignal.instruction.includes("JOJO"), "没有优先级时仍然生成可用指令");
+  assert(noSignal.canGenerate === true, "没有优先级时仍可生成计划草稿");
+
+  const awaiting = planning.buildPlanningCard(
+    { name: "JOJO" },
+    { top: { label: "看图列式", reason: "重复出错" } },
+    {
+      id: "pr4",
+      status: "awaiting_confirmation",
+      ai_draft: {
+        summary: "先巩固列式，再做迁移练习",
+        goals: [{ id: "g1", title: "稳定掌握看图列式", recommended: true }],
+        week_items: [{ id: "i1", title: "完成 3 道针对练习", estimated_minutes: 15 }],
+      },
+    },
+  );
+  assert(awaiting.canConfirm === true && awaiting.actionText === "确认并开始", "AI 草稿必须经过家长确认才生效");
+  assert(awaiting.focusText === "稳定掌握看图列式", "待确认卡片展示 AI 推荐目标");
 }
 
 console.log("\n家庭切换缓存隔离");

@@ -44,6 +44,7 @@ import {
   updatePlanningRequestStatus,
 } from "./learning-engine.js";
 import { verifyStoredQuestion } from "../question-bank.js";
+import { confirmAiPlanDraft, generateAiPlanDraft } from "./ai-planner.js";
 
 type AuthContext = { id: string; familyId: string };
 
@@ -414,6 +415,18 @@ export function registerV2Routes(
       stage_goal_id: body?.stage_goal_id,
       note: body?.note,
     });
+  });
+
+  app.post("/api/v2/planning-requests/:planningRequestId/generate-ai", auth, async (request, reply) => {
+    const { familyId, id } = getAuth(request);
+    const { planningRequestId } = request.params as any;
+    return respond(reply, () => generateAiPlanDraft(familyId, planningRequestId, { type: "system_ai", id }));
+  });
+
+  app.post("/api/v2/planning-requests/:planningRequestId/confirm-ai", auth, async (request, reply) => {
+    const { familyId, id } = getAuth(request);
+    const { planningRequestId } = request.params as any;
+    return respond(reply, () => confirmAiPlanDraft(familyId, planningRequestId, { type: "parent", id }));
   });
 
   app.get("/api/v2/recommendation-outcomes", auth, async (request) => {

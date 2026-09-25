@@ -1,3 +1,29 @@
+# Progress Log: AI Learning Plan Generation
+
+## Session: 2026-09-25
+
+### Phase 1: Contract and data design
+- **Status:** in progress
+- Confirmed “copy planning instruction” exists in both web and mini-program home pages.
+- Confirmed WorkBuddy cannot be proactively invoked by the current server.
+- Confirmed existing goal/weekly-plan services and PlanningRequest can be reused.
+- Chosen default: parent clicks “让 AI 制定计划”; built-in Doubao creates drafts; parent confirms; WorkBuddy shares the resulting records.
+- Confirmed that existing `StageGoal` / `WeeklyPlan` status models support the parent-reviewed flow.
+- Identified premature goal activation in `createWeeklyPlan` and missing persistent AI draft/error fields on `PlanningRequest`.
+- Added the additive planning-request schema fields and migration.
+- Added strict Doubao JSON generation, durable generation states, parent confirmation endpoints, and delayed activation semantics.
+- Prisma generation and API TypeScript build pass after the backend changes.
+- Replaced clipboard planning on web and mini program with generate, review, confirm, retry and error states.
+- Updated the learning-engine, technical-design and tutor-agent documents to match the built-in AI planning flow.
+- Full test run passes: 42 API files / 306 tests, 44 voice assertions, mini-program logic and structure validation, and all operations checks.
+- First production acceptance run reached the real model but timed out at 45 seconds; the failed request was persisted safely and temporary acceptance data was removed.
+- Added a planner-specific 90-second safety timeout and explicitly disabled Doubao deep thinking for this structured generation path.
+- Production acceptance passed with the real configured model: 3 candidate goals, 5 draft tasks, no activation before confirmation, and both goal and plan active after confirmation.
+- Production migration, public health endpoint and website are healthy; temporary acceptance data was removed and the pre-deploy database backup is `/opt/family-edu-agent/backups/family_edu_20260925-145144.sql.gz`.
+- Responsive screenshot verification completed; the revised AI planning card is readable on the desktop/pad layout without overlap.
+
+## Archived progress
+
 # Progress Log: WorkBuddy OAuth QR Binding
 
 ## Session: 2026-09-18 Mini Program Parent Experience Redesign
@@ -54,7 +80,7 @@
 - Confirmed the current package is token-mode and the codebase already supports WeChat identity and multi-family membership.
 - Chosen compatibility approach: OAuth for new connections, legacy X-MCP-Token accepted during transition.
 
-## Archived progress
+## Earlier archived progress
 
 # Progress Log
 

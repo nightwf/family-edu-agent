@@ -29,6 +29,9 @@ describe("home aggregate", () => {
             id: "plan-1",
             status: "pending",
             triggerReason: "数学出现重复错误",
+            aiDraft: { summary: "先巩固看图列式" },
+            generatedAt: new Date("2026-09-01T01:00:00.000Z"),
+            generationError: null,
             createdAt: new Date("2026-09-01T00:00:00.000Z"),
         });
         mocks.insights.mockResolvedValue({
@@ -47,7 +50,7 @@ describe("home aggregate", () => {
         expect(result).toMatchObject({
             child_state: { summary: { evidence_7d: 4 } },
             learning_priorities: { top: { label: "两步应用题" }, signal_count: 2, planning_required: true },
-            planning_request: { id: "plan-1", trigger_reason: "数学出现重复错误" },
+            planning_request: { id: "plan-1", trigger_reason: "数学出现重复错误", ai_draft: { summary: "先巩固看图列式" } },
             subject_overview: { subjects: [{ subject: "数学" }, { subject: "语文" }] },
         });
     });

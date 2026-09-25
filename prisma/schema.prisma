@@ -1337,11 +1337,16 @@ model PlanningRequest {
   prioritySnapshot Json?
   note             String?
   stageGoalId      String?
+  weeklyPlanId     String?
+  aiDraft          Json?
+  generatedAt      DateTime?
+  generationError  String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   completedAt      DateTime?
 
   @@index([familyId, childId, status])
+  @@index([familyId, childId, generatedAt])
 }
 
 /// 推荐效果追踪：记录某个学习优先级执行后，孩子的真实变化。

@@ -40,7 +40,7 @@ vi.mock("../prisma.js", () => ({
   },
 }));
 
-const { proposeStageGoals, createWeeklyPlan, updatePlanItemStatus } = await import("./goal-plan.js");
+const { proposeStageGoals, createWeeklyPlan, confirmWeeklyPlan, updatePlanItemStatus } = await import("./goal-plan.js");
 
 function goalData(overrides = {}) {
   const start = new Date("2026-09-07");
@@ -93,6 +93,33 @@ describe("goal and plan", () => {
         }),
       }),
     );
+  });
+
+  it("keeps an AI-generated plan and proposed goal inactive until parent confirmation", async () => {
+    stageGoalFindFirst.mockResolvedValue({ id: "goal-1", familyId: "family-1", childId: "child-1", status: "PROPOSED" });
+    await createWeeklyPlan(
+      "family-1",
+      "goal-1",
+      "2026-09-07",
+      [{ type: "CHILD_TASK", title: "针对练习" }],
+      { type: "system_ai" },
+      { allowProposedGoal: true, activateGoal: false },
+    );
+    expect(weeklyPlanCreate).toHaveBeenCalled();
+    expect(stageGoalUpdate).not.toHaveBeenCalled();
+  });
+
+  it("activates the linked goal when the parent confirms the weekly plan", async () => {
+    weeklyPlanFindFirst.mockResolvedValue({
+      id: "plan-1",
+      familyId: "family-1",
+      stageGoalId: "goal-1",
+      status: "DRAFT",
+      items: [],
+    });
+    weeklyPlanUpdate.mockResolvedValue({ id: "plan-1", stageGoalId: "goal-1", status: "ACTIVE", items: [] });
+    await confirmWeeklyPlan("family-1", "plan-1", { type: "parent", id: "user-1" });
+    expect(stageGoalUpdate).toHaveBeenCalledWith({ where: { id: "goal-1" }, data: { status: "ACTIVE" } });
   });
 
   it("accepts Chinese plan item types and normalizes them to enum keys", async () => {

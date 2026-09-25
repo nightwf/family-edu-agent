@@ -52,14 +52,29 @@
     <view wx:else class="empty">还没有学科记录。让 WorkBuddy 同步一次作业或错题后，这里会显示每一科的情况。</view>
 
     <view wx:if="{{planningCard}}" class="plan-card">
-      <view class="card-kicker">学习计划</view>
-      <view class="plan-cta" catchtap="copyPlanningInstruction">
+      <view class="plan-head">
+        <view class="card-kicker">学习计划</view>
+        <view class="plan-status">{{planningCard.statusText}}</view>
+      </view>
+      <view class="plan-cta">
         <view class="plan-main">
           <view class="plan-title">{{planningCard.focusText}}</view>
           <view class="plan-reason">{{planningCard.reason}}</view>
         </view>
-        <button class="btn btn-primary plan-button" catchtap="copyPlanningInstruction">{{planningCopyText}}</button>
+        <button wx:if="{{planningCard.canGenerate}}" class="btn btn-primary plan-button" loading="{{planningBusy}}" disabled="{{planningBusy}}" catchtap="generateAiPlan">{{planningBusy ? '规划中' : planningCard.actionText}}</button>
+        <button wx:elif="{{planningCard.canConfirm}}" class="btn btn-primary plan-button" loading="{{planningBusy}}" disabled="{{planningBusy}}" catchtap="confirmAiPlan">{{planningBusy ? '处理中' : planningCard.actionText}}</button>
       </view>
+      <view wx:if="{{planningCard.draft}}" class="plan-draft">
+        <view class="plan-summary">{{planningCard.draft.summary}}</view>
+        <view class="plan-rationale">{{planningCard.draft.rationale}}</view>
+        <view class="plan-items">
+          <view wx:for="{{planningCard.draft.week_items}}" wx:key="id" class="plan-item">
+            <view class="plan-item-title">{{index + 1}}. {{item.title}}</view>
+            <view class="plan-item-meta">约 {{item.estimated_minutes || '-'}} 分钟</view>
+          </view>
+        </view>
+      </view>
+      <view wx:if="{{planningCard.error}}" class="plan-error">{{planningCard.error}}</view>
     </view>
 
     <view wx:if="{{pendingTasks.length}}" class="home-section">

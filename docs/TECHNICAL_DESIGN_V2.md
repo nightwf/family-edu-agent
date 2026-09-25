@@ -1287,7 +1287,8 @@ WORKBUDDY_CLOUD_TASK_ENABLED
   `apps/api/src/v2/answer-verification.ts`（答案验证）。
 - 作答写入后自动刷新关联知识点的掌握状态，人工修正优先于自动计算。
 - `get_planning_context` 增加 `learning_priorities` 与 `learning_signals`，WorkBuddy 制定目标前必须读取。
-- 小程序：学习页新增「学习优先级」，首页在需要重新规划时展示「学习计划 · 待规划」并可一键复制规划指令。
+- 小程序与网页：首页在需要重新规划时展示原因，家长可直接调用内置豆包生成目标与周计划草稿，确认后生效；不再复制规划指令。
+- 规划草稿持久化在原有 `StageGoal`、`WeeklyPlan`、`PlanningRequest`，因此 WorkBuddy 与禾芽内置 AI 共享同一数据源。
 
 **未纳入本轮**：向量检索、BKT/Elo 等需要大样本的参数模型（家庭级数据量不足，现有证据加权模型更透明，
-继续沿用）、WorkBuddy 开放平台第三方应用自动生成计划草稿（依赖 OAuth 授权验证后再做）。
+继续沿用）。

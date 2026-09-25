@@ -314,7 +314,7 @@ export function registerV2McpTools(server, familyId) {
         links: z.array(z.object({ knowledge_node_id: z.string(), role: z.string().optional(), weight: z.number().optional() })),
     }, async ({ question_id, links }) => safe(() => linkQuestionKnowledgeNodes(familyId, question_id, links)));
     server.tool("list_question_knowledge", "读取一道题目已关联的知识节点。", { question_id: z.string() }, async ({ question_id }) => safe(() => listQuestionKnowledgeNodes(familyId, question_id)));
-    server.tool("create_planning_request", "把某个学生标记为需要重新规划。禾芽只登记待规划事项，不生成计划本身，计划由 WorkBuddy 读取上下文后制定。", { child_id: z.string(), note: z.string().optional() }, async ({ child_id, note }) => safe(async () => {
+    server.tool("create_planning_request", "把某个学生标记为需要重新规划。家长可在禾芽内用系统 AI 生成草稿，WorkBuddy 也可读取上下文后制定计划。", { child_id: z.string(), note: z.string().optional() }, async ({ child_id, note }) => safe(async () => {
         const request = await ensurePlanningRequest(familyId, child_id);
         if (!request)
             throw new Error("当前没有达到需要重新规划的阈值");
@@ -322,7 +322,7 @@ export function registerV2McpTools(server, familyId) {
             return updatePlanningRequestStatus(familyId, request.id, { status: request.status, note });
         return request;
     }));
-    server.tool("list_planning_requests", "列出待规划事项，用于确认哪些学生还没有生成学习计划。", { child_id: z.string().optional(), status: z.string().optional(), limit: z.number().min(1).max(50).optional() }, async ({ child_id, status, limit }) => safe(() => listPlanningRequests(familyId, { child_id, status, limit })));
+    server.tool("list_planning_requests", "列出待规划事项。awaiting_confirmation 表示禾芽 AI 草稿正在等待家长确认，WorkBuddy 不应覆盖该草稿。", { child_id: z.string().optional(), status: z.string().optional(), limit: z.number().min(1).max(50).optional() }, async ({ child_id, status, limit }) => safe(() => listPlanningRequests(familyId, { child_id, status, limit })));
     server.tool("get_planning_request", "读取一条待规划事项及其优先级快照。", { planning_request_id: z.string() }, async ({ planning_request_id }) => safe(() => getPlanningRequest(familyId, planning_request_id)));
     server.tool("update_planning_request_status", "更新待规划事项状态：开始规划用 in_progress，候选目标写回后可从 pending 直接到 completed，作废用 cancelled。", {
         planning_request_id: z.string(),

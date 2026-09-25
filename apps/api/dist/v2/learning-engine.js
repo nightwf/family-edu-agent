@@ -588,16 +588,29 @@ export async function getLearningPriorities(familyId, childId, options = {}) {
 }
 /**
  * 需要重新规划时创建待规划事项，交给家长或 WorkBuddy 推进。
- * 已有处于 pending / in_progress 的事项时不再重复创建。
+ * 已有处于生成、待确认或可重试状态的事项时不再重复创建。
  */
 export async function ensurePlanningRequest(familyId, childId, now = new Date()) {
     const existing = await prisma.planningRequest.findFirst({
-        where: { familyId, childId, status: { in: ["pending", "in_progress"] } },
+        where: { familyId, childId, status: { in: ["pending", "in_progress", "awaiting_confirmation", "failed"] } },
         orderBy: { createdAt: "desc" },
     });
     if (existing)
         return existing;
     const priorities = await getLearningPriorities(familyId, childId, { limit: 5, now });
+    if (priorities.active_goal?.stage_goal_id) {
+        const completedForActiveGoal = await prisma.planningRequest.findFirst({
+            where: {
+                familyId,
+                childId,
+                status: "completed",
+                stageGoalId: priorities.active_goal.stage_goal_id,
+            },
+            orderBy: { completedAt: "desc" },
+        });
+        if (completedForActiveGoal)
+            return null;
+    }
     const top = priorities.priorities[0];
     if (!priorities.planning_required || !top)
         return null;
@@ -634,7 +647,7 @@ export async function getPlanningRequest(familyId, planningRequestId) {
 }
 export async function updatePlanningRequestStatus(familyId, planningRequestId, input) {
     await getPlanningRequest(familyId, planningRequestId);
-    const allowed = ["pending", "in_progress", "completed", "cancelled"];
+    const allowed = ["pending", "in_progress", "awaiting_confirmation", "failed", "completed", "cancelled"];
     if (!allowed.includes(input.status))
         throw new LearningEngineError("无效的待规划状态");
     return prisma.planningRequest.update({

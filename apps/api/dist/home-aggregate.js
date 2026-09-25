@@ -33,6 +33,9 @@ export async function buildHomeLearningSection(familyId, childId) {
                     id: planningRequest.id,
                     status: planningRequest.status,
                     trigger_reason: planningRequest.triggerReason,
+                    ai_draft: planningRequest.aiDraft,
+                    generated_at: planningRequest.generatedAt,
+                    generation_error: planningRequest.generationError,
                     created_at: planningRequest.createdAt,
                 }
                 : null,

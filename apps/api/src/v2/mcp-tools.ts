@@ -609,7 +609,7 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
 
   server.tool(
     "create_planning_request",
-    "把某个学生标记为需要重新规划。禾芽只登记待规划事项，不生成计划本身，计划由 WorkBuddy 读取上下文后制定。",
+    "把某个学生标记为需要重新规划。家长可在禾芽内用系统 AI 生成草稿，WorkBuddy 也可读取上下文后制定计划。",
     { child_id: z.string(), note: z.string().optional() },
     async ({ child_id, note }) =>
       safe(async () => {
@@ -622,7 +622,7 @@ export function registerV2McpTools(server: McpServer, familyId: string) {
 
   server.tool(
     "list_planning_requests",
-    "列出待规划事项，用于确认哪些学生还没有生成学习计划。",
+    "列出待规划事项。awaiting_confirmation 表示禾芽 AI 草稿正在等待家长确认，WorkBuddy 不应覆盖该草稿。",
     { child_id: z.string().optional(), status: z.string().optional(), limit: z.number().min(1).max(50).optional() },
     async ({ child_id, status, limit }) => safe(() => listPlanningRequests(familyId, { child_id, status, limit })),
   );

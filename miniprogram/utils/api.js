@@ -57,6 +57,8 @@ const api = {
   getFamilyPolicy: () => request({ url: "/api/v2/family/policy" }),
   updateFamilyPolicy: (data) => request({ url: "/api/v2/family/policy", method: "PUT", data }),
   listEducationMethodsV2: () => request({ url: "/api/v2/education-methods" }),
+  generateAiPlan: (id) => request({ url: `/api/v2/planning-requests/${id}/generate-ai`, method: "POST", timeout: 110000, retry: 0 }),
+  confirmAiPlan: (id) => request({ url: `/api/v2/planning-requests/${id}/confirm-ai`, method: "POST" }),
 
   listQuestions: (params) => request({ url: `/api/questions?${qs(params)}` }),
   getQuestion: (id) => request({ url: `/api/questions/${id}` }),

@@ -102,6 +102,7 @@ describe("豆包流式解析", () => {
         for await (const event of provider.streamChat({
             model: "doubao-pro",
             messages: [{ role: "user", content: "hi" }],
+            thinking: "disabled",
             tools: [{ name: "get_child_state", description: "读状态", inputSchema: { type: "object" } }],
         }, new AbortController().signal)) {
             events.push(event);
@@ -111,6 +112,7 @@ describe("豆包流式解析", () => {
         const body = JSON.parse(init.body);
         expect(body.model).toBe("doubao-pro");
         expect(body.stream).toBe(true);
+        expect(body.thinking).toEqual({ type: "disabled" });
         expect(body.tools[0].function.name).toBe("get_child_state");
         expect(init.headers.Authorization).toBe("Bearer key-1");
     });

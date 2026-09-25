@@ -48,7 +48,7 @@ function request(options) {
         method: options.method || "GET",
         data: options.data || {},
         header,
-        timeout: 15000,
+        timeout: Number(options.timeout || 15000),
         enableHttp2: false,
         enableQuic: false,
         success(res) {

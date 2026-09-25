@@ -1,3 +1,55 @@
+# Task Plan: AI Learning Plan Generation
+
+## Goal
+
+移除网页与小程序首页的“复制规划指令”，由禾芽内置豆包根据孩子状态、学习优先级和家庭教育方式直接生成阶段目标与周计划草稿；家长确认后生效，WorkBuddy继续读写同一份计划数据。
+
+## Current Phase
+
+Complete
+
+## Phases
+
+### Phase 1: Contract and data design
+- [x] Audit planning context, model provider, goal/plan services and current UI
+- [x] Define idempotent statuses and draft/confirm API contract
+- **Status:** complete
+
+### Phase 2: Backend generation workflow
+- [x] Add AI planner service with strict structured-output validation
+- [x] Add generate/status/confirm routes with family and child isolation
+- [x] Persist candidate stage goals and weekly-plan draft without auto-activation
+- **Status:** complete
+
+### Phase 3: Web and mini program
+- [x] Remove all copy-instruction UI and clipboard logic
+- [x] Add generate, generating, review, confirm and failure states
+- [x] Keep empty and existing-plan states accurate
+- **Status:** complete
+
+### Phase 4: Tests, docs and rollout
+- [x] Add service/API/UI logic tests
+- [x] Run schema, unit and mini-program validation
+- [x] Deploy and smoke-test
+- [ ] Commit and push
+- **Status:** in_progress
+
+## Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| System Doubao is the default planner | WorkBuddy cannot currently be proactively invoked by Heya |
+| Generated plans are drafts | Parents must confirm before tasks affect the child |
+| Reuse StageGoal, WeeklyPlan and PlanningRequest | WorkBuddy and the built-in planner must share one source of truth |
+| Keep WorkBuddy planning tools | WorkBuddy may review or adjust the same plan later |
+
+## Errors Encountered
+
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+
+## Archived completed task
+
 # Task Plan: WorkBuddy OAuth QR Binding
 
 ## Goal

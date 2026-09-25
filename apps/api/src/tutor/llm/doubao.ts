@@ -55,6 +55,7 @@ export function createDoubaoProvider(options: DoubaoOptions): ChatProvider {
       }
       if (typeof input.temperature === "number") body.temperature = input.temperature;
       if (typeof input.maxTokens === "number") body.max_tokens = input.maxTokens;
+      if (input.thinking) body.thinking = { type: input.thinking };
 
       let response: Response;
       try {
