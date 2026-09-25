@@ -8,7 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parsePairs, upsertEnvText } from "./upsert-env.mjs";
 
 let passed = 0;
@@ -100,7 +100,7 @@ console.log("upsert-env：真实文件读写（含备份与 dry-run）");
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "upsert-env-"));
 const file = path.join(dir, ".env");
-const script = path.join(import.meta.dirname, "upsert-env.mjs");
+const script = path.join(path.dirname(fileURLToPath(import.meta.url)), "upsert-env.mjs");
 const original = ["JWT_SECRET=abc", "TUTOR_ENABLED=false", ""].join("\n");
 fs.writeFileSync(file, original);
 
@@ -140,7 +140,7 @@ check("被当模块导入时不执行主流程", () => {
   // 而 "test-upsert-env.mjs" 也满足该后缀，导致 import 就跑主流程。
   const url = pathToFileURL(script).href;
   assert.doesNotThrow(() =>
-    execFileSync(process.execPath, ["-e", `await import(${JSON.stringify(url)});`], {
+    execFileSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(url)});`], {
       stdio: ["ignore", "pipe", "pipe"],
     }),
   );

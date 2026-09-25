@@ -42,9 +42,10 @@ console.log("安卓外壳：不允许手势触发整页重载");
 check("没有 onFling 手势", !/onFling/.test(source));
 check("没有 GestureDetector", !/GestureDetector/.test(source));
 check(
-  "没有监听触摸事件做刷新",
-  !/setOnTouchListener[\s\S]{0,200}?reload\(\)/.test(source),
+  "顶部下拉手势不会调用刷新",
+  /setOnTouchListener/.test(source) && !/setOnTouchListener[\s\S]{0,700}?reload\(\)/.test(source),
 );
+check("WebView 顶部下拉越界被消费", /getScrollY\(\)\s*<=\s*0[\s\S]{0,160}?return true/.test(source));
 // 重载本身要保留：加载失败时那个「重新加载」按钮得能用
 check("加载失败时的重新加载按钮还在", /retry_button/.test(source) || /reload\(\)/.test(source));
 

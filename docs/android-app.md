@@ -122,6 +122,8 @@ npm run verify:web-responsive
 
 ## 版本记录
 
+- **1.2.2**：彻底禁止 WebView 顶部下拉触发整页刷新；实时语音改为独立全屏页面，
+  支持最小化后继续保持会话和连续收音，关闭仍会释放麦克风与播放资源。
 - **1.1.0**：配合内置学习私教上线。新增 `RECORD_AUDIO` 与 `MODIFY_AUDIO_SETTINGS` 权限，
   `WebChromeClient.onPermissionRequest` 把网页的录音请求转成系统授权弹窗，拒绝后提示改用文字输入。
   私教入口本身靠 UA（`HeYaAndroid/1.0`）判定，属于网页行为，**这一条不依赖新版 APK**；

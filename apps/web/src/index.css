@@ -9,7 +9,7 @@
    contain 只挡掉"继续把滚动传给浏览器"这一步，页面内外的正常滚动不受影响。 */
 html,
 body {
-  overscroll-behavior-y: contain;
+  overscroll-behavior: none;
 }
 
 body {
@@ -41,25 +41,33 @@ body {
    孩子形象的素材是透明底、按浅色背景画的：直接放到深色舞台上，深色头发和
    衣服的边缘会糊进背景，人像看不清。垫一层浅色光晕既保住对比，
    看起来也像"舞台上的追光"，正好配免提这种仪式感。 */
-.voice-spotlight {
-  border-radius: 9999px;
-  background: radial-gradient(
-    circle at 50% 46%,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(232, 248, 244, 0.82) 38%,
-    rgba(226, 246, 241, 0.34) 58%,
-    rgba(255, 255, 255, 0) 74%
-  );
-}
-
 /* 实时对话：整块窗口都换成沉浸式深绿，不再是一个嵌在消息列表上面的小舞台。
    孩子进来就是在"说话"，一眼就该知道现在是另一件事。 */
 .voice-live {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
   background-color: #0f766e;
   background-image:
-    radial-gradient(120% 90% at 50% 0%, #1c8f83 0%, transparent 58%),
-    radial-gradient(90% 70% at 12% 100%, #2fa79a 0%, transparent 60%),
-    linear-gradient(170deg, #0f766e 0%, #12907f 55%, #16796f 100%);
+    radial-gradient(circle at 50% 34%, rgba(191, 255, 236, 0.22) 0 13%, transparent 38%),
+    radial-gradient(90% 65% at 8% 100%, rgba(46, 211, 180, 0.35) 0%, transparent 62%),
+    radial-gradient(70% 52% at 100% 10%, rgba(247, 203, 105, 0.15) 0%, transparent 70%),
+    linear-gradient(160deg, #075a57 0%, #0d7d72 48%, #064945 100%);
+  isolation: isolate;
+}
+
+.voice-live::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.28;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 1px, transparent 1.5px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black, transparent 76%);
 }
 
 /* 私教工具条上的实时对话入口：一颗 Siri 味的小球，不写字。 */
@@ -133,7 +141,8 @@ body {
     rgba(143, 242, 226, 0.2) 40%,
     rgba(255, 255, 255, 0) 72%
   );
-  filter: blur(2px);
+  filter: blur(5px);
+  box-shadow: 0 0 68px rgba(127, 244, 219, 0.3);
 }
 
 .voice-halo::after {
@@ -156,10 +165,20 @@ body {
   }
 }
 
-/* 人物：安静听着的时候轻轻起伏 */
+/* 语音精灵：安静听着的时候轻轻起伏。生成图只负责质感，状态由轻量 CSS 表达。 */
+.voice-orb-stage {
+  width: clamp(13rem, 32vw, 19rem);
+  height: clamp(13rem, 32vw, 19rem);
+  filter: drop-shadow(0 28px 34px rgba(1, 38, 36, 0.45));
+}
+
 .voice-figure {
+  width: clamp(10rem, 24vw, 15rem);
+  height: clamp(10rem, 24vw, 15rem);
   animation: voice-breathe 3.4s ease-in-out infinite;
-  transform-origin: 50% 90%;
+  transform-origin: 50% 52%;
+  filter: drop-shadow(0 18px 28px rgba(2, 40, 37, 0.48));
+  will-change: transform, filter;
 }
 
 @keyframes voice-breathe {
@@ -172,23 +191,24 @@ body {
   }
 }
 
-/* 听到孩子开口：点头一样地晃，配合"听到了" */
-.voice-figure.is-speech {
-  animation: voice-nod 1.15s ease-in-out infinite;
+/* 私教正在说话时，球体和金色内光一起有节奏地起伏。 */
+.voice-orb-stage.is-tutor-speaking .voice-figure {
+  animation: voice-talk 0.78s ease-in-out infinite;
+  filter: drop-shadow(0 0 28px rgba(255, 222, 128, 0.7));
 }
 
-@keyframes voice-nod {
+@keyframes voice-talk {
   0%,
   100% {
-    transform: translateY(0) rotate(-1.2deg);
+    transform: translateY(0) scale(1);
   }
   50% {
-    transform: translateY(-8px) rotate(1.2deg);
+    transform: translateY(-8px) scale(1.06);
   }
 }
 
 /* 正在识别 / 正在想：慢一点、幅度小一点 */
-.voice-figure.is-thinking {
+.voice-orb-stage.is-thinking .voice-figure {
   animation: voice-think 2.3s ease-in-out infinite;
 }
 
@@ -200,6 +220,62 @@ body {
   50% {
     transform: translateY(-4px) rotate(2deg);
   }
+}
+
+.voice-orbit {
+  position: absolute;
+  inset: 15px;
+  border-radius: 50%;
+  border: 1px solid rgba(210, 255, 244, 0.45);
+  transform: rotate(-14deg) scaleY(0.72);
+}
+
+.voice-orbit::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffe39a;
+  box-shadow: 0 0 13px #ffe39a;
+}
+
+.voice-orbit-one {
+  animation: voice-orbit-spin 5.2s linear infinite;
+}
+
+.voice-orbit-two {
+  inset: 2px;
+  opacity: 0.45;
+  animation: voice-orbit-spin-reverse 8s linear infinite;
+}
+
+@keyframes voice-orbit-spin {
+  to { transform: rotate(346deg) scaleY(0.72); }
+}
+
+@keyframes voice-orbit-spin-reverse {
+  to { transform: rotate(-374deg) scaleY(0.82); }
+}
+
+.voice-level {
+  display: block;
+  width: 3px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  animation: voice-level 1.05s ease-in-out infinite;
+}
+
+.voice-orb-stage.is-tutor-speaking ~ div .voice-level {
+  animation-duration: 0.48s;
+}
+
+@keyframes voice-level {
+  0%, 100% { transform: scaleY(0.75); opacity: 0.55; }
+  50% { transform: scaleY(2.25); opacity: 1; }
 }
 
 /* 麦克风收声时一圈圈扩散的波纹 */
@@ -266,13 +342,31 @@ body {
   }
 }
 
+.tutor-running::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffe39a;
+  box-shadow: 0 0 0 0 rgba(255, 227, 154, 0.65);
+  animation: tutor-running-pulse 1.7s ease-out infinite;
+}
+
+@keyframes tutor-running-pulse {
+  70% { box-shadow: 0 0 0 8px rgba(255, 227, 154, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 227, 154, 0); }
+}
+
 /* 动效是把状态讲清楚的手段，不是装饰；系统要求少动就老实停住 */
 @media (prefers-reduced-motion: reduce) {
   .voice-figure,
   .voice-ring,
   .voice-halo,
   .voice-halo::after,
+  .voice-orbit,
+  .voice-level,
   .voice-ripple,
+  .tutor-running::before,
   .siri-glyph {
     animation: none;
   }

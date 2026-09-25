@@ -7,6 +7,7 @@ import {
   Loader2,
   MessageSquare,
   Mic,
+  Minimize2,
   MoreHorizontal,
   Plus,
   Printer,
@@ -19,7 +20,6 @@ import {
 import { Badge, ChildTabs, Panel } from "./Layout";
 import { splitParagraphs, streamTutorMessage, type TutorStreamEvent } from "../lib/tutor";
 import { useTutorVoice } from "../lib/use-tutor-voice";
-import { stateAsset } from "../lib/presentation";
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
 
@@ -38,6 +38,8 @@ type Props = {
   request: (path: string, options?: RequestInit, token?: string) => Promise<any>;
   /** 关闭整个私教浮窗（二次确认之后才调用）。 */
   onClose?: () => void;
+  /** 最小化只隐藏界面，对话、播放和连续收音保持运行。 */
+  onMinimize?: () => void;
 };
 
 const EMPTY_HINT = "拍一张错题照片，或者直接问一道题。我会先问你思路，不会直接给答案。";
@@ -49,19 +51,8 @@ const LOOP_STATE_TEXT: Record<string, string> = {
   transcribing: "正在识别…",
 };
 
-/**
- * 免提模式下人物的姿态。
- *
- * 复用首页那套孩子形象，只是换姿势：安静听、听到你说话、正在想。
- * 孩子在这个模式里不看键盘，全靠画面判断"轮到我说了没有"，所以姿态要跟着状态走，
- * 不能一直用同一张图。
- */
-const LOOP_STATE_POSE: Record<string, string> = {
-  idle: "stable",
-  listening: "stable",
-  speech: "progress",
-  transcribing: "thinking",
-};
+/** 语音页使用独立的透明精灵素材，状态变化交给 CSS 动画表达。 */
+const TUTOR_ORB_ASSET = `${import.meta.env.BASE_URL}brand/tutor-voice-orb.webp`;
 
 /**
  * 自动朗读是个"偏好"，不是"这一次的选择"。
@@ -91,7 +82,7 @@ function writeAutoReadPreference(value: boolean) {
  * 内置学习私教的对话主体，装在外层浮窗里。
  * 与 WorkBuddy 接入共用同一份数据：这里聊出来的证据同样要家长确认后才生效。
  */
-export default function TutorChat({ token, apiBase, children, request, onClose }: Props) {
+export default function TutorChat({ token, apiBase, children, request, onClose, onMinimize }: Props) {
   const [selectedChildId, setSelectedChildId] = useState(children[0]?.id || "");
   const [conversationId, setConversationId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -653,6 +644,15 @@ export default function TutorChat({ token, apiBase, children, request, onClose }
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
+              onClick={onMinimize}
+              aria-label="最小化私教"
+              title="最小化，继续在后台运行"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/25 active:scale-95"
+            >
+              <Minimize2 size={18} />
+            </button>
+            <button
+              type="button"
               onClick={() => setConfirmClose(true)}
               aria-label="退出私教"
               title="退出私教"
@@ -664,9 +664,14 @@ export default function TutorChat({ token, apiBase, children, request, onClose }
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-          <div className="relative grid h-44 w-44 place-items-center">
+          <div
+            className={`voice-orb-stage relative grid h-52 w-52 place-items-center ${
+              speaking ? "is-tutor-speaking" : userSpeaking ? "is-user-speaking" : thinking ? "is-thinking" : "is-listening"
+            }`}
+          >
             <span aria-hidden="true" className="voice-halo absolute inset-0" />
-            <span aria-hidden="true" className="voice-spotlight absolute inset-4" />
+            <span aria-hidden="true" className="voice-orbit voice-orbit-one" />
+            <span aria-hidden="true" className="voice-orbit voice-orbit-two" />
             {(speaking || userSpeaking) && (
               <>
                 <span className="voice-ring" />
@@ -674,11 +679,9 @@ export default function TutorChat({ token, apiBase, children, request, onClose }
               </>
             )}
             <img
-              src={stateAsset(LOOP_STATE_POSE[voice.loopState] || "stable", selectedChild?.gender)}
-              alt=""
-              className={`voice-figure relative h-36 w-auto drop-shadow-[0_18px_28px_rgba(4,48,44,0.45)] ${
-                speaking ? "is-speech" : thinking ? "is-thinking" : ""
-              }`}
+              src={TUTOR_ORB_ASSET}
+              alt="禾芽语音私教"
+              className="voice-figure relative h-40 w-40 object-contain"
             />
           </div>
 
@@ -693,6 +696,11 @@ export default function TutorChat({ token, apiBase, children, request, onClose }
 
           <div className="relative mt-3 text-center text-white">
             <div className="text-lg font-black tracking-normal">{statusText}</div>
+            <div className="mt-2 flex items-end justify-center gap-1" aria-hidden="true">
+              {[0, 1, 2, 3, 4].map((bar) => (
+                <span key={bar} className="voice-level" style={{ animationDelay: `${bar * 0.12}s` }} />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -802,6 +810,15 @@ export default function TutorChat({ token, apiBase, children, request, onClose }
                 </>
               )}
             </div>
+            <button
+              type="button"
+              onClick={onMinimize}
+              aria-label="最小化私教"
+              title="最小化，继续在后台运行"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line text-ink-soft transition hover:border-teal/40 hover:text-teal"
+            >
+              <Minimize2 size={17} />
+            </button>
             <button
               type="button"
               onClick={() => setConfirmClose(true)}

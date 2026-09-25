@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -49,7 +50,7 @@ import java.util.Locale;
  *
  * 客户端只负责承载线上站点：页面、登录、数据都在 https://heyaagent.top 上，
  * 所以服务端更新后 App 无需重新发版。这里额外处理的是原生体验：
- * 系统栏适配、返回键、下拉刷新、断网重试，以及把登录二维码长按保存到相册，
+ * 系统栏适配、返回键、禁用误触下拉刷新、断网重试，以及把登录二维码长按保存到相册，
  * 方便只有一台设备时用微信「扫一扫 - 相册」完成扫码登录。
  */
 public class MainActivity extends Activity {
@@ -80,6 +81,8 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback = null;
     /** 拍照时预先分配好的输出地址，相机把照片写进这里。 */
     private Uri pendingCameraUri = null;
+    /** 顶部下拉只消费越界手势，不让 WebView/系统把它解释成整页刷新。 */
+    private float pullStartY = 0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -188,6 +191,26 @@ public class MainActivity extends Activity {
 
         webView.setBackgroundColor(getColor(R.color.heya_cream));
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        webView.setOnTouchListener((view, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    pullStartY = event.getY();
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (webView.getScrollY() <= 0 && event.getY() > pullStartY) {
+                        // 到顶后继续往下拉时只吃掉越界移动，点击、上滑和页内滚动不受影响。
+                        return true;
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    pullStartY = 0f;
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
         webView.setWebViewClient(new HeYaWebViewClient());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

@@ -31,45 +31,60 @@ export default function TutorDock({ open, onOpen, onClose, token, apiBase, child
    * 都白建一条会话；关掉时卸载，顺带让语音钩子把麦克风和播放收干净。
    */
   const [mounted, setMounted] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     if (open) setMounted(true);
   }, [open]);
 
+  const closeTutor = () => {
+    setMinimized(false);
+    setMounted(false);
+    onClose();
+  };
+
+  const restoreTutor = () => {
+    if (minimized) {
+      setMinimized(false);
+      return;
+    }
+    onOpen();
+  };
+
   // 打开时锁住底层页面滚动：浮窗里的滑动不该带着后面的页面一起动
   useEffect(() => {
-    if (!open) return;
+    if (!open || minimized) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") setMinimized(true);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose]);
+  }, [open, minimized]);
 
   return (
     <>
-      {!open && (
+      {(!open || minimized) && (
         <button
           type="button"
           data-testid="tutor-dock-bubble"
-          onClick={onOpen}
-          aria-label="打开学习私教"
-          title="学习私教"
-          className="fixed bottom-5 right-4 z-30 inline-flex h-14 items-center gap-2 rounded-full bg-teal pl-4 pr-5 font-bold text-white shadow-[0_10px_26px_rgba(15,118,110,0.38)] transition active:scale-95 lg:bottom-6 lg:right-6"
+          onClick={restoreTutor}
+          aria-label={minimized ? "恢复学习私教" : "打开学习私教"}
+          title={minimized ? "私教正在后台运行" : "学习私教"}
+          className={`fixed bottom-5 right-4 z-[85] inline-flex h-14 items-center gap-2 rounded-full bg-teal pl-4 pr-5 font-bold text-white shadow-[0_10px_26px_rgba(15,118,110,0.38)] transition active:scale-95 lg:bottom-6 lg:right-6 ${minimized ? "tutor-running" : ""}`}
         >
           <Sparkles size={20} />
-          <span className="text-sm">AI 私教</span>
+          <span className="text-sm">{minimized ? "私教进行中" : "AI 私教"}</span>
         </button>
       )}
 
-      {open && (
+      {open && mounted && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center lg:justify-end lg:p-6"
+          className={`fixed inset-0 z-50 items-end justify-center lg:justify-end lg:p-6 ${minimized ? "hidden" : "flex"}`}
           role="dialog"
           aria-modal="true"
           aria-label="学习私教"
@@ -78,7 +93,7 @@ export default function TutorDock({ open, onOpen, onClose, token, apiBase, child
             type="button"
             aria-label="收起私教"
             tabIndex={-1}
-            onClick={onClose}
+            onClick={() => setMinimized(true)}
             className="absolute inset-0 cursor-default bg-ink/45 lg:bg-ink/35"
           />
           <div
@@ -87,15 +102,14 @@ export default function TutorDock({ open, onOpen, onClose, token, apiBase, child
           >
             {/* 手机上这是从底部拉起来的面板，给个视觉提示 */}
             <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
-            {mounted && (
-              <TutorChat
-                token={token}
-                apiBase={apiBase}
-                children={children}
-                request={request}
-                onClose={onClose}
-              />
-            )}
+            <TutorChat
+              token={token}
+              apiBase={apiBase}
+              children={children}
+              request={request}
+              onMinimize={() => setMinimized(true)}
+              onClose={closeTutor}
+            />
           </div>
         </div>
       )}

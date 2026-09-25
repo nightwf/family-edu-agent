@@ -969,7 +969,8 @@ try {
             figureLoaded: !!figure && figure.complete && figure.naturalWidth > 0 && figure.naturalHeight > 0,
             figureAnim: figure ? getComputedStyle(figure).animationName : "",
             hasHalo: !!live?.querySelector(".voice-halo"),
-            hasSpotlight: !!live?.querySelector(".voice-spotlight"),
+            hasOrbit: (live?.querySelectorAll(".voice-orbit").length || 0) >= 2,
+            hasLevels: (live?.querySelectorAll(".voice-level").length || 0) >= 5,
             rings: live?.querySelectorAll(".voice-ring").length || 0,
             ripples: live?.querySelectorAll(".voice-ripple").length || 0,
             stateText: (live?.innerText || "").replace(/\s+/g, " ").trim(),
@@ -1048,6 +1049,29 @@ try {
           .waitForFunction(() => window.__audioProbe().live === 0, null, { timeout: 6000 })
           .then(() => true)
           .catch(() => false);
+      }
+
+      // 最小化只藏界面，不卸载会话，也不关掉实时对话；恢复后文字要原样保留。
+      continuousProbe.minimize = { hidden: false, runningBadge: false, micKept: false, restored: false, transcriptKept: false };
+      const minimizeButton = page.locator('[data-testid="voice-live"] button[aria-label="最小化私教"]').first();
+      if (await minimizeButton.count()) {
+        await minimizeButton.click();
+        await page.waitForTimeout(350);
+        continuousProbe.minimize.hidden = !(await page.locator('[data-testid="voice-live"]').isVisible().catch(() => false));
+        continuousProbe.minimize.runningBadge = await page
+          .locator('[data-testid="tutor-dock-bubble"]', { hasText: "私教进行中" })
+          .isVisible()
+          .catch(() => false);
+        continuousProbe.minimize.micKept = (await page.evaluate(() => window.__micProbe())).liveAudioTracks >= 1;
+        await page.locator('[data-testid="tutor-dock-bubble"]').click();
+        continuousProbe.minimize.restored = await page
+          .locator('[data-testid="voice-live"]')
+          .waitFor({ state: "visible", timeout: 4000 })
+          .then(() => true)
+          .catch(() => false);
+        continuousProbe.minimize.transcriptKept = (
+          await page.locator('[data-testid="voice-transcript"]').innerText().catch(() => "")
+        ).includes("这道题我不会");
       }
 
       // 退出实时对话：点"切换到文本对话"要能回到普通对话，麦克风也要还回去。
@@ -1191,16 +1215,22 @@ try {
           continuousIsIconOnly: readModeControls.continuousHasNoText,
           // 没点入口前，实时对话整屏不该出现
           stageOnlyWhenContinuous: readModeControls.liveViewBefore === true,
-          // 实时对话：人物真的画出来、带光环和追光、还带呼吸/点头动画
+          // 实时对话：专属语音精灵真的画出来，带光环、轨道和动态电平
           voiceLivePresent:
             continuousProbe.liveView?.present === true &&
             (continuousProbe.liveView.figureBox?.w ?? 0) > 0 &&
             (continuousProbe.liveView.figureBox?.h ?? 0) > 0 &&
-            (continuousProbe.liveView.figureSrc || "").includes("brand/child-") &&
+            (continuousProbe.liveView.figureSrc || "").includes("brand/tutor-voice-orb.webp") &&
             continuousProbe.liveView.figureLoaded === true &&
             continuousProbe.liveView.figureAnim !== "none" &&
             continuousProbe.liveView.hasHalo === true &&
-            continuousProbe.liveView.hasSpotlight === true,
+            continuousProbe.liveView.hasOrbit === true &&
+            continuousProbe.liveView.hasLevels === true,
+          voiceLiveIsOwnPage:
+            continuousProbe.liveView?.liveBox?.x === 0 &&
+            continuousProbe.liveView?.liveBox?.y === 0 &&
+            (continuousProbe.liveView?.liveBox?.w ?? 0) >= viewport.width &&
+            (continuousProbe.liveView?.liveBox?.h ?? 0) >= viewport.height,
           // 孩子在说话：光圈扩散 + 人物下面出现水波纹
           voiceLiveReactive:
             (continuousProbe.liveView?.rings ?? 0) >= 2 &&
@@ -1222,6 +1252,12 @@ try {
             continuousProbe.liveView?.closeBox?.inside === true,
           voiceLiveHasSwitchToText: continuousProbe.liveView?.hasSwitchToText === true,
           voiceLiveExits: continuousProbe.stopped === true && continuousProbe.exited === true,
+          minimizeKeepsConversation:
+            continuousProbe.minimize?.hidden === true &&
+            continuousProbe.minimize?.runningBadge === true &&
+            continuousProbe.minimize?.micKept === true &&
+            continuousProbe.minimize?.restored === true &&
+            continuousProbe.minimize?.transcriptKept === true,
           // 两个页面都有关闭按钮，点一下先弹确认，不是直接关
           closeNeedsConfirm: closeConfirmProbe.shown === true,
           closeConfirmCancels: closeConfirmProbe.cancelKeepsOpen === true && closeConfirmProbe.cancelClearsDialog === true,
@@ -1274,7 +1310,7 @@ try {
       };
     });
     const pullDown = {
-      blocked: overscroll.body === "contain" && overscroll.html === "contain",
+      blocked: overscroll.body === "none" && overscroll.html === "none",
       scrollingStillWorks: !scrollGuard.scrollable || scrollGuard.moved,
     };
 

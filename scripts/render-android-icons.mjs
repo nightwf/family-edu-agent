@@ -7,9 +7,10 @@
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
-const root = path.resolve(import.meta.dirname, "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const resDir = path.join(root, "android/app/src/main/res");
 const tmpDir = path.join(root, "android/build/icon-source");
 fs.mkdirSync(tmpDir, { recursive: true });
