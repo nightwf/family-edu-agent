@@ -31,8 +31,8 @@ Complete
 - [x] Add service/API/UI logic tests
 - [x] Run schema, unit and mini-program validation
 - [x] Deploy and smoke-test
-- [ ] Commit and push
-- **Status:** in_progress
+- [x] Commit and push
+- **Status:** complete
 
 ## Decisions
 

@@ -21,6 +21,7 @@
 - Production acceptance passed with the real configured model: 3 candidate goals, 5 draft tasks, no activation before confirmation, and both goal and plan active after confirmation.
 - Production migration, public health endpoint and website are healthy; temporary acceptance data was removed and the pre-deploy database backup is `/opt/family-edu-agent/backups/family_edu_20260925-145144.sql.gz`.
 - Responsive screenshot verification completed; the revised AI planning card is readable on the desktop/pad layout without overlap.
+- Committed as `ac01518` and pushed to GitHub `main`.
 
 ## Archived progress
 
