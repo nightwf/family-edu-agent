@@ -100,6 +100,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   const [notice, setNotice] = useState("");
   const [quotaLeft, setQuotaLeft] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [autoRead, setAutoRead] = useState(readAutoReadPreference);
   const [confirmClose, setConfirmClose] = useState(false);
   /** 次要操作（记录/打印/新对话）按移动端惯例收进「更多」，标题栏才放得下孩子名字 */
@@ -468,7 +469,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   }
 
   /**
-   * 按住说话：录音 → 识别 → 填进输入框。
+   * 点按开始录音，再点整条录音栏结束；识别结果只回填输入框，不自动发送。
    * 识别结果先落到输入框而不是直接发，是因为儿童语音识别准确率不如成人，
    * 让孩子（或家长）看一眼再发，比答错题强。
    */
@@ -492,6 +493,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
         stream.getTracks().forEach((track) => track.stop());
         recorderRef.current = null;
         setRecording(false);
+        setTranscribing(true);
         const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
         const form = new FormData();
         form.append("file", blob, "voice.webm");
@@ -500,6 +502,8 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
           if (data?.text) setInput((current) => (current ? `${current} ${data.text}` : data.text));
         } catch (err) {
           setError((err as Error).message);
+        } finally {
+          setTranscribing(false);
         }
       };
       recorderRef.current = recorder;
@@ -998,47 +1002,49 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
               }}
             />
           </label>
-          {voiceStatus.asr && (
+          {recording || transcribing ? (
             <button
               type="button"
-              title="按住说话"
-              aria-label="按住说话"
-              aria-pressed={recording}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                void startRecording();
-              }}
-              onPointerUp={stopRecording}
-              onPointerLeave={stopRecording}
-              onPointerCancel={stopRecording}
-              onKeyDown={(event) => {
-                if (event.key === " " || event.key === "Enter") event.preventDefault();
-              }}
-              onKeyUp={(event) => {
-                if (event.key === " " || event.key === "Enter") stopRecording();
-              }}
-              onContextMenu={(event) => event.preventDefault()}
-              className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${
-                recording ? "border-accent bg-accent text-white" : "border-line text-ink-soft hover:text-teal"
-              } touch-none select-none`}
+              data-testid="voice-dictation-strip"
+              onClick={recording ? stopRecording : undefined}
+              disabled={transcribing}
+              aria-label={recording ? "结束语音输入" : "正在识别语音"}
+              className={`voice-dictation-strip min-h-10 flex-1 ${recording ? "is-recording" : "is-transcribing"}`}
             >
-              <Mic size={18} />
+              <span className="voice-dictation-waves" aria-hidden="true">
+                {[0, 1, 2, 3, 4].map((bar) => <span key={bar} style={{ animationDelay: `${bar * 0.1}s` }} />)}
+              </span>
+              <span>{recording ? "正在聆听，点击结束" : "正在识别…"}</span>
             </button>
+          ) : (
+            <div className="relative flex min-h-10 flex-1 items-end rounded-xl border border-line bg-panel focus-within:border-teal">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendText(input, attachments);
+                  }
+                }}
+                rows={1}
+                placeholder="说说你卡在哪一步"
+                className="min-h-10 min-w-0 flex-1 resize-none rounded-xl bg-transparent px-3 py-2.5 pr-11 text-sm outline-none"
+              />
+              {voiceStatus.asr && (
+                <button
+                  type="button"
+                  title="语音输入"
+                  aria-label="开始语音输入"
+                  onClick={() => void startRecording()}
+                  className="absolute bottom-1 right-1 grid h-8 w-8 place-items-center rounded-lg text-ink-soft transition hover:bg-teal/10 hover:text-teal active:scale-95"
+                >
+                  <Mic size={17} />
+                </button>
+              )}
+            </div>
           )}
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void sendText(input, attachments);
-              }
-            }}
-            rows={1}
-            placeholder="说说你卡在哪一步"
-            className="min-h-10 flex-1 resize-none rounded-xl border border-line bg-panel px-3 py-2.5 text-sm outline-none focus:border-teal"
-          />
-          {busy ? (
+          {busy && !recording && !transcribing ? (
             <button
               type="button"
               onClick={stop}
@@ -1047,7 +1053,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
             >
               <CircleStop size={18} />
             </button>
-          ) : (
+          ) : !recording && !transcribing ? (
             <button
               type="button"
               onClick={() => void sendText(input, attachments)}
@@ -1057,7 +1063,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
             >
               <Send size={18} />
             </button>
-          )}
+          ) : null}
         </div>
       </Panel>
 

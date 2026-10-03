@@ -485,8 +485,8 @@ try {
       }
       // 实时对话里孩子说出的第一句会识别成文字，触发一轮真实回答；
       // 之后的话用来验证插话打断，不再重复发消息。
-      // 注意"按住说话"也走同一个识别接口，所以这里要用"是否正在实时对话"
-      // 来区分，否则按住说话的第一次识别会把这句话抢走，实时对话里就没词了。
+      // 注意文本页语音输入也走同一个识别接口，所以这里要用"是否正在实时对话"
+      // 来区分，否则文本页第一次识别会把实时对话的测试语句抢走。
       if (/\/api\/tutor\/voice\/transcribe(\?|$)/.test(url)) {
         netProbe.transcribeCalls += 1;
         const answerThis = probeState.continuousMode && netProbe.continuousTranscribeCalls === 0;
@@ -495,7 +495,7 @@ try {
           status: 200,
           contentType: "application/json",
           headers: { "access-control-allow-origin": "*" },
-          body: JSON.stringify({ text: answerThis ? "这道题我不会" : "" }),
+          body: JSON.stringify({ text: answerThis ? "这道题我不会" : "我想再练一道题" }),
         });
         return;
       }
@@ -765,7 +765,7 @@ try {
           hasContinuousToggle: !!document.querySelector(
             'button[aria-label="开启连续对话"], button[aria-label="关闭连续对话"]',
           ),
-          hasHoldToTalk: !!document.querySelector('button[aria-label="按住说话"]'),
+          hasVoiceDictation: !!document.querySelector('button[aria-label="开始语音输入"]'),
           // 语音工具条在窄屏上要能点得到：高度别低于移动端最小点击区，也不能出视口
           voiceToolbar: (() => {
             const buttons = [
@@ -879,11 +879,18 @@ try {
         };
       });
 
-      // 按住说话：按下才录、松手就停；按住期间被切后台（来电、锁屏）
-      // 抬起事件不会再来，也必须自己停，否则麦克风会一直挂到 60 秒兜底。
-      const holdProbe = { recording: false, afterRelease: 0, afterHide: 0 };
-      const holdButton = page.locator('button[aria-label="按住说话"]').first();
-      if (await holdButton.count()) {
+      // 文本页语音输入：点击麦克风开始，整条输入栏变成录音状态；点击整条结束，
+      // 识别结果回填输入框但不自动发送。切后台也必须主动释放麦克风。
+      const dictationProbe = {
+        recording: false,
+        stripVisible: false,
+        afterTapStop: 0,
+        transcriptFilled: false,
+        notAutoSent: false,
+        afterHide: 0,
+      };
+      const dictationButton = page.locator('button[aria-label="开始语音输入"]').first();
+      if (await dictationButton.count()) {
         // 录音要先等 getUserMedia 回来，固定等某个毫秒数会时好时坏，
         // 这里改成轮询"麦克风有没有真的开起来"。
         const waitForTracks = async (expected, timeoutMs = 6000) => {
@@ -896,26 +903,30 @@ try {
           }
           return last;
         };
-        const box = await holdButton.boundingBox();
-        const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-        await page.mouse.move(center.x, center.y);
-        await page.mouse.down();
-        holdProbe.recording = (await waitForTracks((count) => count >= 1)) >= 1;
-        await page.mouse.up();
-        holdProbe.afterRelease = await waitForTracks((count) => count === 0);
+        const messagePostsBefore = netProbe.messagePosts;
+        await dictationButton.click();
+        dictationProbe.recording = (await waitForTracks((count) => count >= 1)) >= 1;
+        const dictationStrip = page.locator('[data-testid="voice-dictation-strip"]').first();
+        dictationProbe.stripVisible = await dictationStrip.isVisible();
+        await dictationStrip.click();
+        dictationProbe.afterTapStop = await waitForTracks((count) => count === 0);
+        const composer = page.locator('textarea[placeholder="说说你卡在哪一步"]').first();
+        dictationProbe.transcriptFilled = await composer
+          .waitFor({ state: "visible", timeout: 6000 })
+          .then(async () => (await composer.inputValue()).includes("我想再练一道题"))
+          .catch(() => false);
+        dictationProbe.notAutoSent = netProbe.messagePosts === messagePostsBefore;
 
-        // 再按一次，这次按住不放，直接把页面置为不可见
-        await page.mouse.move(center.x, center.y);
-        await page.mouse.down();
+        // 再点一次开始录音，然后直接把页面置为不可见。
+        await page.locator('button[aria-label="开始语音输入"]').first().click();
         await waitForTracks((count) => count >= 1);
-        holdProbe.afterHide = await page.evaluate(async () => {
+        dictationProbe.afterHide = await page.evaluate(async () => {
           Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
           Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
           document.dispatchEvent(new Event("visibilitychange"));
           await new Promise((resolve) => setTimeout(resolve, 400));
           return window.__micProbe().liveAudioTracks;
         });
-        await page.mouse.up();
         // 恢复成可见，免得后面几条用例都活在"后台"状态里
         await page.evaluate(() => {
           Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
@@ -1151,7 +1162,7 @@ try {
         speakProbe,
         continuousProbe,
         micProbe: { idle: micIdle, listening: micListening, afterStop: micAfterStop, afterHide: micAfterHide, afterClose: micAfterClose },
-        holdProbe,
+        dictationProbe,
         navBlockedWhileOpen,
         streamProbe,
         bargeProbe,
@@ -1191,7 +1202,7 @@ try {
           escClosesMenuOnly: menuEscProbe.menuGone && menuEscProbe.windowStillOpen,
           honestEvidenceBoundary: tutor.evidenceNote,
           voiceControlsPresent:
-            tutor.hasHoldToTalk && tutor.hasAutoReadToggle && tutor.hasContinuousToggle && tutor.hasSpeakButton,
+            tutor.hasVoiceDictation && tutor.hasAutoReadToggle && tutor.hasContinuousToggle && tutor.hasSpeakButton,
           readAloudWorks: speakProbe.started && speakProbe.stopped,
           continuousListeningWorks:
             continuousProbe.started &&
@@ -1269,7 +1280,13 @@ try {
           // 切到后台还要继续采音，等于孩子把 App 放兜里也在被录
           micReleasedWhenHidden: micAfterHide.liveAudioTracks === 0,
           micReleasedOnClose: micAfterClose.liveAudioTracks === 0,
-          holdToTalkReleases: holdProbe.recording && holdProbe.afterRelease === 0 && holdProbe.afterHide === 0,
+          voiceDictationWorks:
+            dictationProbe.recording &&
+            dictationProbe.stripVisible &&
+            dictationProbe.afterTapStop === 0 &&
+            dictationProbe.transcriptFilled &&
+            dictationProbe.notAutoSent &&
+            dictationProbe.afterHide === 0,
           voiceToolbarUsable:
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
           // 文本先出现，语音片段随后边到边念
@@ -1583,34 +1600,32 @@ try {
       maxTime: Number(spokenTurn.maxTime.toFixed(2)),
     };
 
-    // 孩子按下录音：声音要当场停，而且排队里那半句不能再放出来
-    const playsBeforeHold = (await audio()).plays;
-    const holdButton = speechPage.locator('button[aria-label="按住说话"]').first();
-    const holdBox = await holdButton.boundingBox();
-    await speechPage.mouse.move(holdBox.x + holdBox.width / 2, holdBox.y + holdBox.height / 2);
-    await speechPage.mouse.down();
+    // 孩子开始语音输入：声音要当场停，而且排队里那半句不能再放出来。
+    const playsBeforeDictation = (await audio()).plays;
+    const dictationButton = speechPage.locator('button[aria-label="开始语音输入"]').first();
+    await dictationButton.click();
     await speechPage.waitForTimeout(600);
-    const duringHold = await audio();
-    await speechPage.mouse.up();
+    const duringDictation = await audio();
+    await speechPage.locator('[data-testid="voice-dictation-strip"]').first().click();
     await speechPage.waitForTimeout(1500);
-    const afterHold = await audio();
+    const afterDictation = await audio();
     speechProbe.cutByRecording = {
-      liveDuringHold: duringHold.live,
-      paused: duringHold.pauses > spokenBefore.pauses,
-      playsWhileHeld: duringHold.plays - playsBeforeHold,
-      playsAfterRelease: afterHold.plays - playsBeforeHold,
-      liveAfterRelease: afterHold.live,
+      liveDuringHold: duringDictation.live,
+      paused: duringDictation.pauses > spokenBefore.pauses,
+      playsWhileHeld: duringDictation.plays - playsBeforeDictation,
+      playsAfterRelease: afterDictation.plays - playsBeforeDictation,
+      liveAfterRelease: afterDictation.live,
     };
 
     // 问新问题：上一轮没念完的先停，新问题照样念
     await sendMessage("那这道题再讲一遍");
-    const midTurn = await waitForPlays(playsBeforeHold + 2);
+    const midTurn = await waitForPlays(playsBeforeDictation + 2);
     await sendMessage("等一下，先换个问题");
-    const newTurn = await waitForPlays(playsBeforeHold + 4);
+    const newTurn = await waitForPlays(playsBeforeDictation + 4);
     speechProbe.cutByNewQuestion = {
-      playsForFirstTurn: midTurn.plays - playsBeforeHold,
-      playsTotal: newTurn.plays - playsBeforeHold,
-      pausesGrew: newTurn.pauses > afterHold.pauses,
+      playsForFirstTurn: midTurn.plays - playsBeforeDictation,
+      playsTotal: newTurn.plays - playsBeforeDictation,
+      pausesGrew: newTurn.pauses > afterDictation.pauses,
       speakFlag: speechNet.speakFlags.at(-1),
     };
 
