@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
-import TutorChat from "./TutorChat";
+
+// Markdown、语音和实时对话只在第一次打开私教时下载，避免拖慢首页。
+const TutorChat = lazy(() => import("./TutorChat"));
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
 
@@ -102,14 +104,22 @@ export default function TutorDock({ open, onOpen, onClose, token, apiBase, child
           >
             {/* 手机上这是从底部拉起来的面板，给个视觉提示 */}
             <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line lg:hidden" />
-            <TutorChat
-              token={token}
-              apiBase={apiBase}
-              children={children}
-              request={request}
-              onMinimize={() => setMinimized(true)}
-              onClose={closeTutor}
-            />
+            <Suspense
+              fallback={
+                <div className="grid min-h-0 flex-1 place-items-center bg-cream/40 text-sm font-bold text-teal">
+                  正在打开私教…
+                </div>
+              }
+            >
+              <TutorChat
+                token={token}
+                apiBase={apiBase}
+                children={children}
+                request={request}
+                onMinimize={() => setMinimized(true)}
+                onClose={closeTutor}
+              />
+            </Suspense>
           </div>
         </div>
       )}

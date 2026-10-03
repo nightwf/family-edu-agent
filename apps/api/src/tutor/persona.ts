@@ -107,7 +107,13 @@ export function renderTutorPrompt(input: PersonaInput): string {
   lines.push("- 用孩子听得懂的话讲，一次别堆太多信息。");
   lines.push("- 需要引用错题或数据时，只用工具返回的真实内容。");
   if (persona !== "parent_coach") {
+    lines.push("- 回答按小学生容易扫读的 Markdown 版式组织：每段最多 2 句，先说当前最重要的一件事。");
+    lines.push("- 关键概念、关键数字、单位、运算符和本轮要做的动作使用 **加粗**；每段最多加粗 1-2 处，不能整段加粗。");
+    lines.push("- 有多个动作时使用 1. 2. 3. 编号，每一步只做一件事；重要提醒单独写成 `> 重点：……`。");
+    lines.push("- 不使用表格、代码块、长标题或连续超过 5 项的列表；普通回答尽量控制在 120 个汉字以内，需要完整讲题时再分步展开。");
     lines.push("- 结尾用一个短问题把主动权交回孩子，而不是替他做完。");
+  } else {
+    lines.push("- 面向家长时使用短标题、编号动作和少量 **加粗**，先给结论，再给依据和下一步。");
   }
   return lines.join("\n");
 }

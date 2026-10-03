@@ -133,6 +133,7 @@ console.log("静默自动收工");
 
 console.log("朗读文本清理");
 check("去掉标题井号", stripForSpeech("### 先想一步") === "先想一步");
+check("去掉重点引用符号", stripForSpeech("> 重点：先检查单位") === "重点：先检查单位");
 check("去掉列表符号", stripForSpeech("- 第一步\n- 第二步") === "第一步\n第二步");
 check("去掉有序列表序号", stripForSpeech("1. 看题\n2. 列式") === "看题\n列式");
 check("去掉加粗星号", stripForSpeech("**重点**是单位") === "重点是单位");

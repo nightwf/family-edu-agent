@@ -5,6 +5,7 @@ import {
   AudioWaveform,
   CircleStop,
   ImagePlus,
+  Lightbulb,
   Loader2,
   MessageSquare,
   Mic,
@@ -18,8 +19,9 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { Badge, ChildTabs, Panel } from "./Layout";
-import { splitParagraphs, streamTutorMessage, type TutorStreamEvent } from "../lib/tutor";
+import { splitParagraphs, streamTutorMessage, stripForSpeech, type TutorStreamEvent } from "../lib/tutor";
 import { useTutorVoice } from "../lib/use-tutor-voice";
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
@@ -54,6 +56,42 @@ const LOOP_STATE_TEXT: Record<string, string> = {
 
 /** 语音页使用独立的透明精灵素材，状态变化交给 CSS 动画表达。 */
 const TUTOR_ORB_ASSET = `${import.meta.env.BASE_URL}brand/tutor-voice-orb.webp`;
+
+/**
+ * 私教回答使用受控 Markdown：不解析 HTML，只开放适合孩子阅读的基础结构。
+ * 这样模型输出的重点、步骤和提醒会形成真正的视觉层级，而不是露出星号。
+ */
+function TutorAnswer({ content }: { content: string }) {
+  return (
+    <div data-testid="tutor-answer" className="tutor-answer">
+      <ReactMarkdown
+        components={{
+          h1: ({ children }) => <h3 className="tutor-answer-title">{children}</h3>,
+          h2: ({ children }) => <h3 className="tutor-answer-title">{children}</h3>,
+          h3: ({ children }) => <h3 className="tutor-answer-title">{children}</h3>,
+          p: ({ children }) => <p>{children}</p>,
+          strong: ({ children }) => <strong className="tutor-answer-highlight">{children}</strong>,
+          ol: ({ children }) => <ol className="tutor-answer-steps">{children}</ol>,
+          ul: ({ children }) => <ul className="tutor-answer-list">{children}</ul>,
+          li: ({ children }) => <li>{children}</li>,
+          blockquote: ({ children }) => (
+            <blockquote className="tutor-answer-focus">
+              <Lightbulb size={17} aria-hidden="true" />
+              <div>{children}</div>
+            </blockquote>
+          ),
+          a: ({ children, href }) => (
+            <a href={href} target="_blank" rel="noreferrer">
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 /**
  * 自动朗读是个"偏好"，不是"这一次的选择"。
@@ -732,7 +770,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
                     </span>
                     {message.role === "user" ? "我" : "禾芽"}
                   </div>
-                  <div className="voice-transcript-bubble">{message.content}</div>
+                  <div className="voice-transcript-bubble">{stripForSpeech(message.content)}</div>
                 </div>
               ))
           )}
@@ -939,11 +977,15 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
                 }`}
               >
                 {message.content ? (
-                  splitParagraphs(message.content).map((paragraph, index) => (
-                    <p key={index} className={index ? "mt-2" : ""}>
-                      {paragraph}
-                    </p>
-                  ))
+                  message.role === "assistant" ? (
+                    <TutorAnswer content={message.content} />
+                  ) : (
+                    splitParagraphs(message.content).map((paragraph, index) => (
+                      <p key={index} className={index ? "mt-2" : ""}>
+                        {paragraph}
+                      </p>
+                    ))
+                  )
                 ) : (
                   <span className="inline-flex items-center gap-2 text-muted">
                     <Loader2 size={14} className="animate-spin" />

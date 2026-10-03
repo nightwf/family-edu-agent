@@ -131,6 +131,7 @@ export function stripForSpeech(text: string) {
   return text
     .replace(/```[\s\S]*?```/g, "（这里有一段代码，我看屏幕上）")
     .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+    .replace(/^\s*>\s?/gm, "")
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")

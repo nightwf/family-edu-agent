@@ -209,7 +209,12 @@ const stubs = [
     /\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/,
     () => ({
       messages: [
-        { id: "msg-assistant-1", role: "assistant", content: "先别急着算。题目里的 45 是哪一步来的？", createdAt: "2026-09-24T02:00:00.000Z" },
+        {
+          id: "msg-assistant-1",
+          role: "assistant",
+          content: "### 先找关键一步\n\n1. 先看 **45 是哪一步算出来的**。\n2. 再检查它的单位。\n\n> 重点：一次只检查一步。",
+          createdAt: "2026-09-24T02:00:00.000Z",
+        },
       ],
     }),
   ],
@@ -786,6 +791,16 @@ try {
           overflowX: document.documentElement.scrollWidth - window.innerWidth,
           emptyHint: (win?.innerText || "").includes("拍一张错题照片"),
           evidenceNote: (win?.innerText || "").includes("家长确认"),
+          answerFormat: (() => {
+            const answer = document.querySelector('[data-testid="tutor-answer"]');
+            return {
+              present: !!answer,
+              title: !!answer?.querySelector(".tutor-answer-title"),
+              highlighted: !!answer?.querySelector(".tutor-answer-highlight"),
+              steps: answer?.querySelectorAll(".tutor-answer-steps > li").length || 0,
+              focus: !!answer?.querySelector(".tutor-answer-focus"),
+            };
+          })(),
         };
       });
 
@@ -988,6 +1003,7 @@ try {
             hasTranscript: !!transcript,
             hasSwitchToText: !!live?.querySelector('button[aria-label="切换到文本对话"]'),
             transcriptText: (transcript?.innerText || "").trim(),
+            transcriptHasMarkdownMarks: /(^|\s)(#{1,6}|\*\*|>)\s?/.test(transcript?.innerText || ""),
             // 这一屏不许有播放按钮，也不许有输入框
             transcriptHasPlayButton: !!transcript?.querySelector('button[aria-label="朗读这段"], button[aria-label="停止朗读"]'),
             hasAnyTextInput: !!live?.querySelector("textarea, input"),
@@ -1039,6 +1055,7 @@ try {
         return {
           present: !!transcript,
           text: (transcript?.innerText || "").trim(),
+          hasMarkdownMarks: /(^|\s)(#{1,6}|\*\*|>)\s?/.test(transcript?.innerText || ""),
           hasPlayButton: !!transcript?.querySelector(
             'button[aria-label="朗读这段"], button[aria-label="停止朗读"]',
           ),
@@ -1201,6 +1218,12 @@ try {
           // Esc 收菜单不误关窗口
           escClosesMenuOnly: menuEscProbe.menuGone && menuEscProbe.windowStillOpen,
           honestEvidenceBoundary: tutor.evidenceNote,
+          childFriendlyAnswer:
+            tutor.answerFormat.present &&
+            tutor.answerFormat.title &&
+            tutor.answerFormat.highlighted &&
+            tutor.answerFormat.steps === 2 &&
+            tutor.answerFormat.focus,
           voiceControlsPresent:
             tutor.hasVoiceDictation && tutor.hasAutoReadToggle && tutor.hasContinuousToggle && tutor.hasSpeakButton,
           readAloudWorks: speakProbe.started && speakProbe.stopped,
@@ -1252,6 +1275,8 @@ try {
             continuousProbe.transcript?.present === true &&
             (continuousProbe.transcript?.text || "").includes("这道题我不会") &&
             (continuousProbe.transcript?.text || "").includes("先读一遍题") &&
+            continuousProbe.liveView?.transcriptHasMarkdownMarks === false &&
+            continuousProbe.transcript?.hasMarkdownMarks === false &&
             continuousProbe.transcript?.hasPlayButton === false &&
             continuousProbe.transcript?.hasAnyInput === false,
           // 落在像素上：这一屏是沉浸式深绿，不是一块白底

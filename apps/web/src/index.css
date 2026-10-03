@@ -267,6 +267,130 @@ body {
   animation-duration: 1.35s;
 }
 
+/* 私教回答的儿童阅读版式：短段落、清晰步骤、少量重点色。
+   不依赖字号放大制造层级，避免在手机上挤压正文。 */
+.tutor-answer {
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+
+.tutor-answer > :first-child {
+  margin-top: 0;
+}
+
+.tutor-answer > :last-child {
+  margin-bottom: 0;
+}
+
+.tutor-answer p {
+  margin: 0.45rem 0;
+}
+
+.tutor-answer-title {
+  margin: 0 0 0.55rem;
+  padding-left: 0.65rem;
+  border-left: 3px solid #e8b433;
+  color: #143f3d;
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1.45;
+}
+
+.tutor-answer-highlight {
+  border-radius: 3px;
+  background: #fff0b8;
+  color: #7a4312;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0.05rem 0.18rem;
+  font-weight: 900;
+}
+
+.tutor-answer-steps,
+.tutor-answer-list {
+  margin: 0.55rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tutor-answer-steps {
+  counter-reset: tutor-step;
+}
+
+.tutor-answer-steps > li {
+  position: relative;
+  min-height: 1.65rem;
+  margin: 0.42rem 0;
+  padding-left: 2rem;
+}
+
+.tutor-answer-steps > li::before {
+  position: absolute;
+  top: 0.12rem;
+  left: 0;
+  display: grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #14847d;
+  color: white;
+  content: counter(tutor-step);
+  counter-increment: tutor-step;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tutor-answer-list > li {
+  position: relative;
+  margin: 0.35rem 0;
+  padding-left: 1.15rem;
+}
+
+.tutor-answer-list > li::before {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.15rem;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: #e8b433;
+  content: "";
+}
+
+.tutor-answer li > p {
+  margin: 0;
+}
+
+.tutor-answer-focus {
+  display: flex;
+  gap: 0.55rem;
+  margin: 0.65rem 0;
+  padding: 0.55rem 0 0.55rem 0.7rem;
+  border-left: 3px solid #e8b433;
+  background: rgba(255, 240, 184, 0.28);
+  color: #5f3b13;
+  font-weight: 750;
+}
+
+.tutor-answer-focus > svg {
+  margin-top: 0.22rem;
+  flex: 0 0 auto;
+  color: #b7791f;
+}
+
+.tutor-answer-focus p {
+  margin: 0;
+}
+
+.tutor-answer a {
+  color: #0f766e;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @keyframes voice-dictation-wave {
   from { height: 6px; opacity: 0.5; }
   to { height: 18px; opacity: 1; }

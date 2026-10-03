@@ -73,6 +73,21 @@ describe("人格渲染（纯函数）", () => {
     expect(prompt).toContain("兄弟姐妹");
   });
 
+  it("孩子回答使用突出重点的短 Markdown 版式", () => {
+    const prompt = renderTutorPrompt({ persona: "child_tutor", settings: {} });
+    expect(prompt).toContain("小学生容易扫读的 Markdown 版式");
+    expect(prompt).toContain("**加粗**");
+    expect(prompt).toContain("> 重点：");
+    expect(prompt).toContain("每一步只做一件事");
+    expect(prompt).toContain("120 个汉字以内");
+  });
+
+  it("家长回答也先给结论并使用编号动作", () => {
+    const prompt = renderTutorPrompt({ persona: "parent_coach", settings: {} });
+    expect(prompt).toContain("先给结论");
+    expect(prompt).toContain("编号动作");
+  });
+
   it("性别影响称呼，未设置时不出现称呼", () => {
     expect(renderTutorPrompt({ persona: "child_tutor", gender: "female", settings: {} })).toContain("女孩");
     expect(renderTutorPrompt({ persona: "child_tutor", gender: "male", settings: {} })).toContain("男孩");
