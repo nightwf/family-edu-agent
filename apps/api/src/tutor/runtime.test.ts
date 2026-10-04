@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatProvider, StreamEvent } from "./llm/types.js";
 import type { TutorToolset } from "./mcp-tools.js";
-import { humanizeProviderError, runTutorTurn } from "./runtime.js";
+import { humanizeProviderError, isDeferredActionOnly, planAutomaticLookups, runTutorTurn } from "./runtime.js";
 
 // 安全事件与引用校验都落库，测试里打桩，只关心 runtime 的行为
 const recordSafetyEvent = vi.fn();
@@ -74,6 +74,15 @@ beforeEach(() => {
 });
 
 describe("Agent 循环", () => {
+  it("识别需要自动闭环的错题练习请求", () => {
+    expect(planAutomaticLookups("那我最近错题的类型出题。"))
+      .toEqual([{ name: "list_wrong_questions", arguments: { limit: 5, offset: 0 } }]);
+    expect(planAutomaticLookups("给我讲一个笑话"))
+      .toEqual([]);
+    expect(isDeferredActionOnly("好嘞，我先看看最近错题，再给你针对性出题哦 🔍")).toBe(true);
+    expect(isDeferredActionOnly("根据最近错题，我给你三道题：1. 计算……")).toBe(false);
+  });
+
   it("正常回答：流式文本与 done 一起产出", async () => {
     const events = await collect(baseInput());
     expect(events.filter((event) => event.type === "text").map((event) => event.delta)).toEqual([
@@ -106,6 +115,82 @@ describe("Agent 循环", () => {
     // 两轮用量累加
     expect(done.usage).toEqual({ promptTokens: 13, completionTokens: 5 });
     expect(done.toolCalls).toEqual([{ name: "get_wrong_question", ok: true }]);
+  });
+
+  it("按最近错题出题：运行时主动查错题和生成规则，再让模型直接给题", async () => {
+    const toolset = fakeToolset({
+      schemas: [
+        { name: "list_wrong_questions", description: "列错题", inputSchema: { type: "object" } },
+        { name: "get_wrong_question_practice_context", description: "读变式规则", inputSchema: { type: "object" } },
+      ],
+      callTool: vi.fn(async (name: string) => {
+        if (name === "list_wrong_questions") {
+          return { text: JSON.stringify({ items: [{ id: "wrong-1" }, { id: "wrong-2" }] }), isError: false };
+        }
+        return { text: JSON.stringify({ question_type_rules: { invariants: ["先求总数"] } }), isError: false };
+      }),
+    });
+    let seenMessages: any[] = [];
+    const provider: ChatProvider = {
+      name: "test",
+      supportsVision: true,
+      async *streamChat(input) {
+        seenMessages = input.messages;
+        yield { type: "text", delta: "根据你最近的错题，先做第1题：3袋苹果，每袋8个，一共有多少个？" };
+        yield { type: "done", usage: { promptTokens: 8, completionTokens: 6 } };
+      },
+    };
+    const events = await collect(baseInput({
+      userMessage: "那我最近错题的类型出题。",
+      provider,
+      toolset,
+    }));
+
+    expect(toolset.callTool).toHaveBeenNthCalledWith(1, "list_wrong_questions", { limit: 5, offset: 0 });
+    expect(toolset.callTool).toHaveBeenNthCalledWith(2, "get_wrong_question_practice_context", {
+      wrong_question_id: "wrong-1",
+      count: 3,
+    });
+    expect(toolset.callTool).toHaveBeenNthCalledWith(3, "get_wrong_question_practice_context", {
+      wrong_question_id: "wrong-2",
+      count: 3,
+    });
+    expect(seenMessages.filter((message) => message.role === "tool")).toHaveLength(3);
+    expect(events.filter((event) => event.type === "text").map((event) => event.delta).join(""))
+      .toContain("第1题");
+    expect(events.find((event) => event.type === "done")?.toolCalls).toEqual([
+      { name: "list_wrong_questions", ok: true },
+      { name: "get_wrong_question_practice_context", ok: true },
+      { name: "get_wrong_question_practice_context", ok: true },
+    ]);
+  });
+
+  it("模型只说我先看看时自动续跑，不要求用户再说继续", async () => {
+    const toolset = fakeToolset();
+    const provider = providerFromRounds([
+      [
+        { type: "text", delta: "好，我先看看你的错题。" },
+        { type: "done", usage: { promptTokens: 2, completionTokens: 2 } },
+      ],
+      [
+        { type: "tool_call", id: "c1", name: "get_wrong_question", arguments: '{"wrong_question_id":"w1"}' },
+        { type: "done", usage: { promptTokens: 2, completionTokens: 1 } },
+      ],
+      [
+        { type: "text", delta: "查到了，现在做这道题……" },
+        { type: "done", usage: { promptTokens: 3, completionTokens: 3 } },
+      ],
+    ]);
+    const events = await collect(baseInput({ provider, toolset }));
+
+    expect(toolset.callTool).toHaveBeenCalledWith("get_wrong_question", { wrong_question_id: "w1" });
+    expect(events.filter((event) => event.type === "text").map((event) => event.delta)).toEqual([
+      "好，我先看看你的错题。",
+      "查到了，现在做这道题……",
+    ]);
+    expect(events.find((event) => event.type === "done")?.toolCalls).toEqual([
+      { name: "get_wrong_question", ok: true },
+    ]);
   });
 
   it("工具被拒绝时仍继续，并把失败计入审计", async () => {

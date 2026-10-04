@@ -33,6 +33,48 @@ function extractText(result: any): string {
   return texts.join("\n");
 }
 
+/**
+ * 给对话模型的列表结果只留“选择下一步所需”的字段。
+ *
+ * `list_wrong_questions` 的原始行会嵌入完整 Question、QuestionType、Child，
+ * 几条就可能超过工具结果上限，被字符串截断成无效 JSON。模型既浪费上下文，
+ * 运行时也无法可靠取错题 id。具体规则由 get_wrong_question_practice_context 再读。
+ */
+export function compactTutorToolPayload(name: string, payload: any): any {
+  if (name !== "list_wrong_questions" || !Array.isArray(payload?.items)) return payload;
+  return {
+    total: payload.total,
+    count: payload.count,
+    offset: payload.offset,
+    has_more: payload.has_more,
+    next_offset: payload.next_offset,
+    items: payload.items.map((item: any) => ({
+      id: item.id,
+      subject: item.subject,
+      grade: item.grade,
+      status: item.status,
+      mastery_score: item.masteryScore,
+      mistake_count: item.mistakeCount,
+      error_category: item.errorCategory,
+      error_reason: item.errorReason,
+      key_learning_point: item.keyLearningPoint,
+      knowledge_points: item.knowledgePoints,
+      last_wrong_at: item.lastWrongAt,
+      question: item.question
+        ? {
+            id: item.question.id,
+            stem: item.question.stem,
+            format: item.question.format,
+            difficulty: item.question.difficulty,
+          }
+        : null,
+      question_type: item.questionType
+        ? { id: item.questionType.id, name: item.questionType.name }
+        : null,
+    })),
+  };
+}
+
 export async function createTutorToolset(
   familyId: string,
   persona: TutorPersona,
@@ -86,6 +128,7 @@ export async function createTutorToolset(
         if (name === "list_children" || name === "list_learning_signals") {
           payload = filterChildrenResult(persona, pinnedChildId || null, payload);
         }
+        payload = compactTutorToolPayload(name, payload);
         const text = typeof payload === "string" ? payload : JSON.stringify(payload);
         return { text: truncate(text), isError: result?.isError === true };
       } catch (error) {

@@ -28,7 +28,7 @@ vi.mock("../prisma.js", () => ({
   ),
 }));
 
-const { createTutorToolset } = await import("./mcp-tools.js");
+const { compactTutorToolPayload, createTutorToolset } = await import("./mcp-tools.js");
 
 let closeAll: (() => Promise<void>) | undefined;
 afterEach(async () => {
@@ -43,6 +43,40 @@ async function open(persona: "child_tutor" | "parent_coach", pinnedChildId?: str
 }
 
 describe("私教工具集（与真实 MCP 服务器对接）", () => {
+  it("错题列表压成可选摘要，不把整条题型规则和学生对象塞给模型", () => {
+    const payload = compactTutorToolPayload("list_wrong_questions", {
+      total: 1,
+      count: 1,
+      offset: 0,
+      has_more: false,
+      next_offset: 1,
+      items: [{
+        id: "wrong-1",
+        subject: "数学",
+        grade: "三年级",
+        status: "strengthening",
+        masteryScore: 62,
+        mistakeCount: 2,
+        errorReason: "漏算一种方案",
+        knowledgePoints: ["方案比较"],
+        lastWrongAt: "2026-09-26",
+        child: { id: "child-1", name: "JOJO", privateNotes: "不应进入模型" },
+        question: { id: "q-1", stem: "怎样买票最合算？", format: "subjective", answer: { secret: true } },
+        questionType: { id: "type-1", name: "购票合算", generationRule: "很长的完整规则" },
+      }],
+    });
+
+    expect(payload.items[0]).toMatchObject({
+      id: "wrong-1",
+      mastery_score: 62,
+      question: { id: "q-1", stem: "怎样买票最合算？" },
+      question_type: { id: "type-1", name: "购票合算" },
+    });
+    expect(JSON.stringify(payload)).not.toContain("privateNotes");
+    expect(JSON.stringify(payload)).not.toContain("generationRule");
+    expect(JSON.stringify(payload)).not.toContain("secret");
+  });
+
   it("只暴露授权表里的工具，删除类工具不在其中", async () => {
     const toolset = await open("child_tutor", "child-1");
     const names = toolset.schemas.map((tool) => tool.name);
