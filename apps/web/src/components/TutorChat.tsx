@@ -144,7 +144,11 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   const [confirmClose, setConfirmClose] = useState(false);
   /** 次要操作（记录/打印/新对话）按移动端惯例收进「更多」，标题栏才放得下孩子名字 */
   const [actionsOpen, setActionsOpen] = useState(false);
+  /** 孩子往上翻了就不该再被自动拽回底部，用一个「回到底部」按钮提示有新内容 */
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  /** 是否贴着底部。用它决定新内容要不要自动跟随滚动。 */
+  const nearBottomRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingRequestRef = useRef(0);
@@ -195,9 +199,34 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
       .catch(() => setVoiceStatus({ asr: false, tts: false, idleMs: 0 }));
   }, [token, request]);
 
+  /**
+   * 自动滚动只在"孩子本来就贴着底部"时发生。
+   *
+   * 回答是逐字流式返回的，消息每几十毫秒就更新一次。以前这里无条件把滚动条
+   * 拽到底，孩子想往上翻看前面的内容就会被反复拉回来，看着就像"滑不动"。
+   */
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const el = scrollRef.current;
+    if (!el || !nearBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  function handleTutorScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    // 留 80px 容差：手指还没完全滑到底也算贴着底部，下一条新内容继续跟随
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distance <= 80;
+    nearBottomRef.current = nearBottom;
+    setShowJumpToLatest(!nearBottom);
+  }
+
+  function jumpToLatest() {
+    const el = scrollRef.current;
+    nearBottomRef.current = true;
+    setShowJumpToLatest(false);
+    if (el) el.scrollTop = el.scrollHeight;
+  }
 
   useEffect(() => {
     if (transcriptRef.current) transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
@@ -342,6 +371,8 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
       setNotice("");
       setMessages([]);
       setConversationId("");
+      nearBottomRef.current = true;
+      setShowJumpToLatest(false);
       try {
         const list = await request(`/api/tutor/conversations?child_id=${encodeURIComponent(childId)}`, {}, token);
         const existing = Array.isArray(list?.conversations) ? list.conversations[0] : null;
@@ -414,6 +445,9 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
       // "这一轮别念"的标记保持清空——问的是新问题，按开关正常出声。
       stopAllSpeechRef.current();
       speechCutRef.current = false;
+      // 自己刚发了新问题，无论如何都要跟到底部看回答
+      nearBottomRef.current = true;
+      setShowJumpToLatest(false);
 
       const userMessage: Message = { id: `local-${Date.now()}`, role: "user", content: text || "（图片）" };
       const assistantId = `stream-${Date.now()}`;
@@ -980,11 +1014,13 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
           </div>
         )}
 
-        <div
-          ref={scrollRef}
-          data-testid="tutor-scroll"
-          className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-cream/40 px-4 py-4 transition-colors"
-        >
+        <div className="relative min-h-0 flex-1">
+          <div
+            ref={scrollRef}
+            data-testid="tutor-scroll"
+            onScroll={handleTutorScroll}
+            className="h-full space-y-4 overflow-y-auto overscroll-contain bg-cream/40 px-4 py-4 transition-colors"
+          >
           {messages.length === 0 && (
             <p className="mx-auto max-w-md py-10 text-center text-sm leading-6 text-muted">{EMPTY_HINT}</p>
           )}
@@ -1042,6 +1078,18 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
               )}
             </div>
           ))}
+          </div>
+
+          {showJumpToLatest && (
+            <button
+              type="button"
+              onClick={jumpToLatest}
+              aria-label="回到底部"
+              className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-line bg-panel px-3 py-1.5 text-xs font-bold text-teal shadow-[0_6px_18px_rgba(38,52,59,0.18)] transition active:scale-95"
+            >
+              回到底部
+            </button>
+          )}
         </div>
 
         {attachments.length > 0 && (

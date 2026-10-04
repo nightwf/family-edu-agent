@@ -226,7 +226,7 @@ const stubs = [
 ];
 
 /** 服务端下发的静默兜底时长。主用例给大值，免得验证过程里被自动收工打断。 */
-const probeState = { voiceIdleMs: 180_000, continuousMode: false };
+const probeState = { voiceIdleMs: 180_000, continuousMode: false, slowStream: false };
 
 /**
  * 麦克风生命周期探针：把每次拿到的流留一份引用，事后能数出"还有几路在采音"。
@@ -329,6 +329,34 @@ const mimeTypes = {
 };
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, `http://127.0.0.1:${port}`);
+  // 慢速流式回答：真实场景里回答是逐字到达的，用它验证"边流边看历史不被拽走"。
+  if (request.method === "POST" && /\/api\/tutor\/conversations\/[^/?]+\/messages$/.test(url.pathname)) {
+    request.resume();
+    response.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache",
+      "access-control-allow-origin": "*",
+    });
+    const events = [
+      ["text", { delta: "先读一遍题。" }],
+      ["text", { delta: " 题目问的是总数，" }],
+      ["text", { delta: "先把已知条件圈出来。" }],
+      ["text", { delta: " 再看它们之间的关系。" }],
+      ["text", { delta: " 想好一步再做下一步。" }],
+      ["done", { messageId: "msg-slow", quotaLeft: 57, usage: { promptTokens: 4, completionTokens: 6 } }],
+    ];
+    let index = 0;
+    const timer = setInterval(() => {
+      if (index >= events.length) {
+        clearInterval(timer);
+        response.end();
+        return;
+      }
+      const [name, data] = events[index++];
+      response.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
+    }, 350);
+    return;
+  }
   let relative = url.pathname.replace(/^\/family-edu\/?/, "");
   if (relative === "" || !path.extname(relative)) relative = "index.html";
   const filePath = path.join(distDir, relative);
@@ -435,6 +463,7 @@ try {
     netProbe.continuousTranscribeCalls = 0;
     netProbe.speakFlags = [];
     probeState.continuousMode = false;
+    probeState.slowStream = false;
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
@@ -463,6 +492,11 @@ try {
       // 发消息：SSE 桩，含文本、语音片段与收尾，用来验证流式朗读
       if (/\/api\/tutor\/conversations\/[^/?]+\/messages(\?|$)/.test(url) && route.request().method() === "POST") {
         netProbe.messagePosts += 1;
+        // 慢速流用例要走本地服务器的逐字 SSE，才能验证流式更新期间的滚动行为
+        if (probeState.slowStream) {
+          await route.continue();
+          return;
+        }
         // 记下前端有没有让服务端合成语音：开关关掉时这里必须是 false，
         // 光看界面上不出声不算数——服务端还在合成就是在白烧配额。
         netProbe.speakFlags.push(route.request().postDataJSON?.()?.speak === true);
@@ -881,6 +915,8 @@ try {
 
       // 连续对话：开着麦克风自己听，音量上来就该进入"听到了"状态。
       const continuousToggle = page.locator('button[aria-label="开启连续对话"]').first();
+      // 连续对话这一轮只该发一条消息；用它开始前的计数做基线
+      let messagePostsBeforeContinuous = null;
       const continuousProbe = { started: false, reachedSpeech: false, stopped: false, rowFits: true };
 
       // 浮窗开着、但没开连续对话时，麦克风必须是关的：
@@ -976,6 +1012,8 @@ try {
       // 点一下 Siri 入口，整个窗口换成实时对话。
       if (await continuousToggle.count()) {
         probeState.continuousMode = true;
+        // 连续对话这一轮只该发一条消息，用这里的基线做判断，避免把前面的用例算进来
+        messagePostsBeforeContinuous = netProbe.messagePosts;
         await continuousToggle.click();
         continuousProbe.started = await page
           .locator('[data-testid="voice-live"]')
@@ -1096,6 +1134,8 @@ try {
         .waitForFunction(() => window.__audioProbe().live >= 1, null, { timeout: 12_000 })
         .then(() => true)
         .catch(() => false);
+      // 连续对话这一轮到这里为止只该发过一条消息，当刻取值，后面的用例不再影响它
+      const postsAfterContinuousStream = netProbe.messagePosts;
 
       // 插话打断：私教念着的时候孩子又开口，本地停嘴 + 服务端停止生成。
       const bargeProbe = { interruptCalls: 0, audioStopped: false };
@@ -1163,6 +1203,80 @@ try {
         return window.__micProbe();
       });
 
+      // 消息区滚动：AI 逐字回答时，孩子主动往上翻不该被自动滚回底部。
+      // 用真实滚轮事件（合成的 scroll 事件不会触发 React 的处理），并让回答慢速逐字返回。
+      const scrollProbeTutor = {
+        hasScrollable: false,
+        reachedBottom: false,
+        buttonAppeared: false,
+        heldWhileStreaming: false,
+        jumpWorks: false,
+      };
+      // 这一段会额外发一条消息，记下基线，免得后面"只发过一次"的断言被这条算进去
+      const messagePostsBeforeScrollProbe = netProbe.messagePosts;
+      await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="tutor-scroll"]');
+        if (!el) return;
+        const spacer = document.createElement('div');
+        spacer.id = "probe-scroll-spacer";
+        spacer.style.height = "2000px";
+        el.appendChild(spacer);
+      });
+      scrollProbeTutor.hasScrollable = await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="tutor-scroll"]');
+        return !!el && el.scrollHeight > el.clientHeight + 200;
+      });
+      const chatScroll = page.locator('[data-testid="tutor-scroll"]').first();
+      await chatScroll.hover();
+      await page.mouse.wheel(0, 3000);
+      await page.waitForTimeout(200);
+      scrollProbeTutor.reachedBottom = await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="tutor-scroll"]');
+        return !!el && el.scrollHeight - el.scrollTop - el.clientHeight <= 8;
+      });
+
+      // 慢速回答一开始就立刻往上翻，之后流式内容继续到达，位置必须留在原处
+      probeState.slowStream = true;
+      await page.locator('textarea[placeholder="说说你卡在哪一步"]').first().fill("这道题再讲一遍");
+      await page.locator('button[aria-label="发送"]').first().click();
+      await page.waitForTimeout(150);
+      await chatScroll.hover();
+      await page.mouse.wheel(0, -3000);
+      await page.waitForTimeout(200);
+      scrollProbeTutor.buttonAppeared = await page
+        .locator('button[aria-label="回到底部"]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      const scrollTopAfterFlipUp = await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="tutor-scroll"]');
+        return el ? Math.round(el.scrollTop) : -1;
+      });
+      // 回答还要再流 1 秒以上，这段期间滚动位置不能被拽走
+      await page.waitForTimeout(1200);
+      scrollProbeTutor.heldWhileStreaming = await page.evaluate(
+        (before) => {
+          const el = document.querySelector('[data-testid="tutor-scroll"]');
+          // 既要求"确实不在底部"，也要求"流式更新期间位置没被夺走"
+          if (!el) return false;
+          const scrolledUp = before >= 0 && el.scrollHeight - before - el.clientHeight > 100;
+          return scrolledUp && Math.abs(Math.round(el.scrollTop) - before) <= 8;
+        },
+        scrollTopAfterFlipUp,
+      );
+      probeState.slowStream = false;
+
+      if (await page.locator('button[aria-label="回到底部"]').first().isVisible().catch(() => false)) {
+        await page.locator('button[aria-label="回到底部"]').first().click();
+        await page.waitForTimeout(200);
+        scrollProbeTutor.jumpWorks = await page.evaluate(() => {
+          const el = document.querySelector('[data-testid="tutor-scroll"]');
+          if (!el) return false;
+          return el.scrollHeight - el.scrollTop - el.clientHeight <= 8;
+        });
+      }
+      await page.evaluate(() => document.getElementById("probe-scroll-spacer")?.remove());
+
       // 收起浮窗要二次确认：点关闭 → 弹确认 → 点"再想想"不退出 →
       // 再点关闭 → 点"退出"才真的关，同时麦克风必须彻底释放。
       const closeConfirmProbe = { shown: false, cancelKeepsOpen: false, cancelClearsDialog: false, exited: false };
@@ -1206,6 +1320,7 @@ try {
         menuClosedAfterClick,
         menuEscProbe,
         speakProbe,
+        scrollProbeTutor,
         continuousProbe,
         micProbe: { idle: micIdle, listening: micListening, afterStop: micAfterStop, afterHide: micAfterHide, afterClose: micAfterClose },
         dictationProbe,
@@ -1346,7 +1461,18 @@ try {
           voiceToolbarUsable:
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
           // 文本先出现，语音片段随后边到边念
-          streamedSpeechWorks: streamProbe.userShown && streamProbe.sent && streamProbe.playing && netProbe.messagePosts === 1,
+          streamedSpeechWorks:
+            streamProbe.userShown &&
+            streamProbe.sent &&
+            streamProbe.playing &&
+            // 连续对话那一轮只该发一条消息；滚动用例额外发的那条不算在内
+            postsAfterContinuousStream === messagePostsBeforeContinuous + 1,
+          // 消息区能滚、往上翻不被流式更新拽回底部、按钮能一键到底
+          chatScrollWorks:
+            scrollProbeTutor.hasScrollable &&
+            scrollProbeTutor.buttonAppeared &&
+            scrollProbeTutor.heldWhileStreaming &&
+            scrollProbeTutor.jumpWorks,
           micRestartsBeforeAnswer:
             streamProbe.userShown && streamProbe.listeningWhileAnswerPending,
           // 孩子插话：本地停嘴 + 服务端停止生成
