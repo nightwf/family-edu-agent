@@ -34,6 +34,7 @@ export function useTutorVoice(options: {
   const [speakingId, setSpeakingId] = useState("");
   const [loopState, setLoopState] = useState<VoiceLoopState>("idle");
   const [continuous, setContinuous] = useState(false);
+  const [continuousStarting, setContinuousStarting] = useState(false);
   const [speaking, setSpeaking] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -196,6 +197,7 @@ export function useTutorVoice(options: {
     loopRef.current = null;
     loop?.stop();
     setLoopState("idle");
+    setContinuousStarting(false);
     setContinuous(false);
   }, []);
 
@@ -208,6 +210,7 @@ export function useTutorVoice(options: {
   const handleIdleStop = useCallback(() => {
     loopRef.current = null;
     setLoopState("idle");
+    setContinuousStarting(false);
     setContinuous(false);
     idleRef.current?.();
   }, []);
@@ -263,8 +266,12 @@ export function useTutorVoice(options: {
       },
     });
     loopRef.current = loop;
-    setContinuous(true);
+    setContinuousStarting(true);
     await loop.start();
+    // 麦克风和 MediaRecorder 真正启动之后才进入实时语音页。
+    // 否则授权或 WebView 初始化慢时，孩子看到页面就开口，开头几秒其实还没被录到。
+    if (loopRef.current === loop && loop.isRunning()) setContinuous(true);
+    setContinuousStarting(false);
   }, [handleIdleStop, options.apiBase, options.idleMs, options.token, stopContinuous]);
 
   const toggleContinuous = useCallback(() => {
@@ -303,6 +310,7 @@ export function useTutorVoice(options: {
     stopSpeech,
     stopAllSpeech,
     continuous,
+    continuousStarting,
     toggleContinuous,
     loopState,
     setTutorSpeaking,

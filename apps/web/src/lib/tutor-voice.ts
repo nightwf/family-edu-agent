@@ -349,7 +349,13 @@ export function createVoiceLoop(options: {
     idleFired = false;
     lastHeardAt = deps.now();
     try {
-      stream = await deps.getUserMedia({ audio: true });
+      const acquiredStream = await deps.getUserMedia({ audio: true });
+      // 用户可能在系统授权框还没返回时就关闭页面。此时不能在后台重新开麦克风。
+      if (!running) {
+        acquiredStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      stream = acquiredStream;
       recorder = deps.createRecorder(stream);
       mimeType.value = recorder.mimeType || "";
       meter = deps.createMeter(stream);

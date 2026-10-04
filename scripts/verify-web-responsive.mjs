@@ -234,9 +234,19 @@ const probeState = { voiceIdleMs: 180_000, continuousMode: false };
  */
 const MIC_PROBE_SCRIPT = () => {
   const streams = [];
+  const recorders = [];
   let trackStops = 0;
+  const NativeMediaRecorder = window.MediaRecorder;
+  window.MediaRecorder = class ProbeMediaRecorder extends NativeMediaRecorder {
+    constructor(stream, options) {
+      super(stream, options);
+      recorders.push(this);
+    }
+  };
   const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
   navigator.mediaDevices.getUserMedia = async (constraints) => {
+    // 模拟手机 WebView 首次启动麦克风的真实延迟，防止界面先进入“可说话”状态。
+    await new Promise((resolve) => setTimeout(resolve, 180));
     const stream = await originalGetUserMedia(constraints);
     streams.push(stream);
     return stream;
@@ -252,6 +262,7 @@ const MIC_PROBE_SCRIPT = () => {
       0,
     ),
     streamsOpened: streams.length,
+    activeRecorders: recorders.filter((recorder) => recorder.state === "recording").length,
     trackStops,
   });
 };
@@ -455,6 +466,11 @@ try {
         // 记下前端有没有让服务端合成语音：开关关掉时这里必须是 false，
         // 光看界面上不出声不算数——服务端还在合成就是在白烧配额。
         netProbe.speakFlags.push(route.request().postDataJSON?.()?.speak === true);
+        // 实时语音场景故意让回答慢一点，验证识别结束后录音会立即恢复，
+        // 而不是等整段 AI 回答完成才重新开麦克风。
+        if (probeState.continuousMode && viewport.name === "apk-webview") {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
         await route.fulfill({
           status: 200,
           contentType: "text/event-stream; charset=utf-8",
@@ -500,7 +516,9 @@ try {
           status: 200,
           contentType: "application/json",
           headers: { "access-control-allow-origin": "*" },
-          body: JSON.stringify({ text: answerThis ? "这道题我不会" : "我想再练一道题" }),
+          body: JSON.stringify({
+            text: probeState.continuousMode ? (answerThis ? "这道题我不会" : "") : "我想再练一道题",
+          }),
         });
         return;
       }
@@ -897,6 +915,7 @@ try {
       // 文本页语音输入：点击麦克风开始，整条输入栏变成录音状态；点击整条结束，
       // 识别结果回填输入框但不自动发送。切后台也必须主动释放麦克风。
       const dictationProbe = {
+        preparingBeforeMic: false,
         recording: false,
         stripVisible: false,
         afterTapStop: 0,
@@ -920,6 +939,10 @@ try {
         };
         const messagePostsBefore = netProbe.messagePosts;
         await dictationButton.click();
+        dictationProbe.preparingBeforeMic = await page.evaluate(() => {
+          const strip = document.querySelector('[data-testid="voice-dictation-strip"]');
+          return (strip?.textContent || "").includes("正在打开麦克风") && window.__micProbe().liveAudioTracks === 0;
+        });
         dictationProbe.recording = (await waitForTracks((count) => count >= 1)) >= 1;
         const dictationStrip = page.locator('[data-testid="voice-dictation-strip"]').first();
         dictationProbe.stripVisible = await dictationStrip.isVisible();
@@ -960,6 +983,9 @@ try {
           .waitFor({ state: "visible", timeout: 6000 })
           .then(() => true)
           .catch(() => false);
+        continuousProbe.micReadyWhenOpened = await page.evaluate(
+          () => window.__micProbe().liveAudioTracks >= 1,
+        );
         // 假麦克风会先进入"在听"，说上话之后再进入"听到了，继续说"
         continuousProbe.reachedListening = await page
           .getByText("在听，直接说就行")
@@ -1034,13 +1060,16 @@ try {
       const micListening = await page.evaluate(() => window.__micProbe());
 
       // 孩子说出的第一句被识别成文字，自动发出去；答案边生成边流进实时文字。
-      const streamProbe = { sent: false, userShown: false, playing: false };
+      const streamProbe = { sent: false, userShown: false, playing: false, listeningWhileAnswerPending: false };
       streamProbe.userShown = await page
         .locator('[data-testid="voice-transcript"]', { hasText: "这道题我不会" })
         .first()
         .waitFor({ state: "visible", timeout: 12_000 })
         .then(() => true)
         .catch(() => false);
+      streamProbe.listeningWhileAnswerPending = await page.evaluate(
+        () => window.__micProbe().activeRecorders >= 1,
+      );
       streamProbe.sent = await page
         .locator('[data-testid="voice-transcript"]', { hasText: "先读一遍题" })
         .first()
@@ -1229,6 +1258,7 @@ try {
           readAloudWorks: speakProbe.started && speakProbe.stopped,
           continuousListeningWorks:
             continuousProbe.started &&
+            continuousProbe.micReadyWhenOpened &&
             continuousProbe.reachedListening &&
             continuousProbe.reachedSpeech &&
             continuousProbe.stopped,
@@ -1306,6 +1336,7 @@ try {
           micReleasedWhenHidden: micAfterHide.liveAudioTracks === 0,
           micReleasedOnClose: micAfterClose.liveAudioTracks === 0,
           voiceDictationWorks:
+            dictationProbe.preparingBeforeMic &&
             dictationProbe.recording &&
             dictationProbe.stripVisible &&
             dictationProbe.afterTapStop === 0 &&
@@ -1316,6 +1347,8 @@ try {
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
           // 文本先出现，语音片段随后边到边念
           streamedSpeechWorks: streamProbe.userShown && streamProbe.sent && streamProbe.playing && netProbe.messagePosts === 1,
+          micRestartsBeforeAnswer:
+            streamProbe.userShown && streamProbe.listeningWhileAnswerPending,
           // 孩子插话：本地停嘴 + 服务端停止生成
           bargeInWorks: bargeProbe.interruptCalls > 0 && bargeProbe.audioStopped,
         },

@@ -137,6 +137,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [quotaLeft, setQuotaLeft] = useState<number | null>(null);
+  const [recordingStarting, setRecordingStarting] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [autoRead, setAutoRead] = useState(readAutoReadPreference);
@@ -146,6 +147,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingRequestRef = useRef(0);
   const pressTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
   const autoReadRef = useRef(autoRead);
@@ -211,10 +213,17 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") recorderRef.current?.stop();
+      if (document.visibilityState === "hidden") {
+        recordingRequestRef.current += 1;
+        setRecordingStarting(false);
+        recorderRef.current?.stop();
+      }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      recordingRequestRef.current += 1;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
   // 「更多」开着时按 Esc 只收菜单：用捕获阶段拦下来，
@@ -252,12 +261,14 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
      * 识别到一句就先排队再发，不等私教把上一段念完。
      * 等它等于把麦克风关掉一整轮，插话打断就成了空话。
      */
-    onTranscript: async (text) => {
+    onTranscript: (text) => {
       if (busyRef.current) {
         pendingSpeechRef.current.push(text);
         return;
       }
-      await sendRef.current(text);
+      // 识别结果交给发送流程后立刻恢复录音，不等待整段 AI 回答生成完。
+      // 否则回答慢几秒时，孩子继续说的开头会落在无录音的空档里。
+      void sendRef.current(text);
     },
     onSpeechStart: () => bargeInRef.current(),
     onIdle: () =>
@@ -512,12 +523,19 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
    * 让孩子（或家长）看一眼再发，比答错题强。
    */
   async function startRecording() {
-    if (recording || recorderRef.current) return;
+    if (recordingStarting || recording || recorderRef.current) return;
     // 他要开口说话了：先把喇叭掐掉，别让私教的声音盖着他，
     // 也别让没念完的那半句混进麦克风里被当成他在说。
     cutSpeech();
+    const requestId = recordingRequestRef.current + 1;
+    recordingRequestRef.current = requestId;
+    setRecordingStarting(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (recordingRequestRef.current !== requestId || document.visibilityState === "hidden") {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       const chunks: Blob[] = [];
       const recorder = new MediaRecorder(stream);
       recorder.ondataavailable = (event) => {
@@ -546,10 +564,12 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
       };
       recorderRef.current = recorder;
       recorder.start();
+      setRecordingStarting(false);
       setRecording(true);
       // 手感兜底：万一抬起事件没触发（切后台、来电），最多录 60 秒就自己停
       pressTimerRef.current = window.setTimeout(() => recorderRef.current?.stop(), 60_000);
     } catch {
+      if (recordingRequestRef.current === requestId) setRecordingStarting(false);
       setError("没有拿到麦克风权限，检查手机的授权设置。");
     }
   }
@@ -895,14 +915,18 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
               <button
                 type="button"
                 onClick={voice.toggleContinuous}
-                aria-label={voice.continuous ? "关闭连续对话" : "开启连续对话"}
+                aria-label={voice.continuousStarting ? "正在连接麦克风" : voice.continuous ? "关闭连续对话" : "开启连续对话"}
                 aria-pressed={voice.continuous}
-                title="实时对话"
+                title={voice.continuousStarting ? "正在连接麦克风" : "实时对话"}
                 className={`siri-toggle grid h-11 w-11 shrink-0 place-items-center rounded-full transition ${
-                  voice.continuous ? "siri-toggle-active" : "bg-white/80 hover:bg-white"
+                  voice.continuous || voice.continuousStarting ? "siri-toggle-active" : "bg-white/80 hover:bg-white"
                 }`}
               >
-                <AudioWaveform className="voice-entry-wave" size={23} strokeWidth={2.2} aria-hidden="true" />
+                {voice.continuousStarting ? (
+                  <Loader2 className="animate-spin" size={21} aria-hidden="true" />
+                ) : (
+                  <AudioWaveform className="voice-entry-wave" size={23} strokeWidth={2.2} aria-hidden="true" />
+                )}
               </button>
             )}
             {voiceStatus.tts && (
@@ -1044,19 +1068,19 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
               }}
             />
           </label>
-          {recording || transcribing ? (
+          {recordingStarting || recording || transcribing ? (
             <button
               type="button"
               data-testid="voice-dictation-strip"
               onClick={recording ? stopRecording : undefined}
-              disabled={transcribing}
-              aria-label={recording ? "结束语音输入" : "正在识别语音"}
+              disabled={recordingStarting || transcribing}
+              aria-label={recordingStarting ? "正在打开麦克风" : recording ? "结束语音输入" : "正在识别语音"}
               className={`voice-dictation-strip min-h-10 flex-1 ${recording ? "is-recording" : "is-transcribing"}`}
             >
               <span className="voice-dictation-waves" aria-hidden="true">
                 {[0, 1, 2, 3, 4].map((bar) => <span key={bar} style={{ animationDelay: `${bar * 0.1}s` }} />)}
               </span>
-              <span>{recording ? "正在聆听，点击结束" : "正在识别…"}</span>
+              <span>{recordingStarting ? "正在打开麦克风…" : recording ? "正在聆听，点击结束" : "正在识别…"}</span>
             </button>
           ) : (
             <div className="relative flex min-h-10 flex-1 items-end rounded-xl border border-line bg-panel focus-within:border-teal">
@@ -1086,7 +1110,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
               )}
             </div>
           )}
-          {busy && !recording && !transcribing ? (
+          {busy && !recordingStarting && !recording && !transcribing ? (
             <button
               type="button"
               onClick={stop}
@@ -1095,7 +1119,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
             >
               <CircleStop size={18} />
             </button>
-          ) : !recording && !transcribing ? (
+          ) : !recordingStarting && !recording && !transcribing ? (
             <button
               type="button"
               onClick={() => void sendText(input, attachments)}
