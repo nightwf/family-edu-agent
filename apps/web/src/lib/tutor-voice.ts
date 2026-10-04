@@ -30,6 +30,16 @@ export type VoiceLoopConfig = {
    * 私教正在思考或念答案的时间不算"没人说话"，见 isIdleTimeout。
    */
   idleMs: number;
+  /**
+   * 拿到麦克风之后、允许孩子开口之前的预热时间（毫秒）。
+   *
+   * getUserMedia 返回不代表设备已经在采音：驱动和浏览器音频管线还要
+   * 两三百毫秒才真正稳定，这期间说的话会被整段吞掉，表现就是实时对话里
+   * 开头的字少了。调用方要等 start() 返回才把界面切到"在听"，
+   * 所以把这段等待放在 start() 里，等于让孩子在一个已经热好的麦克风前开口。
+   * 预热期间采到的声音不进对话，只是让管线先跑起来。
+   */
+  micWarmupMs: number;
 };
 
 export const VOICE_LOOP_DEFAULTS: VoiceLoopConfig = {
@@ -39,6 +49,7 @@ export const VOICE_LOOP_DEFAULTS: VoiceLoopConfig = {
   minSpeechMs: 550,
   bargeInMs: 200,
   idleMs: 180000,
+  micWarmupMs: 350,
 };
 
 /** 一段采样的音量（均方根）。采样值域按 -1..1 的浮点波形算。 */
@@ -250,13 +261,46 @@ export function createVoiceLoop(options: {
   let lastHeardAt = deps.now();
   let tutorActive = false;
   let idleFired = false;
+  let warmupTimer: number | null = null;
+  let warmupDone: (() => void) | null = null;
   const mimeType = { value: "" };
 
   function setState(state: VoiceLoopState) {
     options.onState(state);
   }
 
+  /**
+   * 等麦克风真正开始采音。
+   *
+   * 用 deps.schedule 而不是直接 setTimeout：一方面测试可以换成受控时钟，
+   * 另一方面 stop() 要能在等待中途把人叫醒，否则调用方会一直卡在 await 上。
+   */
+  function warmUpMic(): Promise<void> {
+    const ms = config.micWarmupMs;
+    if (!(ms > 0)) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      warmupDone = resolve;
+      warmupTimer = deps.schedule(() => {
+        warmupTimer = null;
+        warmupDone = null;
+        resolve();
+      });
+    });
+  }
+
+  /** 提前结束预热（被关掉、或出错时），别让 start() 的 await 悬着。 */
+  function endWarmup() {
+    if (warmupTimer !== null) {
+      deps.cancel(warmupTimer);
+      warmupTimer = null;
+    }
+    const done = warmupDone;
+    warmupDone = null;
+    done?.();
+  }
+
   function detach() {
+    endWarmup();
     if (timer !== null) {
       deps.cancel(timer);
       timer = null;
@@ -371,6 +415,9 @@ export function createVoiceLoop(options: {
         stop();
       };
       beginSegment();
+      // 界面切到"在听"之前先让麦克风热起来（见 micWarmupMs 的说明）。
+      // stop() 会在等待中途叫醒这里，所以关掉开关不会把 start() 卡住。
+      await warmUpMic();
     } catch {
       running = false;
       detach();

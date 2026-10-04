@@ -22,6 +22,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import { Badge, ChildTabs, Panel } from "./Layout";
 import { splitParagraphs, streamTutorMessage, stripForSpeech, type TutorStreamEvent } from "../lib/tutor";
+import { DICTATION_WARMUP_MS, openDictationStream } from "../lib/mic";
 import { useTutorVoice } from "../lib/use-tutor-voice";
 
 type Child = { id: string; name: string; grade?: string; gender?: string };
@@ -155,6 +156,12 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
   const abortRef = useRef<AbortController | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingRequestRef = useRef(0);
+  /**
+   * 麦克风正在申请/启动。用 ref 而不是 recordingStarting 状态来判断"要不要再开一次"：
+   * 手指按下的 pointerdown 和随后的 click 都会调 startRecording，
+   * 状态更新是异步的，等它生效之前第二次调用就已经进来了，会开两个麦克风。
+   */
+  const micOpeningRef = useRef(false);
   const pressTimerRef = useRef<number | null>(null);
   const busyRef = useRef(false);
   const autoReadRef = useRef(autoRead);
@@ -560,7 +567,8 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
    * 让孩子（或家长）看一眼再发，比答错题强。
    */
   async function startRecording() {
-    if (recordingStarting || recording || recorderRef.current) return;
+    if (micOpeningRef.current || recorderRef.current) return;
+    micOpeningRef.current = true;
     // 他要开口说话了：先把喇叭掐掉，别让私教的声音盖着他，
     // 也别让没念完的那半句混进麦克风里被当成他在说。
     cutSpeech();
@@ -570,7 +578,9 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
     recordingRequestRef.current = requestId;
     setRecordingStarting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 用专给语音输入准备的参数：关掉回声消除和自动增益，
+      // 它们的收敛窗口正好吃掉孩子开口的第一个字（见 lib/mic.ts）。
+      const stream = await openDictationStream();
       if (recordingRequestRef.current !== requestId || document.visibilityState === "hidden") {
         stream.getTracks().forEach((track) => track.stop());
         return;
@@ -611,6 +621,12 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
       };
       recorderRef.current = recorder;
       recorder.start();
+      // 设备刚开起来还没稳定采音，先让管线跑一小会儿再让孩子开口（见 mic.ts）。
+      // 提示语在这段时间里停在"正在打开麦克风…"，看到"正在聆听"再说话，
+      // 开头那个字就不会落在预热窗口里。
+      await new Promise((resolve) => window.setTimeout(resolve, DICTATION_WARMUP_MS));
+      // 等待期间被切到后台的话，上面那个 effect 已经停了录音，这里就别再改状态
+      if (recordingRequestRef.current !== requestId) return;
       setRecordingStarting(false);
       setRecording(true);
       // 手感兜底：万一抬起事件没触发（切后台、来电），最多录 60 秒就自己停
@@ -618,6 +634,8 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
     } catch {
       if (recordingRequestRef.current === requestId) setRecordingStarting(false);
       setError("没有拿到麦克风权限，检查手机的授权设置。");
+    } finally {
+      micOpeningRef.current = false;
     }
   }
 
@@ -1133,6 +1151,7 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
             <button
               type="button"
               data-testid="voice-dictation-strip"
+              data-state={recordingStarting ? "starting" : recording ? "recording" : "transcribing"}
               onClick={recording ? stopRecording : undefined}
               disabled={recordingStarting || transcribing}
               aria-label={recordingStarting ? "正在打开麦克风" : recording ? "结束语音输入" : "正在识别语音"}
@@ -1163,6 +1182,15 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
                   type="button"
                   title="语音输入"
                   aria-label="开始语音输入"
+                  /*
+                   * 手指一落下就开始申请麦克风，而不是等 click。
+                   * 设备从"申请"到"真的在采音"要两三百毫秒，孩子点完马上就开口，
+                   * 这段时间说的话就是丢掉的那个字。放在 pointerdown 上，
+                   * 等于让孩子按下去的那一下帮我们把这笔时间抢回来。
+                   * 键盘操作（回车/空格）没有 pointerdown，仍由 onClick 兜住，
+                   * 两次调用由 micOpeningRef 挡住，不会开两个麦克风。
+                   */
+                  onPointerDown={() => void startRecording()}
                   onClick={() => void startRecording()}
                   className="absolute bottom-1 right-1 grid h-8 w-8 place-items-center rounded-lg text-ink-soft transition hover:bg-teal/10 hover:text-teal active:scale-95"
                 >

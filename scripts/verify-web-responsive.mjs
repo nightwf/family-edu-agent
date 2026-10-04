@@ -235,6 +235,8 @@ const probeState = { voiceIdleMs: 180_000, continuousMode: false, slowStream: fa
 const MIC_PROBE_SCRIPT = () => {
   const streams = [];
   const recorders = [];
+  // 每次申请麦克风时把参数记下来：语音输入的参数决定了开头会被吃掉多少。
+  const constraintCalls = [];
   let trackStops = 0;
   const NativeMediaRecorder = window.MediaRecorder;
   window.MediaRecorder = class ProbeMediaRecorder extends NativeMediaRecorder {
@@ -245,6 +247,7 @@ const MIC_PROBE_SCRIPT = () => {
   };
   const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
   navigator.mediaDevices.getUserMedia = async (constraints) => {
+    constraintCalls.push(constraints);
     // 模拟手机 WebView 首次启动麦克风的真实延迟，防止界面先进入“可说话”状态。
     await new Promise((resolve) => setTimeout(resolve, 180));
     const stream = await originalGetUserMedia(constraints);
@@ -262,6 +265,8 @@ const MIC_PROBE_SCRIPT = () => {
       0,
     ),
     streamsOpened: streams.length,
+    microphoneRequests: constraintCalls.length,
+    lastAudioConstraints: constraintCalls.length ? constraintCalls[constraintCalls.length - 1]?.audio : null,
     activeRecorders: recorders.filter((recorder) => recorder.state === "recording").length,
     trackStops,
   });
@@ -954,6 +959,11 @@ try {
       // 识别结果回填输入框但不自动发送。切后台也必须主动释放麦克风。
       const dictationProbe = {
         preparingBeforeMic: false,
+        pointerDownStartsMic: false,
+        oneMicPerPress: false,
+        onsetConstraints: null,
+        warmupGate: false,
+        readyToSpeak: false,
         recording: false,
         stripVisible: false,
         afterTapStop: 0,
@@ -975,16 +985,51 @@ try {
           }
           return last;
         };
+        /**
+         * 开头的字：只按下（pointerdown）、不松手，麦克风就该已经在申请了。
+         * 等 click 才申请，设备预热那两三百毫秒正好盖住孩子开口的第一句，
+         * 表现就是识别结果少一个字。
+         */
+        await dictationButton.dispatchEvent("pointerdown");
+        dictationProbe.pointerDownStartsMic = (await waitForTracks((count) => count >= 1)) >= 1;
+        await page.locator('[data-testid="voice-dictation-strip"]').first().click();
+        await waitForTracks((count) => count === 0);
+        await dictationButton.waitFor({ state: "visible", timeout: 6000 });
+        dictationProbe.onsetConstraints = await page.evaluate(() => window.__micProbe().lastAudioConstraints);
+
         const messagePostsBefore = netProbe.messagePosts;
+        const micRequestsBefore = (await page.evaluate(() => window.__micProbe())).microphoneRequests;
         await dictationButton.click();
         dictationProbe.preparingBeforeMic = await page.evaluate(() => {
           const strip = document.querySelector('[data-testid="voice-dictation-strip"]');
           return (strip?.textContent || "").includes("正在打开麦克风") && window.__micProbe().liveAudioTracks === 0;
         });
         dictationProbe.recording = (await waitForTracks((count) => count >= 1)) >= 1;
+        // pointerdown 和 click 都会触发同一个动作，只能开一个麦克风
+        dictationProbe.oneMicPerPress =
+          (await page.evaluate(() => window.__micProbe())).microphoneRequests === micRequestsBefore + 1;
         const dictationStrip = page.locator('[data-testid="voice-dictation-strip"]').first();
         dictationProbe.stripVisible = await dictationStrip.isVisible();
-        await dictationStrip.click();
+        /**
+         * 麦克风开起来不等于在采音：提示语必须等预热结束才切到"正在聆听"。
+         * 这里盯的是"麦克风已经开着、提示语还停在正在打开麦克风"的那一瞬间，
+         * 它存在就说明界面没有抢在孩子之前宣称自己在听。
+         */
+        dictationProbe.warmupGate = await page.evaluate(async () => {
+          const deadline = Date.now() + 3000;
+          while (Date.now() < deadline) {
+            const strip = document.querySelector('[data-testid="voice-dictation-strip"]');
+            const state = strip?.getAttribute("data-state");
+            if (state === "starting" && window.__micProbe().liveAudioTracks >= 1) return true;
+            if (state === "recording") return false;
+            await new Promise((resolve) => setTimeout(resolve, 15));
+          }
+          return false;
+        });
+        const readyStrip = page.locator('[data-testid="voice-dictation-strip"][data-state="recording"]').first();
+        await readyStrip.waitFor({ state: "visible", timeout: 6000 }).catch(() => {});
+        dictationProbe.readyToSpeak = await readyStrip.isVisible();
+        await readyStrip.click();
         dictationProbe.afterTapStop = await waitForTracks((count) => count === 0);
         const composer = page.locator('textarea[placeholder="说说你卡在哪一步"]').first();
         dictationProbe.transcriptFilled = await composer
@@ -1502,6 +1547,16 @@ try {
             dictationProbe.transcriptFilled &&
             dictationProbe.notAutoSent &&
             dictationProbe.afterHide === 0,
+          // 孩子点完马上就开口，麦克风必须抢在按下那一刻就开始申请，
+          // 并且不能开着回声消除/自动增益——它们的收敛窗口就是那个丢掉的第一个字。
+          dictationOnsetKept:
+            dictationProbe.pointerDownStartsMic === true &&
+            dictationProbe.oneMicPerPress === true &&
+            dictationProbe.warmupGate === true &&
+            dictationProbe.readyToSpeak === true &&
+            dictationProbe.onsetConstraints?.echoCancellation === false &&
+            dictationProbe.onsetConstraints?.autoGainControl === false &&
+            dictationProbe.onsetConstraints?.channelCount === 1,
           voiceToolbarUsable:
             tutor.voiceToolbar.count === 2 && tutor.voiceToolbar.minHeight >= 28 && tutor.voiceToolbar.allInsideViewport,
           // 文本先出现，语音片段随后边到边念
