@@ -20,8 +20,9 @@ android {
         applicationId = "top.heyaagent.familyedu"
         minSdk = 24
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.2.2"
+        // 1.2.3：去掉外壳里那段会吞掉向下拖动的手势拦截（聊天页拖不动的问题）。
+        versionCode = 7
+        versionName = "1.2.3"
     }
 
     signingConfigs {

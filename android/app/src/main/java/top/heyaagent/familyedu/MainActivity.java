@@ -14,7 +14,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
@@ -81,9 +80,6 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback = null;
     /** 拍照时预先分配好的输出地址，相机把照片写进这里。 */
     private Uri pendingCameraUri = null;
-    /** 顶部下拉只消费越界手势，不让 WebView/系统把它解释成整页刷新。 */
-    private float pullStartY = 0f;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -190,27 +186,23 @@ public class MainActivity extends Activity {
         cookies.setAcceptThirdPartyCookies(webView, true);
 
         webView.setBackgroundColor(getColor(R.color.heya_cream));
+        /*
+         * 这里曾经挂过一个触摸监听：到顶后继续下拉就 return true，把越界手势吃掉，
+         * 用来压掉“下拉刷新”。
+         *
+         * 它有两个致命问题，最后变成了“聊天页摸不动”：
+         *   1. 判据是 webView.getScrollY() <= 0。页面内容是在 WebView 内部滚动的，
+         *      getScrollY() 几乎恒为 0，所以这个条件永远成立；
+         *   2. 于是“手指向下拖”的每一个 ACTION_MOVE 都被吞掉，而 WebView 收不到
+         *      移动事件就不会滚动内容。表现就是：能往上滑，却怎么拖都拖不回去，
+         *      像触摸失灵。
+         *
+         * 而且这个 App 就是一个普通 WebView（布局里没有 SwipeRefreshLayout），
+         * 本身并不存在下拉刷新，这段拦截并没有保护到任何真实行为。
+         * 真正的防越界由下面两件事负责：WebView 关闭过滚动效果，
+         * 页面侧 html/body 设置 overscroll-behavior: none。
+         */
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        webView.setOnTouchListener((view, event) -> {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    pullStartY = event.getY();
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    if (webView.getScrollY() <= 0 && event.getY() > pullStartY) {
-                        // 到顶后继续往下拉时只吃掉越界移动，点击、上滑和页内滚动不受影响。
-                        return true;
-                    }
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    pullStartY = 0f;
-                    break;
-                default:
-                    break;
-            }
-            return false;
-        });
         webView.setWebViewClient(new HeYaWebViewClient());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

@@ -467,6 +467,8 @@ try {
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: 2,
+      // 安卓形态是触摸设备：不带触摸的上下文测不出"拖不动"这类问题
+      ...(viewport.apk ? { hasTouch: true } : {}),
       ...(viewport.apk ? { permissions: ["microphone"] } : {}),
       ...(viewport.apk
         ? {
@@ -1211,6 +1213,8 @@ try {
         buttonAppeared: false,
         heldWhileStreaming: false,
         jumpWorks: false,
+        touchScrollDown: false,
+        touchScrollBack: false,
       };
       // 这一段会额外发一条消息，记下基线，免得后面"只发过一次"的断言被这条算进去
       const messagePostsBeforeScrollProbe = netProbe.messagePosts;
@@ -1275,6 +1279,46 @@ try {
           return el.scrollHeight - el.scrollTop - el.clientHeight <= 8;
         });
       }
+      // 真机是用手指拖，不是滚轮。用真实触摸事件再验一遍，尤其是"手指向下拖"
+      // 这个方向：外壳曾经把向下的拖动整个吃掉，表现就是页面拖不动。
+      const cdp = await page.context().newCDPSession(page);
+      const dragByTouch = async (deltaY) => {
+        const box = await chatScroll.boundingBox();
+        if (!box) return;
+        const x = Math.round(box.x + box.width / 2);
+        const startY = Math.round(box.y + box.height * 0.7);
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x, y: startY }],
+        });
+        for (let step = 1; step <= 12; step += 1) {
+          await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x, y: Math.round(startY + (deltaY * step) / 12) }],
+          });
+          await page.waitForTimeout(16);
+        }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await page.waitForTimeout(300);
+      };
+      const tutorScrollTop = () =>
+        page.evaluate(() => Math.round(document.querySelector('[data-testid="tutor-scroll"]')?.scrollTop ?? -1));
+
+      // 手指上滑 → 看后面的内容（scrollTop 变大）
+      await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="tutor-scroll"]');
+        if (el) el.scrollTop = 0;
+      });
+      const topBefore = await tutorScrollTop();
+      await dragByTouch(-260);
+      const topAfterUp = await tutorScrollTop();
+      scrollProbeTutor.touchScrollDown = topAfterUp > topBefore + 40;
+
+      // 手指下滑 → 往回看（scrollTop 变小）。这就是被外壳吞掉的那个方向。
+      await dragByTouch(260);
+      const topAfterDown = await tutorScrollTop();
+      scrollProbeTutor.touchScrollBack = topAfterDown < topAfterUp - 40;
+
       await page.evaluate(() => document.getElementById("probe-scroll-spacer")?.remove());
 
       // 收起浮窗要二次确认：点关闭 → 弹确认 → 点"再想想"不退出 →
@@ -1473,6 +1517,8 @@ try {
             scrollProbeTutor.buttonAppeared &&
             scrollProbeTutor.heldWhileStreaming &&
             scrollProbeTutor.jumpWorks,
+          // 触摸设备上必须两个方向都能拖动，不能只有滚轮能用
+          chatTouchScrollWorks: scrollProbeTutor.touchScrollDown && scrollProbeTutor.touchScrollBack,
           micRestartsBeforeAnswer:
             streamProbe.userShown && streamProbe.listeningWhileAnswerPending,
           // 孩子插话：本地停嘴 + 服务端停止生成
