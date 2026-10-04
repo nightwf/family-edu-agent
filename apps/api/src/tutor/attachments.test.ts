@@ -59,6 +59,11 @@ vi.mock("./voice/index.js", () => {
   };
 });
 
+// no-speech 的类定义在真实模块里（适配层抛的是它），这里取同一份，
+// 保证路由里的 instanceof 判的就是这个类。
+const { VoiceNoSpeechError } = await import("./voice/errors.js");
+const voiceMock = (await import("./voice/index.js")) as unknown as { transcribe: ReturnType<typeof vi.fn> };
+
 const { buildApp } = await import("../app.js");
 
 let app: FastifyInstance;
@@ -202,5 +207,19 @@ describe("私教上传：multipart 取文件", () => {
     });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: "没有收到音频" });
+  });
+
+  it("录音里没人说话时按 200 + no_speech 回，不报 502", async () => {
+    voiceMock.transcribe.mockRejectedValueOnce(new VoiceNoSpeechError("[Normal silence audio] no valid speech in audio"));
+    const { payload, headers } = multipart("voice.webm", "audio/webm", Buffer.alloc(2048, 7));
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/tutor/voice/transcribe",
+      headers: auth(headers),
+      payload,
+    });
+    // 孩子按下录音又没出声是常见操作，不该被当成服务故障
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ text: "", no_speech: true });
   });
 });

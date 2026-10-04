@@ -13,6 +13,7 @@ import { getQuotaState } from "./quota.js";
 import { buildHistory, draftFromTurn, extractEvidence } from "./memory.js";
 import { listArchivedOrActiveConversations, isTutorReady } from "./service.js";
 import { getVoiceStatus, synthesize, transcribe, VoiceNotConfiguredError } from "./voice/index.js";
+import { VoiceNoSpeechError } from "./voice/errors.js";
 import { splitSentences } from "./voice/sentences.js";
 import { interruptTurn, registerTurn, releaseTurn } from "./inflight.js";
 import { renderWorksheet } from "./worksheet.js";
@@ -448,6 +449,9 @@ export async function registerTutorRoutes(
       const text = await transcribe(file.buffer, format);
       return { text };
     } catch (error) {
+      // 录音里没人说话是正常结果，不是故障：按 200 + no_speech 回，
+      // 前端据此给一句"没听到声音"的轻提示，而不是红字报错。
+      if (error instanceof VoiceNoSpeechError) return { text: "", no_speech: true };
       const status = error instanceof VoiceNotConfiguredError ? 503 : 502;
       return reply.code(status).send({ error: (error as Error).message });
     }

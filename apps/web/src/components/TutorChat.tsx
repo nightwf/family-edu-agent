@@ -47,6 +47,9 @@ type Props = {
 
 const EMPTY_HINT = "拍一张错题照片，或者直接问一道题。我会先问你思路，不会直接给答案。";
 
+/** 录音里没人说话时的提示。是提醒不是报错，所以走 notice 而不是 error。 */
+const NO_SPEECH_HINT = "没听到声音，点一下麦克风再说一次试试。";
+
 const LOOP_STATE_TEXT: Record<string, string> = {
   idle: "点一下开始听",
   listening: "在听，直接说就行",
@@ -561,6 +564,8 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
     // 他要开口说话了：先把喇叭掐掉，别让私教的声音盖着他，
     // 也别让没念完的那半句混进麦克风里被当成他在说。
     cutSpeech();
+    setError("");
+    setNotice("");
     const requestId = recordingRequestRef.current + 1;
     recordingRequestRef.current = requestId;
     setRecordingStarting(true);
@@ -583,13 +588,21 @@ export default function TutorChat({ token, apiBase, children, request, onClose, 
         stream.getTracks().forEach((track) => track.stop());
         recorderRef.current = null;
         setRecording(false);
-        setTranscribing(true);
         const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
+        // 只按了录音又马上松开：文件里一个字节都没有，没必要跑一趟服务端
+        if (!blob.size) {
+          setNotice(NO_SPEECH_HINT);
+          return;
+        }
+        setTranscribing(true);
         const form = new FormData();
         form.append("file", blob, "voice.webm");
         try {
           const data = await request("/api/tutor/voice/transcribe", { method: "POST", body: form }, token);
           if (data?.text) setInput((current) => (current ? `${current} ${data.text}` : data.text));
+          // 服务端回 no_speech（或空文本）＝ 这段录音里没人说话，是正常结果，不是故障。
+          // 这里只给一句轻提示，不报红字——孩子看到"失败"会以为工具坏了。
+          else setNotice(NO_SPEECH_HINT);
         } catch (err) {
           setError((err as Error).message);
         } finally {

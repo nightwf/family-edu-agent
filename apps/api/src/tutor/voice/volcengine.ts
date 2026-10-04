@@ -12,6 +12,7 @@
  */
 
 import { createJsonObjectStream } from "./json-stream.js";
+import { isNoSpeechCode, looksLikeNoSpeech, VoiceNoSpeechError } from "./errors.js";
 
 /** 旧版控制台：小模型 HTTP 非流式合成（历史文档，需要 AppID/Token/Cluster/音色） */
 const TTS_LEGACY_ENDPOINT = "https://openspeech.bytedance.com/api/v1/tts";
@@ -199,6 +200,7 @@ export function createVolcAsr(options: { apiKey?: string; appId?: string; access
 
       if (!response.ok) {
         const body = await response.text().catch(() => "");
+        if (looksLikeNoSpeech(body)) throw new VoiceNoSpeechError("上游判定这段录音里没有人声");
         throw new Error(`语音识别失败：HTTP ${response.status} ${body.slice(0, 200)}`);
       }
       const payload: any = await response.json();
@@ -207,6 +209,9 @@ export function createVolcAsr(options: { apiKey?: string; appId?: string; access
       if (!text) {
         const status = response.headers.get("x-api-status-code") || "";
         const message = response.headers.get("x-api-message") || "未识别出内容";
+        // 20000003「Normal silence audio」是"这句没人说话"，属正常结果（孩子按下又松开、
+        // 犹豫没出声都会这样）。当故障抛出去会让前端弹红字，孩子以为坏了。
+        if (isNoSpeechCode(status) || looksLikeNoSpeech(message)) throw new VoiceNoSpeechError(message);
         throw new Error(`语音识别失败：${status ? `code=${status} ` : ""}${message}`);
       }
       return String(text || "").trim();

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createVolcAsr, createVolcTts, createVolcTtsV3 } from "./volcengine.js";
+import { VoiceNoSpeechError } from "./errors.js";
 
 /**
  * 火山语音的两个真实坑，用假 fetch 钉住：
@@ -100,6 +101,22 @@ describe("语音识别（ASR）", () => {
   it("正文为空对象且没有响应头时，也不返回空文本冒充成功", async () => {
     stubFetch(() => jsonResponse({}));
     await expect(createVolcAsr(asrConfig).transcribe(Buffer.from("audio"), "mp3")).rejects.toThrow(/未识别出内容/);
+  });
+
+  it("code=20000003「没人说话」抛可识别的 no-speech，而不是普通失败", async () => {
+    stubFetch(() =>
+      jsonResponse({}, { "x-api-status-code": "20000003", "x-api-message": "[Normal silence audio] no valid speech in audio" }),
+    );
+    await expect(createVolcAsr(asrConfigApiKey).transcribe(Buffer.from("audio"), "mp3")).rejects.toBeInstanceOf(
+      VoiceNoSpeechError,
+    );
+  });
+
+  it("只按文案回了 no valid speech 也认得出来（有些链路不给状态码）", async () => {
+    stubFetch(() => jsonResponse({}, { "x-api-message": "no valid speech in audio" }));
+    await expect(createVolcAsr(asrConfigApiKey).transcribe(Buffer.from("audio"), "mp3")).rejects.toBeInstanceOf(
+      VoiceNoSpeechError,
+    );
   });
 
   it("请求头里的资源标识用的是配置的 cluster", async () => {

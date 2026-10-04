@@ -558,6 +558,15 @@ export interface ChatProvider {
 | `POST` | `/api/tutor/voice/transcribe` | 录音转文字 |
 | `POST` | `/api/tutor/voice/speak` | 文字转语音，返回音频字节 |
 
+`transcribe` 的两种返回都是 200，调用方必须分开处理：
+
+- `{ "text": "..." }`：听到了内容。
+- `{ "text": "", "no_speech": true }`：录音里没有人说话（火山 `code=20000003`
+  「Normal silence audio」）。这是**正常结果**——孩子按下录音又松开、犹豫没出声
+  都会这样，前端只提示一句"没听到声音"，不要报红字故障。
+
+真正的识别故障（凭据错、资源未开通、音频格式不对）仍然是非 200 + `{ error }`。
+
 SSE 事件类型：
 
 ```

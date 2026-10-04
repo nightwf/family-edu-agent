@@ -260,8 +260,10 @@ export function useTutorVoice(options: {
           const data = (await response.json().catch(() => ({}))) as { error?: string };
           throw new Error(data?.error || `识别失败（${response.status}）`);
         }
-        const data = (await response.json()) as { text?: string };
+        const data = (await response.json()) as { text?: string; no_speech?: boolean };
         const text = String(data?.text || "").trim();
+        // no_speech＝这一句里没人说话（背景噪音被判成了说话）。连续对话里这是常态，
+        // 接着听下一句就行；当成错误抛出去会把免提模式整个关掉。
         if (text) await transcriptRef.current(text);
       },
     });
